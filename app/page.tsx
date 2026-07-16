@@ -1,427 +1,438 @@
+import Link from "next/link";
+
 const stats = [
   {
     label: "Active Clients",
     value: "14",
-    detail: "+2 from last month",
-    icon: "👥",
+    detail: "2 added this month",
   },
   {
-    label: "Projects in Progress",
+    label: "New Leads",
     value: "6",
-    detail: "+1 from last week",
-    icon: "📄",
+    detail: "3 need follow-up",
   },
   {
-    label: "Upcoming Calls",
+    label: "Upcoming Sessions",
     value: "4",
-    detail: "2 calls today",
-    icon: "📅",
-  },
-  {
-    label: "Follow-Ups Due",
-    value: "8",
-    detail: "Next: Sarah M.",
-    icon: "✓",
+    detail: "2 scheduled today",
   },
   {
     label: "Revenue This Month",
     value: "$4,750",
-    detail: "+18% from last month",
-    icon: "$",
+    detail: "18% above last month",
   },
 ];
 
-const clients = [
+const dailyChecklist = [
+  "Post on LinkedIn",
+  "Post on social media",
+  "Publish on Substack",
+];
+
+const clientTasks = [
+  {
+    client: "Jonathan Taylor",
+    task: "Send final resume and cover letter",
+    due: "Today",
+  },
+  {
+    client: "Sarah Johnson",
+    task: "Follow up regarding payment",
+    due: "Today",
+  },
+  {
+    client: "Ivana Eatmon",
+    task: "Prepare interview coaching notes",
+    due: "Tomorrow",
+  },
+];
+
+const interviews = [
+  {
+    client: "Sarah Johnson",
+    role: "Account Executive",
+    company: "ABC Insurance",
+    date: "Tomorrow",
+    time: "2:00 PM",
+  },
+  {
+    client: "Jonathan Taylor",
+    role: "Deputy CTO",
+    company: "City Leadership Team",
+    date: "Friday",
+    time: "10:30 AM",
+  },
+];
+
+const recentClients = [
   {
     name: "Jonathan Taylor",
-    initials: "JT",
     service: "Resume + Cover Letter",
     status: "Revision",
-    nextStep: "Send final PDF",
     payment: "Paid",
   },
   {
     name: "Ivana Eatmon",
-    initials: "IE",
     service: "Resume Review",
     status: "In Progress",
-    nextStep: "Interview coaching",
-    payment: "Paid",
-  },
-  {
-    name: "Marc Williams",
-    initials: "MW",
-    service: "Resume + LinkedIn",
-    status: "In Progress",
-    nextStep: "LinkedIn optimization",
     payment: "Paid",
   },
   {
     name: "Sarah Johnson",
-    initials: "SJ",
     service: "Career Coaching",
     status: "On Hold",
-    nextStep: "Payment pending",
     payment: "Pending",
   },
 ];
 
-const tasks = [
-  { task: "Send revised resume to Jonathan", due: "Today" },
-  { task: "Follow up with Sarah about payment", due: "Today" },
-  { task: "Schedule discovery call with Mike", due: "Tomorrow" },
-  { task: "Review Ivana's LinkedIn profile", due: "Tomorrow" },
-];
-
-const schedule = [
-  {
-    time: "9:00 AM",
-    client: "Jonathan Taylor",
-    service: "Resume Review Call",
-  },
-  {
-    time: "11:30 AM",
-    client: "Ivana Eatmon",
-    service: "Interview Coaching",
-  },
-  {
-    time: "2:00 PM",
-    client: "Marc Williams",
-    service: "Resume Strategy Call",
-  },
-];
-
 const navigation = [
-  ["▦", "Dashboard"],
-  ["👥", "Clients"],
-  ["◎", "Leads"],
-  ["▣", "Projects"],
-  ["□", "Calendar"],
-  ["✓", "Tasks"],
-  ["$", "Payments"],
-  ["▤", "Documents"],
-  ["▧", "Templates"],
-  ["✦", "Resources"],
-  ["▥", "Reports"],
-  ["⚙", "Settings"],
+  { label: "Dashboard", href: "/" },
+  { label: "Clients", href: "/clients" },
+  { label: "Leads", href: "#" },
+  { label: "Calendar", href: "#" },
+  { label: "Tasks", href: "#" },
+  { label: "Revenue", href: "#" },
+  { label: "Files", href: "#" },
+  { label: "Email Templates", href: "#" },
+  { label: "Marketing", href: "#" },
+  { label: "Settings", href: "#" },
 ];
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    Revision: "bg-purple-100 text-purple-700",
-    "In Progress": "bg-blue-100 text-blue-700",
-    "On Hold": "bg-orange-100 text-orange-700",
-  };
-
-  return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-        styles[status] || "bg-gray-100 text-gray-700"
-      }`}
-    >
-      {status}
-    </span>
-  );
-}
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[#f7f7fb] text-slate-900">
+    <main className="min-h-screen bg-[#f7f8f3] text-[#243128]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-64 flex-col bg-[#071525] px-5 py-7 text-white lg:flex">
+        <aside className="hidden w-64 flex-col border-r border-[#dfe6db] bg-[#f1f4ed] px-5 py-7 lg:flex">
           <div className="mb-10 px-2">
-            <div className="text-4xl font-bold tracking-tight text-purple-400">
-              JGO
-            </div>
-            <div className="text-2xl tracking-[0.28em]">HIRE</div>
-            <p className="mt-2 text-[10px] uppercase tracking-wider text-slate-400">
-              Career Coach + Recruiter
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#7f9975]">
+              JGO Hire
+            </p>
+
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#3d4d39]">
+              JGO OS
+            </h1>
+
+            <p className="mt-2 text-xs leading-5 text-[#708075]">
+              Your business command center
             </p>
           </div>
 
           <nav className="space-y-2">
-            {navigation.map(([icon, label], index) => (
-              <button
-                key={label}
-                className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
+            {navigation.map((item, index) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`block rounded-xl px-4 py-3 text-sm font-semibold transition ${
                   index === 0
-                    ? "bg-purple-600 text-white"
-                    : "text-slate-300 hover:bg-white/10 hover:text-white"
+                    ? "bg-[#d7e1d0] text-[#3d4d39]"
+                    : "text-[#647066] hover:bg-white hover:text-[#3d4d39]"
                 }`}
               >
-                <span className="w-5 text-center">{icon}</span>
-                {label}
-              </button>
+                {item.label}
+              </Link>
             ))}
           </nav>
 
-          <div className="mt-auto border-t border-white/10 pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500 font-semibold">
-                JG
-              </div>
-              <div>
-                <p className="text-sm font-semibold">Jen Gordon</p>
-                <p className="text-xs text-slate-400">
-                  Career Coach & Recruiter
-                </p>
-              </div>
-            </div>
+          <div className="mt-auto rounded-2xl border border-[#dfe6db] bg-white p-4">
+            <p className="text-sm font-semibold text-[#3d4d39]">
+              Jennifer Gordon
+            </p>
 
-            <button className="mt-5 w-full rounded-xl border border-white/20 px-4 py-3 text-sm text-slate-300 hover:bg-white/10">
+            <p className="mt-1 text-xs text-[#708075]">
+              Certified Career Coach and Recruiter
+            </p>
+
+            <button className="mt-4 w-full rounded-xl border border-[#d7e1d0] px-4 py-2 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]">
               Log Out
             </button>
           </div>
         </aside>
 
         <section className="min-w-0 flex-1">
-          <header className="border-b border-slate-200 bg-white px-6 py-5 lg:px-10">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">
-                  Good Evening, Jen! 👋
-                </h1>
-                <p className="mt-1 text-sm text-slate-500">
-                  Here’s what’s happening with your clients and business today.
+                <p className="text-sm font-semibold text-[#7f9975]">
+                  Thursday, July 16
+                </p>
+
+                <h2 className="mt-2 text-3xl font-bold tracking-tight text-[#243128]">
+                  Good morning, Jen
+                </h2>
+
+                <p className="mt-2 text-sm text-[#708075]">
+                  Here is what needs your attention today.
                 </p>
               </div>
 
-              <div className="flex gap-3">
-                <button className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
-                  + New Client
-                </button>
-                <button className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold hover:bg-slate-50">
-                  Schedule Call
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/clients"
+                  className="rounded-xl border border-[#cbd8c4] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247] shadow-sm hover:bg-[#f5f7f2]"
+                >
+                  View Clients
+                </Link>
+
+                <button className="rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#4d6247]">
+                  + Add New Client
                 </button>
               </div>
             </div>
           </header>
 
-          <div className="space-y-6 p-6 lg:p-10">
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="space-y-7 p-6 lg:p-10">
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {stats.map((stat) => (
                 <div
                   key={stat.label}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm"
                 >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-slate-500">
-                        {stat.label}
-                      </p>
-                      <p className="mt-2 text-3xl font-bold">{stat.value}</p>
-                    </div>
+                  <p className="text-sm font-medium text-[#708075]">
+                    {stat.label}
+                  </p>
 
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-purple-100 text-lg font-bold text-purple-700">
-                      {stat.icon}
-                    </div>
-                  </div>
+                  <p className="mt-3 text-3xl font-bold text-[#243128]">
+                    {stat.value}
+                  </p>
 
-                  <p className="mt-4 text-xs font-medium text-purple-700">
+                  <p className="mt-3 text-xs font-semibold text-[#7f9975]">
                     {stat.detail}
                   </p>
                 </div>
               ))}
             </section>
 
-            <section className="grid gap-6 xl:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-5 flex items-center justify-between">
-                  <h2 className="text-lg font-bold">Today’s Schedule</h2>
-                  <button className="text-sm font-semibold text-purple-700">
-                    View Calendar
-                  </button>
-                </div>
+            <section className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
+              <div className="rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-[#243128]">
+                      Daily Checklist
+                    </h3>
 
-                <div className="space-y-5">
-                  {schedule.map((item) => (
-                    <div
-                      key={`${item.time}-${item.client}`}
-                      className="flex items-start gap-4"
-                    >
-                      <p className="w-20 text-sm font-semibold text-purple-700">
-                        {item.time}
-                      </p>
-
-                      <div className="mt-1.5 h-3 w-3 rounded-full bg-purple-600" />
-
-                      <div>
-                        <p className="text-sm font-semibold">{item.client}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {item.service}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-5 flex items-center justify-between">
-                  <h2 className="text-lg font-bold">Client Snapshot</h2>
-                  <button className="text-sm font-semibold text-purple-700">
-                    View Clients
-                  </button>
-                </div>
-
-                <div className="flex min-h-52 items-center justify-center">
-                  <div className="relative flex h-44 w-44 items-center justify-center rounded-full bg-[conic-gradient(#7c3aed_0_43%,#22c55e_43%_79%,#f59e0b_79%_93%,#3b82f6_93%_100%)]">
-                    <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white">
-                      <span className="text-3xl font-bold">14</span>
-                      <span className="text-xs text-slate-500">Total Clients</span>
-                    </div>
+                    <p className="mt-1 text-sm text-[#708075]">
+                      Your recurring daily business habits.
+                    </p>
                   </div>
+
+                  <span className="rounded-full bg-[#e8eee3] px-3 py-1 text-xs font-semibold text-[#4d6247]">
+                    0 of 3
+                  </span>
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                  <p>
-                    <span className="mr-2 text-purple-600">●</span>In Progress
-                  </p>
-                  <p>
-                    <span className="mr-2 text-green-500">●</span>Completed
-                  </p>
-                  <p>
-                    <span className="mr-2 text-amber-500">●</span>On Hold
-                  </p>
-                  <p>
-                    <span className="mr-2 text-blue-500">●</span>Discovery
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-5 flex items-center justify-between">
-                  <h2 className="text-lg font-bold">Tasks Due</h2>
-                  <button className="text-sm font-semibold text-purple-700">
-                    View Tasks
-                  </button>
-                </div>
-
-                <div className="divide-y divide-slate-100">
-                  {tasks.map((item) => (
+                <div className="mt-6 space-y-3">
+                  {dailyChecklist.map((item) => (
                     <label
-                      key={item.task}
-                      className="flex cursor-pointer items-start gap-3 py-4"
+                      key={item}
+                      className="flex cursor-pointer items-center gap-3 rounded-xl border border-[#e4e9df] bg-[#fbfcf9] px-4 py-4"
                     >
                       <input
                         type="checkbox"
-                        className="mt-1 h-4 w-4 accent-purple-600"
+                        className="h-4 w-4 accent-[#647d5b]"
                       />
 
-                      <span className="flex-1 text-sm">{item.task}</span>
-
-                      <span
-                        className={`text-xs font-semibold ${
-                          item.due === "Today"
-                            ? "text-red-500"
-                            : "text-slate-500"
-                        }`}
-                      >
-                        {item.due}
+                      <span className="text-sm font-medium text-[#3d4d39]">
+                        {item}
                       </span>
                     </label>
                   ))}
                 </div>
 
-                <button className="mt-4 text-sm font-semibold text-purple-700">
-                  + New Task
+                <button className="mt-5 text-sm font-semibold text-[#647d5b]">
+                  Manage Daily Checklist
                 </button>
+              </div>
+
+              <div className="rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-[#243128]">
+                      Upcoming Client Interviews
+                    </h3>
+
+                    <p className="mt-1 text-sm text-[#708075]">
+                      Remember to send a good-luck message.
+                    </p>
+                  </div>
+
+                  <button className="text-sm font-semibold text-[#647d5b]">
+                    View Calendar
+                  </button>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  {interviews.map((interview) => (
+                    <div
+                      key={`${interview.client}-${interview.time}`}
+                      className="rounded-xl border border-[#e4e9df] bg-[#fbfcf9] p-4"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-semibold text-[#243128]">
+                            {interview.client}
+                          </p>
+
+                          <p className="mt-1 text-sm text-[#708075]">
+                            {interview.role} at {interview.company}
+                          </p>
+
+                          <p className="mt-2 text-xs font-semibold text-[#7f9975]">
+                            {interview.date} at {interview.time}
+                          </p>
+                        </div>
+
+                        <button className="rounded-xl bg-[#e8eee3] px-4 py-2 text-sm font-semibold text-[#4d6247] hover:bg-[#d7e1d0]">
+                          Send Good Luck Text
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </section>
 
-            <section className="grid gap-6 xl:grid-cols-[1fr_260px]">
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex flex-col gap-4 border-b border-slate-200 p-6 sm:flex-row sm:items-center sm:justify-between">
-                  <h2 className="text-lg font-bold">Recent Clients</h2>
+            <section className="grid gap-6 xl:grid-cols-[1fr_320px]">
+              <div className="rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-[#243128]">
+                      Client Tasks
+                    </h3>
 
-                  <div className="flex gap-3">
-                    <input
-                      placeholder="Search clients..."
-                      className="min-w-0 rounded-xl border border-slate-300 px-4 py-2 text-sm outline-none focus:border-purple-500"
-                    />
-
-                    <button className="rounded-xl bg-purple-100 px-4 py-2 text-sm font-semibold text-purple-700">
-                      View All
-                    </button>
+                    <p className="mt-1 text-sm text-[#708075]">
+                      Work tied directly to client projects.
+                    </p>
                   </div>
+
+                  <button className="text-sm font-semibold text-[#647d5b]">
+                    View All Tasks
+                  </button>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[800px] text-left">
-                    <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="px-6 py-4">Client</th>
-                        <th className="px-6 py-4">Service</th>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4">Next Step</th>
-                        <th className="px-6 py-4">Payment</th>
-                      </tr>
-                    </thead>
+                <div className="mt-6 divide-y divide-[#edf0ea]">
+                  {clientTasks.map((item) => (
+                    <div
+                      key={`${item.client}-${item.task}`}
+                      className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-[#243128]">
+                          {item.client}
+                        </p>
 
-                    <tbody className="divide-y divide-slate-100">
-                      {clients.map((client) => (
-                        <tr key={client.name} className="hover:bg-slate-50">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-700">
-                                {client.initials}
-                              </div>
-                              <span className="text-sm font-semibold">
-                                {client.name}
-                              </span>
-                            </div>
-                          </td>
+                        <p className="mt-1 text-sm text-[#708075]">
+                          {item.task}
+                        </p>
+                      </div>
 
-                          <td className="px-6 py-4 text-sm text-slate-600">
-                            {client.service}
-                          </td>
-
-                          <td className="px-6 py-4">
-                            <StatusBadge status={client.status} />
-                          </td>
-
-                          <td className="px-6 py-4 text-sm text-slate-600">
-                            {client.nextStep}
-                          </td>
-
-                          <td className="px-6 py-4">
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                client.payment === "Paid"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-amber-100 text-amber-700"
-                              }`}
-                            >
-                              {client.payment}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      <span
+                        className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                          item.due === "Today"
+                            ? "bg-[#f7e7e4] text-[#9a554d]"
+                            : "bg-[#eef2e9] text-[#5c7454]"
+                        }`}
+                      >
+                        {item.due}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="mb-5 text-lg font-bold">Quick Actions</h2>
+              <div className="rounded-2xl border border-[#dfe6db] bg-[#eef2e9] p-6 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7f9975]">
+                  Quick Actions
+                </p>
 
-                <div className="space-y-3">
+                <h3 className="mt-2 text-xl font-bold text-[#243128]">
+                  Keep things moving
+                </h3>
+
+                <div className="mt-6 space-y-3">
                   {[
                     "Add New Client",
-                    "Create New Project",
-                    "Send Email",
-                    "Upload Document",
-                    "Create Invoice",
-                    "New Task",
+                    "Add New Lead",
+                    "Schedule Free15",
+                    "Send Invoice",
+                    "Create Email",
+                    "Upload Client File",
                   ].map((action) => (
                     <button
                       key={action}
-                      className="w-full rounded-xl bg-purple-50 px-4 py-3 text-left text-sm font-semibold text-purple-700 transition hover:bg-purple-100"
+                      className="w-full rounded-xl bg-white px-4 py-3 text-left text-sm font-semibold text-[#4d6247] shadow-sm transition hover:bg-[#f8faf6]"
                     >
                       + {action}
                     </button>
                   ))}
                 </div>
+              </div>
+            </section>
+
+            <section className="overflow-hidden rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
+              <div className="flex flex-col gap-4 border-b border-[#e4e9df] p-6 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-[#243128]">
+                    Recent Clients
+                  </h3>
+
+                  <p className="mt-1 text-sm text-[#708075]">
+                    A quick look at active client work.
+                  </p>
+                </div>
+
+                <Link
+                  href="/clients"
+                  className="text-sm font-semibold text-[#647d5b]"
+                >
+                  View All Clients
+                </Link>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[750px] text-left">
+                  <thead className="bg-[#f8faf6] text-xs uppercase tracking-wide text-[#708075]">
+                    <tr>
+                      <th className="px-6 py-4">Client</th>
+                      <th className="px-6 py-4">Service</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Payment</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-[#edf0ea]">
+                    {recentClients.map((client) => (
+                      <tr key={client.name} className="hover:bg-[#fbfcf9]">
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-semibold text-[#243128]">
+                            {client.name}
+                          </p>
+                        </td>
+
+                        <td className="px-6 py-4 text-sm text-[#647066]">
+                          {client.service}
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className="rounded-full bg-[#e8eee3] px-3 py-1 text-xs font-semibold text-[#4d6247]">
+                            {client.status}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              client.payment === "Paid"
+                                ? "bg-[#e7f1e6] text-[#55704f]"
+                                : "bg-[#f6ecd9] text-[#8f6d37]"
+                            }`}
+                          >
+                            {client.payment}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </section>
           </div>

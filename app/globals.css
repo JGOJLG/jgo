@@ -1,26 +1,58 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f8f3;
+  --foreground: #243128;
+
+  --surface: #ffffff;
+  --surface-soft: #eef2e9;
+
+  --sage-50: #f5f7f2;
+  --sage-100: #e8eee3;
+  --sage-200: #d7e1d0;
+  --sage-300: #becdb5;
+  --sage-400: #9fb294;
+  --sage-500: #7f9975;
+  --sage-600: #647d5b;
+  --sage-700: #4d6247;
+  --sage-800: #3d4d39;
+  --sage-900: #303d2d;
+
+  --cream: #fbfaf6;
+  --border: #dfe6db;
+  --muted: #708075;
+  --danger: #a85656;
+  --warning: #a47b3f;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: var(--sage-200);
+  color: var(--sage-900);
 }
