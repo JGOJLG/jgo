@@ -109,7 +109,6 @@ export async function deleteClientPermanently(
     "follow_ups",
     "payments",
     "client_services",
-    "intake_calls",
     "client_files",
   ] as const;
 
