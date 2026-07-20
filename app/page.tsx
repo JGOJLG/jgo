@@ -98,6 +98,33 @@ const navigation = [
   { label: "Settings", href: "#" },
 ];
 
+const quickActions = [
+  {
+    label: "Add New Client",
+    href: "/clients/new",
+  },
+  {
+    label: "Add New Lead",
+    href: "#",
+  },
+  {
+    label: "Schedule Free15",
+    href: "#",
+  },
+  {
+    label: "Send Invoice",
+    href: "#",
+  },
+  {
+    label: "Create Email",
+    href: "#",
+  },
+  {
+    label: "Upload Client File",
+    href: "#",
+  },
+];
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#f7f8f3] text-[#243128]">
@@ -142,7 +169,10 @@ export default function Home() {
               Certified Career Coach and Recruiter
             </p>
 
-            <button className="mt-4 w-full rounded-xl border border-[#d7e1d0] px-4 py-2 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]">
+            <button
+              type="button"
+              className="mt-4 w-full rounded-xl border border-[#d7e1d0] px-4 py-2 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+            >
               Log Out
             </button>
           </div>
@@ -173,9 +203,12 @@ export default function Home() {
                   View Clients
                 </Link>
 
-                <button className="rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#4d6247]">
+                <Link
+                  href="/clients/new"
+                  className="rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#4d6247]"
+                >
                   + Add New Client
-                </button>
+                </Link>
               </div>
             </div>
           </header>
@@ -238,7 +271,10 @@ export default function Home() {
                   ))}
                 </div>
 
-                <button className="mt-5 text-sm font-semibold text-[#647d5b]">
+                <button
+                  type="button"
+                  className="mt-5 text-sm font-semibold text-[#647d5b]"
+                >
                   Manage Daily Checklist
                 </button>
               </div>
@@ -255,7 +291,10 @@ export default function Home() {
                     </p>
                   </div>
 
-                  <button className="text-sm font-semibold text-[#647d5b]">
+                  <button
+                    type="button"
+                    className="text-sm font-semibold text-[#647d5b]"
+                  >
                     View Calendar
                   </button>
                 </div>
@@ -281,7 +320,10 @@ export default function Home() {
                           </p>
                         </div>
 
-                        <button className="rounded-xl bg-[#e8eee3] px-4 py-2 text-sm font-semibold text-[#4d6247] hover:bg-[#d7e1d0]">
+                        <button
+                          type="button"
+                          className="rounded-xl bg-[#e8eee3] px-4 py-2 text-sm font-semibold text-[#4d6247] hover:bg-[#d7e1d0]"
+                        >
                           Send Good Luck Text
                         </button>
                       </div>
@@ -304,7 +346,10 @@ export default function Home() {
                     </p>
                   </div>
 
-                  <button className="text-sm font-semibold text-[#647d5b]">
+                  <button
+                    type="button"
+                    className="text-sm font-semibold text-[#647d5b]"
+                  >
                     View All Tasks
                   </button>
                 </div>
@@ -349,21 +394,25 @@ export default function Home() {
                 </h3>
 
                 <div className="mt-6 space-y-3">
-                  {[
-                    "Add New Client",
-                    "Add New Lead",
-                    "Schedule Free15",
-                    "Send Invoice",
-                    "Create Email",
-                    "Upload Client File",
-                  ].map((action) => (
-                    <button
-                      key={action}
-                      className="w-full rounded-xl bg-white px-4 py-3 text-left text-sm font-semibold text-[#4d6247] shadow-sm transition hover:bg-[#f8faf6]"
-                    >
-                      + {action}
-                    </button>
-                  ))}
+                  {quickActions.map((action) =>
+                    action.href === "#" ? (
+                      <button
+                        key={action.label}
+                        type="button"
+                        className="w-full rounded-xl bg-white px-4 py-3 text-left text-sm font-semibold text-[#4d6247] shadow-sm transition hover:bg-[#f8faf6]"
+                      >
+                        + {action.label}
+                      </button>
+                    ) : (
+                      <Link
+                        key={action.label}
+                        href={action.href}
+                        className="block w-full rounded-xl bg-white px-4 py-3 text-left text-sm font-semibold text-[#4d6247] shadow-sm transition hover:bg-[#f8faf6]"
+                      >
+                        + {action.label}
+                      </Link>
+                    )
+                  )}
                 </div>
               </div>
             </section>
