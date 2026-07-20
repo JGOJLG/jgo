@@ -1,0 +1,12 @@
+
+> jgo-portal@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.10 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.0.0.109:3000
+- Environments: .env.local
+✓ Ready in 368ms
+
+ GET / 200 in 1046ms (next.js: 82ms, proxy.ts: 322ms, application-code: 641ms)
+ GET / 200 in 968ms (next.js: 14ms, proxy.ts: 471ms, application-code: 484ms)

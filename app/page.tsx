@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -62,18 +62,6 @@ type ClientService = {
   session_complete: boolean | null;
 };
 
-const navigation = [
-  { label: "Dashboard", href: "/" },
-  { label: "Clients", href: "/clients" },
-  { label: "Intake Calls", href: "/intake-calls" },
-  { label: "Follow-Ups", href: "/follow-ups" },
-  { label: "Calendar", href: "#" },
-  { label: "Revenue", href: "#" },
-  { label: "Files", href: "#" },
-  { label: "Email Templates", href: "#" },
-  { label: "Marketing", href: "#" },
-  { label: "Settings", href: "#" },
-];
 
 const dailyChecklist = [
   "Post on LinkedIn",
@@ -373,58 +361,7 @@ export default async function Home() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f7f8f3] text-[#243128]">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-64 flex-col border-r border-[#dfe6db] bg-[#f1f4ed] px-5 py-7 lg:flex">
-          <div className="mb-10 px-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#7f9975]">
-              JGO Hire
-            </p>
-
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#3d4d39]">
-              JGO OS
-            </h1>
-
-            <p className="mt-2 text-xs leading-5 text-[#708075]">
-              Your business command center
-            </p>
-          </div>
-
-          <nav className="space-y-2">
-            {navigation.map((item, index) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`block rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                  index === 0
-                    ? "bg-[#d7e1d0] text-[#3d4d39]"
-                    : "text-[#647066] hover:bg-white hover:text-[#3d4d39]"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-auto rounded-2xl border border-[#dfe6db] bg-white p-4">
-            <p className="text-sm font-semibold text-[#3d4d39]">
-              Jennifer Gordon
-            </p>
-
-            <p className="mt-1 text-xs leading-5 text-[#708075]">
-              Certified Career Coach and Recruiter
-            </p>
-
-            <button
-              type="button"
-              className="mt-4 w-full rounded-xl border border-[#d7e1d0] px-4 py-2 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
-            >
-              Log Out
-            </button>
-          </div>
-        </aside>
-
-        <section className="min-w-0 flex-1">
+    <section className="min-w-0 flex-1">
           <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
@@ -460,18 +397,17 @@ export default async function Home() {
           </header>
 
           <div className="space-y-7 p-6 lg:p-10">
-            {databaseError ? (
-              <section className="rounded-2xl border border-[#ead4d0] bg-[#fbefed] p-6">
-                <h3 className="text-lg font-bold text-[#8d4f48]">
-                  Some dashboard data could not be loaded
-                </h3>
+         {databaseError ? (
+  <section className="rounded-2xl border border-red-300 bg-red-50 p-6">
+    <h3 className="text-lg font-bold text-red-700">
+      Dashboard Error
+    </h3>
 
-                <p className="mt-2 text-sm leading-6 text-[#9a625c]">
-                  This is usually caused by a Supabase permission or connection
-                  issue. Your client records have not been deleted.
-                </p>
-              </section>
-            ) : null}
+    <pre className="mt-4 whitespace-pre-wrap text-sm text-red-700">
+      {JSON.stringify(databaseError, null, 2)}
+    </pre>
+  </section>
+) : null}
 
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {stats.map((stat) => (
@@ -887,8 +823,6 @@ export default async function Home() {
               </section>
             ) : null}
           </div>
-        </section>
-      </div>
-    </main>
+    </section>
   );
 }

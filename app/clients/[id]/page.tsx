@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase-server";
+import ClientFileManager from "./ClientFileManager";
+import {
+  archiveClient,
+  restoreClient,
+  deleteClientPermanently,
+} from "../actions";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type Client = {
   id: number;
@@ -37,18 +46,6 @@ type Props = {
   }>;
 };
 
-const navigation = [
-  { label: "Dashboard", href: "/" },
-  { label: "Clients", href: "/clients" },
-  { label: "Leads", href: "#" },
-  { label: "Calendar", href: "#" },
-  { label: "Tasks", href: "#" },
-  { label: "Revenue", href: "#" },
-  { label: "Files", href: "#" },
-  { label: "Email Templates", href: "#" },
-  { label: "Marketing", href: "#" },
-  { label: "Settings", href: "#" },
-];
 
 function getInitials(name: string | null) {
   return (name || "Client")
@@ -99,6 +96,10 @@ function getStatusStyle(status: string | null) {
   return "bg-[#eef2e9] text-[#647066]";
 }
 
+function normalize(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
 function getPaymentStyle(paymentStatus: string | null) {
   if (paymentStatus === "Paid") {
     return "bg-[#e7f1e6] text-[#55704f]";
@@ -116,6 +117,8 @@ function getPaymentStyle(paymentStatus: string | null) {
 }
 
 export default async function ClientPage({ params }: Props) {
+  const supabase = await createClient();
+
   const { id } = await params;
   const clientId = Number(id);
 
@@ -129,9 +132,14 @@ export default async function ClientPage({ params }: Props) {
       "id, name, email, phone, company, status, payment_status, next_step, project_notes, intake_date, due_date"
     )
     .eq("id", clientId)
-    .single();
+    .maybeSingle();
 
-  if (clientError || !clientData) {
+  if (clientError) {
+    console.error("Unable to load client:", clientError);
+    throw new Error(`Unable to load client: ${clientError.message}`);
+  }
+
+  if (!clientData) {
     notFound();
   }
 
@@ -178,56 +186,10 @@ export default async function ClientPage({ params }: Props) {
     0
   );
 
+  const isArchived = normalize(client.status) === "archived";
+
   return (
-    <main className="min-h-screen bg-[#f7f8f3] text-[#243128]">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-64 flex-col border-r border-[#dfe6db] bg-[#f1f4ed] px-5 py-7 lg:flex">
-          <div className="mb-10 px-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#7f9975]">
-              JGO Hire
-            </p>
-
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#3d4d39]">
-              JGO OS
-            </h1>
-
-            <p className="mt-2 text-xs leading-5 text-[#708075]">
-              Your business command center
-            </p>
-          </div>
-
-          <nav className="space-y-2">
-            {navigation.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`block rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                  item.label === "Clients"
-                    ? "bg-[#d7e1d0] text-[#3d4d39]"
-                    : "text-[#647066] hover:bg-white hover:text-[#3d4d39]"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-auto rounded-2xl border border-[#dfe6db] bg-white p-4">
-            <p className="text-sm font-semibold text-[#3d4d39]">
-              Jennifer Gordon
-            </p>
-
-            <p className="mt-1 text-xs text-[#708075]">
-              Certified Career Coach and Recruiter
-            </p>
-
-            <button className="mt-4 w-full rounded-xl border border-[#d7e1d0] px-4 py-2 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]">
-              Log Out
-            </button>
-          </div>
-        </aside>
-
-        <section className="min-w-0 flex-1">
+    <section className="min-w-0 flex-1">
           <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
             <Link
               href="/clients"
@@ -282,6 +244,40 @@ export default async function ClientPage({ params }: Props) {
                   + Add New Service
                 </Link>
               </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3 border-t border-[#e4e9df] pt-5">
+              {isArchived ? (
+                <form action={restoreClient}>
+                  <input type="hidden" name="clientId" value={client.id} />
+                  <button
+                    type="submit"
+                    className="rounded-xl border border-[#cbd8c4] bg-white px-4 py-2.5 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+                  >
+                    Restore Client
+                  </button>
+                </form>
+              ) : (
+                <form action={archiveClient}>
+                  <input type="hidden" name="clientId" value={client.id} />
+                  <button
+                    type="submit"
+                    className="rounded-xl border border-[#d7e1d0] bg-white px-4 py-2.5 text-sm font-semibold text-[#647066] hover:bg-[#f5f7f2]"
+                  >
+                    Archive Client
+                  </button>
+                </form>
+              )}
+
+              <form action={deleteClientPermanently}>
+                <input type="hidden" name="clientId" value={client.id} />
+                <button
+                  type="submit"
+                  className="rounded-xl border border-[#ead4d0] bg-white px-4 py-2.5 text-sm font-semibold text-[#a45f58] hover:bg-[#fbefed]"
+                >
+                  Delete Permanently
+                </button>
+              </form>
             </div>
           </header>
 
@@ -472,14 +468,6 @@ export default async function ClientPage({ params }: Props) {
               </WorkspaceCard>
 
               <WorkspaceCard
-                title="Files"
-                description="Store resumes, cover letters, reports, and final deliverables."
-                action="+ Upload File"
-              >
-                <SimpleEmptyState text="No files uploaded yet." />
-              </WorkspaceCard>
-
-              <WorkspaceCard
                 title="Interview Details"
                 description="Track upcoming interviews and good-luck reminders."
                 action="+ Add Interview"
@@ -516,6 +504,8 @@ export default async function ClientPage({ params }: Props) {
               </WorkspaceCard>
             </section>
 
+            <ClientFileManager clientId={client.id} />
+
             <section className="rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm">
               <div>
                 <h3 className="text-xl font-bold text-[#243128]">
@@ -547,9 +537,7 @@ export default async function ClientPage({ params }: Props) {
               </div>
             </section>
           </div>
-        </section>
-      </div>
-    </main>
+    </section>
   );
 }
 
@@ -731,7 +719,7 @@ function WorkspaceCard({
 }: {
   title: string;
   description: string;
-  action: string;
+  action?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -747,9 +735,14 @@ function WorkspaceCard({
           </p>
         </div>
 
-        <button className="shrink-0 text-sm font-semibold text-[#647d5b]">
-          {action}
-        </button>
+        {action ? (
+          <button
+            type="button"
+            className="shrink-0 text-sm font-semibold text-[#647d5b]"
+          >
+            {action}
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-6">{children}</div>

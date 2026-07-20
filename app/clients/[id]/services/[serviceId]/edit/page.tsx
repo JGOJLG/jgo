@@ -8,7 +8,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase-browser";
 
 const serviceOptions = [
   {
@@ -64,6 +64,8 @@ export default function EditServicePage() {
 
   useEffect(() => {
     async function loadService() {
+      const supabase = createClient();
+
       if (
         !Number.isInteger(clientId) ||
         !Number.isInteger(serviceId)
@@ -73,34 +75,49 @@ export default function EditServicePage() {
         return;
       }
 
-      const [
-        { data: clientData, error: clientError },
-        { data: serviceData, error: serviceError },
-      ] = await Promise.all([
-        supabase
-          .from("clients")
-          .select("name")
-          .eq("id", clientId)
-          .single(),
-
-        supabase
+      const { data: serviceData, error: serviceError } =
+        await supabase
           .from("client_services")
           .select("*")
           .eq("id", serviceId)
           .eq("client_id", clientId)
-          .single(),
-      ]);
+          .maybeSingle();
 
-      if (clientError || !clientData) {
-        console.error("Unable to load client:", clientError);
-        setErrorMessage("The client could not be loaded.");
+      if (serviceError) {
+        console.error("Unable to load service:", serviceError);
+        setErrorMessage(
+          `The service could not be loaded: ${serviceError.message}`
+        );
         setLoading(false);
         return;
       }
 
-      if (serviceError || !serviceData) {
-        console.error("Unable to load service:", serviceError);
-        setErrorMessage("The service could not be loaded.");
+      if (!serviceData) {
+        setErrorMessage(
+          "This service was not found for the selected client."
+        );
+        setLoading(false);
+        return;
+      }
+
+      const { data: clientData, error: clientError } =
+        await supabase
+          .from("clients")
+          .select("name")
+          .eq("id", clientId)
+          .maybeSingle();
+
+      if (clientError) {
+        console.error("Unable to load client:", clientError);
+        setErrorMessage(
+          `The client could not be loaded: ${clientError.message}`
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (!clientData) {
+        setErrorMessage("The client could not be found.");
         setLoading(false);
         return;
       }
@@ -166,6 +183,8 @@ export default function EditServicePage() {
       next_step: nextStep.trim() || null,
       notes: notes.trim() || null,
     };
+
+    const supabase = createClient();
 
     const { error } = await supabase
       .from("client_services")

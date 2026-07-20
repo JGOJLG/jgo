@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase-server";
+
+import {
+  archiveClient,
+  restoreClient,
+  deleteClientPermanently,
+} from "./actions";
 
 type Client = {
   id: number;
@@ -34,6 +40,10 @@ function getStatusStyle(status: string | null) {
     return "bg-[#e7f1e6] text-[#55704f]";
   }
 
+  if (status === "Archived") {
+    return "bg-[#ececec] text-[#686868]";
+  }
+
   return "bg-[#eef2e9] text-[#647066]";
 }
 
@@ -49,24 +59,35 @@ function getPaymentStyle(paymentStatus: string | null) {
   return "bg-[#eef2e9] text-[#647066]";
 }
 
-const navigation = [
-  { label: "Dashboard", href: "/" },
-  { label: "Clients", href: "/clients" },
-  { label: "Leads", href: "#" },
-  { label: "Calendar", href: "#" },
-  { label: "Tasks", href: "#" },
-  { label: "Revenue", href: "#" },
-  { label: "Files", href: "#" },
-  { label: "Email Templates", href: "#" },
-  { label: "Marketing", href: "#" },
-  { label: "Settings", href: "#" },
-];
 
-export default async function ClientsPage() {
-  const { data, error } = await supabase
+type ClientsPageProps = {
+  searchParams: Promise<{
+    showArchived?: string;
+    message?: string;
+  }>;
+};
+
+export default async function ClientsPage({
+  searchParams,
+}: ClientsPageProps) {
+  const supabase = await createClient();
+  const resolvedSearchParams = await searchParams;
+  const showArchived = resolvedSearchParams.showArchived === "true";
+  const message = resolvedSearchParams.message;
+
+  let query = supabase
     .from("clients")
-    .select("*")
-    .order("id", { ascending: false });
+    .select("*");
+
+  if (!showArchived) {
+    query = query.neq("status", "Archived");
+  } else {
+    query = query.eq("status", "Archived");
+  }
+
+  query = query.order("id", { ascending: false });
+
+  const { data, error } = await query;
 
   const clients = (data ?? []) as Client[];
 
@@ -114,55 +135,7 @@ export default async function ClientsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f8f3] text-[#243128]">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-64 flex-col border-r border-[#dfe6db] bg-[#f1f4ed] px-5 py-7 lg:flex">
-          <div className="mb-10 px-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#7f9975]">
-              JGO Hire
-            </p>
-
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#3d4d39]">
-              JGO OS
-            </h1>
-
-            <p className="mt-2 text-xs leading-5 text-[#708075]">
-              Your business command center
-            </p>
-          </div>
-
-          <nav className="space-y-2">
-            {navigation.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`block rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                  item.label === "Clients"
-                    ? "bg-[#d7e1d0] text-[#3d4d39]"
-                    : "text-[#647066] hover:bg-white hover:text-[#3d4d39]"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-auto rounded-2xl border border-[#dfe6db] bg-white p-4">
-            <p className="text-sm font-semibold text-[#3d4d39]">
-              Jennifer Gordon
-            </p>
-
-            <p className="mt-1 text-xs text-[#708075]">
-              Certified Career Coach and Recruiter
-            </p>
-
-            <button className="mt-4 w-full rounded-xl border border-[#d7e1d0] px-4 py-2 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]">
-              Log Out
-            </button>
-          </div>
-        </aside>
-
-        <section className="min-w-0 flex-1">
+    <section className="min-w-0 flex-1">
           <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
@@ -182,16 +155,37 @@ export default async function ClientsPage() {
                 </p>
               </div>
 
-              <Link
-                href="/clients/new"
-                className="w-fit rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#4d6247]"
-              >
-                + Add New Client
-              </Link>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href={showArchived ? "/clients" : "/clients?showArchived=true"}
+                  className="w-fit rounded-xl border border-[#d7e1d0] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+                >
+                  {showArchived ? "Hide Archived" : "Show Archived"}
+                </Link>
+
+                <Link
+                  href="/clients/new"
+                  className="w-fit rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#4d6247]"
+                >
+                  + Add New Client
+                </Link>
+              </div>
             </div>
           </header>
 
           <div className="space-y-7 p-6 lg:p-10">
+            {message === "archived" ? (
+              <div className="rounded-2xl border border-[#d7e1d0] bg-[#eef2e9] px-5 py-4 text-sm font-semibold text-[#4d6247]">
+                Client archived successfully.
+              </div>
+            ) : null}
+
+            {message === "deleted" ? (
+              <div className="rounded-2xl border border-[#d7e1d0] bg-[#eef2e9] px-5 py-4 text-sm font-semibold text-[#4d6247]">
+                Client permanently deleted.
+              </div>
+            ) : null}
+
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
                 <p className="text-sm font-medium text-[#708075]">
@@ -325,6 +319,7 @@ export default async function ClientsPage() {
                         <th className="px-6 py-4">Payment</th>
                         <th className="px-6 py-4">Price</th>
                         <th className="px-6 py-4">Next Step</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
                     </thead>
 
@@ -397,6 +392,51 @@ export default async function ClientsPage() {
                           <td className="px-6 py-5 text-sm text-[#647066]">
                             {client.next_step || "No next step added"}
                           </td>
+                          <td className="px-6 py-5">
+  <div className="flex justify-end gap-2">
+    <Link
+      href={`/clients/${client.id}`}
+      className="rounded-lg border border-[#d7e1d0] bg-white px-3 py-2 text-xs font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+    >
+      View
+    </Link>
+
+    {client.status === "Archived" ? (
+      <form action={restoreClient}>
+        <input type="hidden" name="clientId" value={client.id} />
+
+        <button
+          type="submit"
+          className="rounded-lg border border-[#d7e1d0] bg-white px-3 py-2 text-xs font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+        >
+          Restore
+        </button>
+      </form>
+    ) : (
+      <form action={archiveClient}>
+        <input type="hidden" name="clientId" value={client.id} />
+
+        <button
+          type="submit"
+          className="rounded-lg border border-[#d7e1d0] bg-white px-3 py-2 text-xs font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+        >
+          Archive
+        </button>
+      </form>
+    )}
+
+    <form action={deleteClientPermanently}>
+      <input type="hidden" name="clientId" value={client.id} />
+
+      <button
+        type="submit"
+        className="rounded-lg border border-[#ead4d0] bg-white px-3 py-2 text-xs font-semibold text-[#a45f58] hover:bg-[#fbefed]"
+      >
+        Delete
+      </button>
+    </form>
+  </div>
+</td>
                         </tr>
                       ))}
                     </tbody>
@@ -405,8 +445,6 @@ export default async function ClientsPage() {
               </section>
             )}
           </div>
-        </section>
-      </div>
-    </main>
+    </section>
   );
 }
