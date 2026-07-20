@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -210,6 +210,8 @@ function getFollowUpStyle(priority: string | null | undefined) {
 }
 
 export default async function Home() {
+  const supabase = await createClient();
+
   const [
     clientsResult,
     paymentsResult,
