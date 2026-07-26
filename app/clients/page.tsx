@@ -1,11 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase-server";
 
-import {
-  archiveClient,
-  restoreClient,
-  deleteClientPermanently,
-} from "./actions";
 
 type Client = {
   id: number;
@@ -392,51 +387,14 @@ export default async function ClientsPage({
                           <td className="px-6 py-5 text-sm text-[#647066]">
                             {client.next_step || "No next step added"}
                           </td>
-                          <td className="px-6 py-5">
-  <div className="flex justify-end gap-2">
-    <Link
-      href={`/clients/${client.id}`}
-      className="rounded-lg border border-[#d7e1d0] bg-white px-3 py-2 text-xs font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
-    >
-      View
-    </Link>
-
-    {client.status === "Archived" ? (
-      <form action={restoreClient}>
-        <input type="hidden" name="clientId" value={client.id} />
-
-        <button
-          type="submit"
-          className="rounded-lg border border-[#d7e1d0] bg-white px-3 py-2 text-xs font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
-        >
-          Restore
-        </button>
-      </form>
-    ) : (
-      <form action={archiveClient}>
-        <input type="hidden" name="clientId" value={client.id} />
-
-        <button
-          type="submit"
-          className="rounded-lg border border-[#d7e1d0] bg-white px-3 py-2 text-xs font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
-        >
-          Archive
-        </button>
-      </form>
-    )}
-
-    <form action={deleteClientPermanently}>
-      <input type="hidden" name="clientId" value={client.id} />
-
-      <button
-        type="submit"
-        className="rounded-lg border border-[#ead4d0] bg-white px-3 py-2 text-xs font-semibold text-[#a45f58] hover:bg-[#fbefed]"
-      >
-        Delete
-      </button>
-    </form>
-  </div>
-</td>
+                          <td className="px-6 py-5 text-right">
+                            <Link
+                              href={`/clients/${client.id}`}
+                              className="inline-block rounded-lg border border-[#d7e1d0] bg-white px-3 py-2 text-xs font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+                            >
+                              View
+                            </Link>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

@@ -10,23 +10,40 @@ type Props = {
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
-const FILE_CATEGORIES = [
-  "Resume",
-  "Cover Letter",
-  "Invoice",
-  "Notes",
-  "Interview",
-  "Other",
+const FILE_CATEGORY_GROUPS = [
+  {
+    label: "Original Documents",
+    categories: [
+      "Old Resume",
+      "Old Cover Letter",
+      "Job Descriptions",
+    ],
+  },
+  {
+    label: "Final Deliverables",
+    categories: [
+      "Finished Resume",
+      "Finished Cover Letter",
+    ],
+  },
+  {
+    label: "JGO Resources",
+    categories: [
+      "Resume Ready Report™",
+      "Cover Letter Guide™",
+    ],
+  },
 ] as const;
 
-type FileCategory = (typeof FILE_CATEGORIES)[number];
+type FileCategory =
+  (typeof FILE_CATEGORY_GROUPS)[number]["categories"][number];
 
 export default function ClientFileUploader({ clientId }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedCategory, setSelectedCategory] =
-    useState<FileCategory>("Other");
+    useState<FileCategory>("Old Resume");
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState("");
@@ -154,13 +171,23 @@ export default function ClientFileUploader({ clientId }: Props) {
   }
 
   return (
-    <div>
+    <div className="rounded-2xl border border-[#e2e8de] bg-[#fbfcf9] p-5 sm:p-6">
+      <div className="mb-5">
+        <p className="text-sm font-semibold text-[#3d4d39]">
+          Upload a document
+        </p>
+
+        <p className="mt-1 text-xs leading-5 text-[#849080]">
+          Choose where the document belongs before uploading it.
+        </p>
+      </div>
+
       <div className="mb-4">
         <label
           htmlFor="file-category"
           className="mb-2 block text-sm font-semibold text-[#3d4d39]"
         >
-          File category
+          Document category
         </label>
 
         <select
@@ -172,16 +199,16 @@ export default function ClientFileUploader({ clientId }: Props) {
           disabled={isUploading}
           className="w-full rounded-xl border border-[#d7e1d0] bg-white px-4 py-3 text-sm font-semibold text-[#445240] outline-none transition focus:border-[#7f9975] focus:ring-2 focus:ring-[#dfe8da] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {FILE_CATEGORIES.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
+          {FILE_CATEGORY_GROUPS.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
-
-        <p className="mt-2 text-xs leading-5 text-[#849080]">
-          Every file in this upload will be saved under this category.
-        </p>
       </div>
 
       <input
@@ -209,7 +236,7 @@ export default function ClientFileUploader({ clientId }: Props) {
         className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition ${
           isDragging
             ? "border-[#647d5b] bg-[#eef2e9]"
-            : "border-[#cfd9c9] bg-[#fbfcf9] hover:border-[#7f9975] hover:bg-[#f7f9f4]"
+            : "border-[#cfd9c9] bg-white hover:border-[#7f9975] hover:bg-[#f7f9f4]"
         } ${isUploading ? "cursor-wait opacity-70" : ""}`}
       >
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e7eee2] text-2xl text-[#647d5b]">

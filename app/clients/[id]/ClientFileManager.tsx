@@ -18,12 +18,12 @@ export default function ClientFileManager({
             </p>
 
             <h2 className="mt-2 text-xl font-semibold tracking-tight text-[#2f3d2c]">
-              Client Files
+              Client Documents
             </h2>
 
             <p className="mt-1 max-w-2xl text-sm leading-6 text-[#71806f]">
-              Upload and manage resumes, cover letters, reports, invoices,
-              notes, and other client documents.
+              Keep original documents, finished deliverables, and JGO resources
+              organized in one secure place.
             </p>
           </div>
 
@@ -33,9 +33,8 @@ export default function ClientFileManager({
         </div>
       </div>
 
-      <div className="space-y-6 px-6 py-6 sm:px-8 sm:py-8">
+      <div className="space-y-8 px-6 py-6 sm:px-8 sm:py-8">
         <ClientFileUploader clientId={clientId} />
-
         <ClientFileList clientId={clientId} />
       </div>
     </section>

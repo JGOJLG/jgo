@@ -6,16 +6,65 @@ type ClientFileListProps = {
   clientId: number;
 };
 
-const FILE_CATEGORIES = [
-  "Resume",
-  "Cover Letter",
-  "Invoice",
-  "Notes",
-  "Interview",
-  "Other",
+const DOCUMENT_GROUPS = [
+  {
+    title: "Original Documents",
+    description: "The materials the client started with",
+    categories: [
+      {
+        value: "Old Resume",
+        title: "Old Resume",
+        description: "The client’s original or previous resume",
+      },
+      {
+        value: "Old Cover Letter",
+        title: "Old Cover Letter",
+        description: "The client’s original or previous cover letter",
+      },
+      {
+        value: "Job Descriptions",
+        title: "Job Descriptions",
+        description: "Target roles used to tailor client materials",
+      },
+    ],
+  },
+  {
+    title: "Final Deliverables",
+    description: "Completed documents prepared for the client",
+    categories: [
+      {
+        value: "Finished Resume",
+        title: "Finished Resume",
+        description: "The final resume delivered to the client",
+      },
+      {
+        value: "Finished Cover Letter",
+        title: "Finished Cover Letter",
+        description: "The final cover letter delivered to the client",
+      },
+    ],
+  },
+  {
+    title: "JGO Resources",
+    description: "Branded resources included with the client’s service",
+    categories: [
+      {
+        value: "Resume Ready Report™",
+        title: "Resume Ready Report™",
+        description: "The client’s personalized resume review report",
+      },
+      {
+        value: "Cover Letter Guide™",
+        title: "Cover Letter Guide™",
+        description: "The JGO guide for future cover letter updates",
+      },
+    ],
+  },
 ] as const;
 
-type FileCategory = (typeof FILE_CATEGORIES)[number];
+const NEW_CATEGORIES = DOCUMENT_GROUPS.flatMap((group) =>
+  group.categories.map((category) => category.value)
+);
 
 type ClientFile = {
   id: number;
@@ -24,40 +73,7 @@ type ClientFile = {
   file_path: string;
   file_type: string | null;
   file_size: number | null;
-  category: FileCategory | null;
-};
-
-const CATEGORY_DETAILS: Record<
-  FileCategory,
-  {
-    title: string;
-    description: string;
-  }
-> = {
-  Resume: {
-    title: "Resumes",
-    description: "Current and previous resume versions",
-  },
-  "Cover Letter": {
-    title: "Cover Letters",
-    description: "General and role-specific cover letters",
-  },
-  Invoice: {
-    title: "Invoices",
-    description: "Invoices, receipts, and payment documents",
-  },
-  Notes: {
-    title: "Notes",
-    description: "Client notes, coaching notes, and planning documents",
-  },
-  Interview: {
-    title: "Interview",
-    description: "Interview preparation and interview-related documents",
-  },
-  Other: {
-    title: "Other Files",
-    description: "Additional client documents",
-  },
+  category: string | null;
 };
 
 export default async function ClientFileList({
@@ -79,7 +95,7 @@ export default async function ClientFileList({
     return (
       <div className="rounded-2xl border border-[#ead4d0] bg-[#fbefed] px-5 py-4">
         <p className="text-sm font-semibold text-[#9a554d]">
-          We could not load this client&apos;s files.
+          We could not load this client&apos;s documents.
         </p>
 
         <p className="mt-1 text-sm leading-6 text-[#a76a63]">
@@ -91,68 +107,105 @@ export default async function ClientFileList({
 
   const files = (data ?? []) as ClientFile[];
 
-  if (files.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-[#d5ded0] bg-[#fbfcfa] px-5 py-10 text-center">
-        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#edf2e9] text-lg font-semibold text-[#6a8062]">
-          ▤
-        </div>
-
-        <h3 className="mt-4 text-sm font-semibold text-[#3d4d39]">
-          No files uploaded yet
-        </h3>
-
-        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#7d897b]">
-          Upload a resume, cover letter, report, invoice, or another client
-          document. It will appear here automatically.
-        </p>
-      </div>
-    );
-  }
-
-  const groupedFiles = FILE_CATEGORIES.map((category) => {
-    const categoryFiles = files.filter(
-      (file) => (file.category ?? "Other") === category
-    );
-
-    return {
-      category,
-      files: categoryFiles,
-    };
-  }).filter((group) => group.files.length > 0);
+  const legacyFiles = files.filter(
+    (file) =>
+      !file.category ||
+      !NEW_CATEGORIES.includes(
+        file.category as (typeof NEW_CATEGORIES)[number]
+      )
+  );
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-5 flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-[#3d4d39]">
-            Uploaded Files
+            Document Library
           </p>
 
           <p className="mt-1 text-xs text-[#849080]">
-            Organized by document category
+            Organized by stage and document type
           </p>
         </div>
 
         <p className="rounded-full bg-[#edf2e9] px-3 py-1.5 text-xs font-semibold text-[#647d5b]">
-          {files.length} {files.length === 1 ? "file" : "files"}
+          {files.length} {files.length === 1 ? "document" : "documents"}
         </p>
       </div>
 
-      <div className="space-y-5">
-        {groupedFiles.map(({ category, files: categoryFiles }) => {
-          const details = CATEGORY_DETAILS[category];
+      <div className="space-y-8">
+        {DOCUMENT_GROUPS.map((group) => (
+          <section key={group.title}>
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-[#2f3d2c]">
+                {group.title}
+              </h3>
 
-          return (
+              <p className="mt-1 text-sm text-[#7d897b]">
+                {group.description}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {group.categories.map((category) => {
+                const categoryFiles = files.filter(
+                  (file) => file.category === category.value
+                );
+
+                return (
+                  <FileCategorySection
+                    key={category.value}
+                    clientId={clientId}
+                    category={category.value}
+                    title={category.title}
+                    description={category.description}
+                    fileCount={categoryFiles.length}
+                  >
+                    {categoryFiles.length > 0 ? (
+                      categoryFiles.map((file) => (
+                        <FileRow
+                          key={file.id}
+                          file={{
+                            id: file.id,
+                            file_name: file.file_name,
+                            file_path: file.file_path,
+                            file_type: file.file_type,
+                            file_size: file.file_size,
+                          }}
+                        />
+                      ))
+                    ) : (
+                      <p className="text-sm text-[#8a968d]">
+                        No document uploaded yet.
+                      </p>
+                    )}
+                  </FileCategorySection>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+
+        {legacyFiles.length > 0 ? (
+          <section>
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-[#2f3d2c]">
+                Previous Uploads
+              </h3>
+
+              <p className="mt-1 text-sm text-[#7d897b]">
+                Files uploaded before the new document categories were added.
+              </p>
+            </div>
+
             <FileCategorySection
-              key={category}
               clientId={clientId}
-              category={category}
-              title={details.title}
-              description={details.description}
-              fileCount={categoryFiles.length}
+              category="Previous Uploads"
+              title="Previous Uploads"
+              description="Existing files are preserved here so nothing is lost"
+              fileCount={legacyFiles.length}
             >
-              {categoryFiles.map((file) => (
+              {legacyFiles.map((file) => (
                 <FileRow
                   key={file.id}
                   file={{
@@ -165,8 +218,8 @@ export default async function ClientFileList({
                 />
               ))}
             </FileCategorySection>
-          );
-        })}
+          </section>
+        ) : null}
       </div>
     </div>
   );

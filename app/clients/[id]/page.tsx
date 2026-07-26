@@ -162,11 +162,6 @@ export default async function ClientPage({ params }: Props) {
       service.status !== "Completed" && service.status !== "Complete"
   );
 
-  const completedServices = services.filter(
-    (service) =>
-      service.status === "Completed" || service.status === "Complete"
-  );
-
   const paidRevenue = services
     .filter((service) => service.payment_status === "Paid")
     .reduce(
@@ -188,9 +183,28 @@ export default async function ClientPage({ params }: Props) {
 
   const isArchived = normalize(client.status) === "archived";
 
+  const allServicesComplete =
+    services.length > 0 &&
+    services.every(
+      (service) =>
+        service.status === "Completed" || service.status === "Complete"
+    );
+
+  const overallServiceStatus =
+    services.length === 0
+      ? "No Services Yet"
+      : allServicesComplete
+        ? "Services Complete"
+        : "Services In Progress";
+
+  const serviceNames = services
+    .map((service) => service.service)
+    .filter((service): service is string => Boolean(service))
+    .join(" • ");
+
   return (
     <section className="min-w-0 flex-1">
-          <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
+          <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-8 lg:px-10">
             <Link
               href="/clients"
               className="text-sm font-semibold text-[#7f9975] hover:text-[#4d6247]"
@@ -198,38 +212,43 @@ export default async function ClientPage({ params }: Props) {
               ← Back to Clients
             </Link>
 
-            <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-5">
+            <div className="mt-6 flex flex-col gap-7 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex min-w-0 items-start gap-5">
                 <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#dfe6db] text-2xl font-bold text-[#4d6247]">
                   {getInitials(client.name)}
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-3xl font-bold tracking-tight text-[#243128]">
+                    <h1 className="text-4xl font-bold tracking-tight text-[#243128] lg:text-5xl">
                       {client.name || "Unnamed Client"}
-                    </h2>
+                    </h1>
 
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(
-                        client.status
-                      )}`}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                        allServicesComplete
+                          ? "bg-[#e7f1e6] text-[#55704f]"
+                          : services.length === 0
+                            ? "bg-[#eef2e9] text-[#647066]"
+                            : "bg-[#f6ecd9] text-[#8f6d37]"
+                      }`}
                     >
-                      {client.status || "Active"}
+                      {overallServiceStatus}
                     </span>
                   </div>
 
-                  <p className="mt-2 text-sm text-[#708075]">
-                    {client.email || "No email added"}
+                  <p className="mt-3 text-base font-semibold text-[#4d6247]">
+                    {serviceNames || "No services have been added"}
                   </p>
 
-                  <p className="mt-1 text-sm text-[#708075]">
-                    {client.phone || "No phone number added"}
-                  </p>
+                  <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-[#708075]">
+                    <span>{client.email || "No email added"}</span>
+                    <span>{client.phone || "No phone number added"}</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex shrink-0 flex-wrap gap-3">
                 <Link
                   href={`/clients/${client.id}/edit`}
                   className="rounded-xl border border-[#d7e1d0] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
@@ -245,54 +264,60 @@ export default async function ClientPage({ params }: Props) {
                 </Link>
               </div>
             </div>
-
-            <div className="mt-6 flex flex-wrap gap-3 border-t border-[#e4e9df] pt-5">
-              {isArchived ? (
-                <form action={restoreClient}>
-                  <input type="hidden" name="clientId" value={client.id} />
-                  <button
-                    type="submit"
-                    className="rounded-xl border border-[#cbd8c4] bg-white px-4 py-2.5 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
-                  >
-                    Restore Client
-                  </button>
-                </form>
-              ) : (
-                <form action={archiveClient}>
-                  <input type="hidden" name="clientId" value={client.id} />
-                  <button
-                    type="submit"
-                    className="rounded-xl border border-[#d7e1d0] bg-white px-4 py-2.5 text-sm font-semibold text-[#647066] hover:bg-[#f5f7f2]"
-                  >
-                    Archive Client
-                  </button>
-                </form>
-              )}
-
-              <form action={deleteClientPermanently}>
-                <input type="hidden" name="clientId" value={client.id} />
-                <button
-                  type="submit"
-                  className="rounded-xl border border-[#ead4d0] bg-white px-4 py-2.5 text-sm font-semibold text-[#a45f58] hover:bg-[#fbefed]"
-                >
-                  Delete Permanently
-                </button>
-              </form>
-            </div>
           </header>
 
           <div className="space-y-7 p-6 lg:p-10">
+            <section className="overflow-hidden rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
+              <div className="flex flex-col gap-4 border-b border-[#e4e9df] p-6 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-[#243128]">
+                    Services
+                  </h2>
+
+                  <p className="mt-1 text-sm text-[#708075]">
+                    Everything this client has purchased, all in one place.
+                  </p>
+                </div>
+
+                <Link
+                  href={`/clients/${client.id}/services/new`}
+                  className="w-fit rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#4d6247]"
+                >
+                  + Add New Service
+                </Link>
+              </div>
+
+              {services.length === 0 ? (
+                <EmptyServices
+                  message="No services have been added yet."
+                  href={`/clients/${client.id}/services/new`}
+                />
+              ) : (
+                <div className="grid gap-4 p-6 lg:grid-cols-2">
+                  {services.map((service) => (
+                    <ServiceCard
+                      key={service.id}
+                      service={service}
+                      clientId={client.id}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <SummaryCard
-                label="Total Services"
-                value={services.length.toString()}
-                description="All service history"
+                label="Total Purchased"
+                value={`$${totalPurchased.toLocaleString()}`}
+                description={`${services.length} ${
+                  services.length === 1 ? "service" : "services"
+                }`}
               />
 
               <SummaryCard
-                label="Active Services"
-                value={activeServices.length.toString()}
-                description="Currently open"
+                label="Paid"
+                value={`$${paidRevenue.toLocaleString()}`}
+                description="Payments received"
               />
 
               <SummaryCard
@@ -302,9 +327,9 @@ export default async function ClientPage({ params }: Props) {
               />
 
               <SummaryCard
-                label="Paid Revenue"
-                value={`$${paidRevenue.toLocaleString()}`}
-                description="Payments received"
+                label="Active Services"
+                value={activeServices.length.toString()}
+                description="Still in progress"
               />
             </section>
 
@@ -346,8 +371,8 @@ export default async function ClientPage({ params }: Props) {
                   />
 
                   <Detail
-                    label="Total Purchased"
-                    value={`$${totalPurchased.toLocaleString()}`}
+                    label="Service Progress"
+                    value={overallServiceStatus}
                   />
 
                   <div className="sm:col-span-2">
@@ -375,84 +400,7 @@ export default async function ClientPage({ params }: Props) {
                   {client.next_step ||
                     "No general next step has been added yet."}
                 </p>
-
-                <Link
-                  href={`/clients/${client.id}/services/new`}
-                  className="mt-4 block w-full rounded-xl bg-[#647d5b] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#4d6247]"
-                >
-                  + Add New Service
-                </Link>
               </div>
-            </section>
-
-            <section className="rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
-              <div className="flex flex-col gap-4 border-b border-[#e4e9df] p-6 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-[#243128]">
-                    Active Services
-                  </h3>
-
-                  <p className="mt-1 text-sm text-[#708075]">
-                    Current projects, sessions, and unpaid services.
-                  </p>
-                </div>
-
-                <Link
-                  href={`/clients/${client.id}/services/new`}
-                  className="w-fit rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#4d6247]"
-                >
-                  + Add New Service
-                </Link>
-              </div>
-
-              {activeServices.length === 0 ? (
-                <EmptyServices
-                  message="No active services yet."
-                  href={`/clients/${client.id}/services/new`}
-                />
-              ) : (
-                <div className="grid gap-4 p-6 lg:grid-cols-2">
-                  {activeServices.map((service) => (
-                    <ServiceCard
-                      key={service.id}
-                      service={service}
-                      clientId={client.id}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
-              <div className="border-b border-[#e4e9df] p-6">
-                <h3 className="text-xl font-bold text-[#243128]">
-                  Completed Service History
-                </h3>
-
-                <p className="mt-1 text-sm text-[#708075]">
-                  Previous services remain here instead of being overwritten.
-                </p>
-              </div>
-
-              {completedServices.length === 0 ? (
-                <div className="p-6">
-                  <div className="rounded-xl border border-dashed border-[#cfd9c9] bg-[#fbfcf9] p-6 text-center">
-                    <p className="text-sm text-[#708075]">
-                      No completed services yet.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid gap-4 p-6 lg:grid-cols-2">
-                  {completedServices.map((service) => (
-                    <ServiceCard
-                      key={service.id}
-                      service={service}
-                      clientId={client.id}
-                    />
-                  ))}
-                </div>
-              )}
             </section>
 
             <section className="grid gap-6 xl:grid-cols-2">
@@ -534,6 +482,53 @@ export default async function ClientPage({ params }: Props) {
                     date={formatDate(service.date_added)}
                   />
                 ))}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-[#e4e9df] bg-[#fbfaf6] p-6">
+              <div>
+                <h3 className="text-lg font-bold text-[#243128]">
+                  Client Record Actions
+                </h3>
+
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-[#708075]">
+                  Archive this client to remove them from the active client list.
+                  Permanent deletion removes the client record and related data.
+                </p>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3 border-t border-[#e4e9df] pt-5">
+                {isArchived ? (
+                  <form action={restoreClient}>
+                    <input type="hidden" name="clientId" value={client.id} />
+                    <button
+                      type="submit"
+                      className="rounded-xl border border-[#cbd8c4] bg-white px-4 py-2.5 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+                    >
+                      Restore Client
+                    </button>
+                  </form>
+                ) : (
+                  <form action={archiveClient}>
+                    <input type="hidden" name="clientId" value={client.id} />
+                    <button
+                      type="submit"
+                      className="rounded-xl border border-[#d7e1d0] bg-white px-4 py-2.5 text-sm font-semibold text-[#647066] hover:bg-[#f5f7f2]"
+                    >
+                      Archive Client
+                    </button>
+                  </form>
+                )}
+
+                <form action={deleteClientPermanently}>
+                  <input type="hidden" name="clientId" value={client.id} />
+                  <button
+                    type="submit"
+                    className="rounded-xl border border-[#ead4d0] bg-white px-4 py-2.5 text-sm font-semibold text-[#a45f58] hover:bg-[#fbefed]"
+                  >
+                    Delete Permanently
+                  </button>
+                </form>
               </div>
             </section>
           </div>

@@ -59,6 +59,10 @@ export default function NewClientPage() {
   const [phone, setPhone] = useState("");
   const [company, setCompany] = useState("");
 
+  const [leadSource, setLeadSource] = useState("");
+  const [referralName, setReferralName] = useState("");
+  const [linkedinSource, setLinkedinSource] = useState("");
+
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
   const [status, setStatus] = useState("New");
@@ -121,11 +125,6 @@ export default function NewClientPage() {
       return;
     }
 
-    if (selectedServices.length === 0) {
-      setErrorMessage("Please select at least one service.");
-      return;
-    }
-
     setSaving(true);
     setErrorMessage("");
 
@@ -146,8 +145,21 @@ export default function NewClientPage() {
       email: email.trim() || null,
       phone: phone.trim() || null,
       company: company.trim() || null,
-      service: selectedServices.join(" + "),
-      price: totalPrice,
+      lead_source: leadSource || null,
+      referral_name:
+        leadSource === "Referral"
+          ? referralName.trim() || null
+          : null,
+     linkedin_source:
+  leadSource === "LinkedIn"
+    ? linkedinSource || null
+    : null,
+
+service: selectedServices.length
+  ? selectedServices.join(" + ")
+  : null,
+
+price: totalPrice || null,
       status,
       payment_status: paymentStatus,
       intake_date: intakeDate || null,
@@ -250,6 +262,74 @@ export default function NewClientPage() {
                   className={inputStyle}
                 />
               </FormField>
+
+              <FormField label="Where Did You Find Us?">
+                <select
+                  value={leadSource}
+                  onChange={(event) =>
+                    setLeadSource(event.target.value)
+                  }
+                  className={inputStyle}
+                >
+                  <option value="">Select source</option>
+                  <option value="Referral">Referral</option>
+                  <option value="LinkedIn">LinkedIn</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="TikTok">TikTok</option>
+                  <option value="Facebook">Facebook</option>
+                  <option value="Google Search">Google Search</option>
+                  <option value="Website">Website</option>
+                  <option value="Substack">Substack</option>
+                  <option value="Networking">Networking</option>
+                  <option value="Former Client">Former Client</option>
+                  <option value="Other">Other</option>
+                </select>
+              </FormField>
+
+              {leadSource === "Referral" && (
+                <FormField label="Who Referred You?">
+                  <input
+                    value={referralName}
+                    onChange={(event) =>
+                      setReferralName(event.target.value)
+                    }
+                    placeholder="Name of referral"
+                    className={inputStyle}
+                  />
+                </FormField>
+              )}
+
+              {leadSource === "LinkedIn" && (
+                <FormField label="LinkedIn Source">
+                  <select
+                    value={linkedinSource}
+                    onChange={(event) =>
+                      setLinkedinSource(event.target.value)
+                    }
+                    className={inputStyle}
+                  >
+                    <option value="">
+                      Select LinkedIn source
+                    </option>
+                    <option value="LinkedIn Request">
+                      LinkedIn Request
+                    </option>
+                    <option value="LinkedIn Message">
+                      LinkedIn Message
+                    </option>
+                    <option value="LinkedIn Post">
+                      LinkedIn Post
+                    </option>
+                    <option value="LinkedIn Comment">
+                      LinkedIn Comment
+                    </option>
+                    <option value="LinkedIn Referral">
+                      LinkedIn Referral
+                    </option>
+                    <option value="Other">Other</option>
+                  </select>
+                </FormField>
+              )}
             </div>
           </section>
 
@@ -478,9 +558,7 @@ export default function NewClientPage() {
 
               <button
                 type="submit"
-                disabled={
-                  saving || selectedServices.length === 0
-                }
+                disabled={saving}
                 className="rounded-xl bg-[#647d5b] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d6247] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? "Saving Client..." : "Save Client"}
