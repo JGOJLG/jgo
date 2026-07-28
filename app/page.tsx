@@ -51,8 +51,7 @@ maximumFractionDigits: 0, }).format(value); }
 function formatDate(value: string | null | undefined) { if (!value) {
 return “No date added”; }
 
-const date = new Date( value.includes(“T”) ? value : ${value}T12:00:00
-);
+const date = new Date(value.includes(“T”) ? value : ${value}T12:00:00);
 
 if (Number.isNaN(date.getTime())) { return value; }
 
@@ -76,7 +75,7 @@ const parts = new Intl.DateTimeFormat(“en-US”, { timeZone:
 const year = parts.find((part) => part.type === “year”)?.value ?? ““;
 const month = parts.find((part) => part.type ===”month”)?.value ?? ““;
 
-return year−{month}-01; }
+return year-{month}-01; }
 
 function getStatusStyle(status: string | null | undefined) { const
 normalized = normalize(status);
@@ -227,17 +226,14 @@ ${formatCurrency(revenueThisMonth)} received this month, }, { label:
 outstandingRevenue === 0 ? “Everyone is currently paid” : “Payments
 still owed”, }, { label: “Active Leads”, value:
 activeLeads.length.toString(), detail: ${free15Leads.length} in Free 15,
-}, { label: “Total Clients”, value: clients.length.toString(), detail:${activeClients.length}
+}, { label: "Total Clients", value: clients.length.toString(), detail:${activeClients.length}
 active, ${completedClients.length} completed, }, { label: “Follow-Ups”,
 value: openFollowUps.length.toString(), detail:
 overdueFollowUps.length > 0 ? ${overdueFollowUps.length} overdue :
 “Nothing overdue”, }, ];
 
 return (
-                <p className="text-sm font-semibold text-[#7f9975]">
-                  {getTodayLabel()}
-                </p>
-
+{getTodayLabel()}
                 <h2 className="mt-2 text-3xl font-bold tracking-tight text-[#243128]">
                   Welcome back, Jen
                 </h2>
