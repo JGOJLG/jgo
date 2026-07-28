@@ -1,215 +1,119 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase-server";
+import Link from “next/link”; import { createClient } from
+“@/lib/supabase-server”;
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const dynamic = “force-dynamic”; export const revalidate = 0;
 
-type Client = {
-  id: number;
-  name: string | null;
-  email: string | null;
-  service: string | null;
-  status: string | null;
-  payment_status: string | null;
-  intake_date: string | null;
-  due_date: string | null;
-  price: number | null;
-  next_step: string | null;
-};
+type Client = { id: number; name: string | null; email: string | null;
+service: string | null; status: string | null; payment_status: string |
+null; intake_date: string | null; due_date: string | null; price: number
+| null; next_step: string | null; };
 
-type Payment = {
-  id: number;
-  client_id: number | null;
-  amount: number | null;
-  payment_date: string | null;
-  payment_method: string | null;
-  payment_status: string | null;
-  notes: string | null;
-};
+type Payment = { id: number; client_id: number | null; amount: number |
+null; payment_date: string | null; payment_method: string | null;
+payment_status: string | null; notes: string | null; };
 
-type IntakeCall = {
-  id: number;
-  name: string | null;
-  call_date: string | null;
-  call_type: string | null;
-  status: string | null;
-  follow_up_date: string | null;
-  needs_help_with: string | null;
-  services_discussed: string | null;
-  notes: string | null;
-  converted_to_client: boolean | null;
-};
+type IntakeCall = { id: number; name: string | null; call_date: string |
+null; call_type: string | null; status: string | null; follow_up_date:
+string | null; needs_help_with: string | null; services_discussed:
+string | null; notes: string | null; converted_to_client: boolean |
+null; };
 
-type FollowUp = {
-  id: number;
-  client_id: number | null;
-  intake_call_id: number | null;
-  title: string | null;
-  due_date: string | null;
-  status: string | null;
-  priority: string | null;
-  notes: string | null;
-};
+type FollowUp = { id: number; client_id: number | null; intake_call_id:
+number | null; title: string | null; due_date: string | null; status:
+string | null; priority: string | null; notes: string | null; };
 
-type ClientService = {
-  id: number;
-  client_id: number | null;
-  service_type: string | null;
-  service_date: string | null;
-  price: number | null;
-  payment_status: string | null;
-  payment_method: string | null;
-  session_complete: boolean | null;
-};
+type ClientService = { id: number; client_id: number | null;
+service_type: string | null; service_date: string | null; price: number
+| null; payment_status: string | null; payment_method: string | null;
+session_complete: boolean | null; };
 
+const dailyChecklist = [ “Post on LinkedIn”, “Post on social media”,
+“Publish on Substack”,];
 
-const dailyChecklist = [
-  "Post on LinkedIn",
-  "Post on social media",
-  "Publish on Substack",
-];
+function normalize(value: string | null | undefined) { return
+value?.trim().toLowerCase() ?? ““; }
 
-function normalize(value: string | null | undefined) {
-  return value?.trim().toLowerCase() ?? "";
+function isPaid(status: string | null | undefined) { return
+normalize(status) === “paid”; }
+
+function isCompleted(status: string | null | undefined) { return [
+“complete”, “completed”, “closed”, “cancelled”, “canceled”,
+].includes(normalize(status)); }
+
+function isOpenFollowUp(status: string | null | undefined) { return
+![“completed”, “complete”, “closed”, “cancelled”, “canceled”].includes(
+normalize(status) ); }
+
+function formatCurrency(value: number) { return new
+Intl.NumberFormat(“en-US”, { style: “currency”, currency: “USD”,
+maximumFractionDigits: 0, }).format(value); }
+
+function formatDate(value: string | null | undefined) { if (!value) {
+return “No date added”; }
+
+const date = new Date( value.includes(“T”) ? value : ${value}T12:00:00
+);
+
+if (Number.isNaN(date.getTime())) { return value; }
+
+return new Intl.DateTimeFormat(“en-US”, { month: “short”, day:
+“numeric”, year: “numeric”, }).format(date); }
+
+function getTodayLabel() { return new Intl.DateTimeFormat(“en-US”, {
+timeZone: “America/New_York”, weekday: “long”, month: “long”, day:
+“numeric”, year: “numeric”, }).format(new Date()); }
+
+function getTodayDateString() { return new Intl.DateTimeFormat(“en-CA”,
+{ timeZone: “America/New_York”, year: “numeric”, month: “2-digit”, day:
+“2-digit”, }).format(new Date()); }
+
+function getMonthStartDateString() { const now = new Date();
+
+const parts = new Intl.DateTimeFormat(“en-US”, { timeZone:
+“America/New_York”, year: “numeric”, month: “2-digit”,
+}).formatToParts(now);
+
+const year = parts.find((part) => part.type === “year”)?.value ?? ““;
+const month = parts.find((part) => part.type ===”month”)?.value ?? ““;
+
+return ${year}-${month}-01; }
+
+function getStatusStyle(status: string | null | undefined) { const
+normalized = normalize(status);
+
+if (normalized === “revision”) { return “bg-[#eee8f3] text-[#6d5878]”; }
+
+if (normalized === “in progress”) { return “bg-[#e8eee3]
+text-[#4d6247]”; }
+
+if (normalized === “on hold”) { return “bg-[#f6ecd9] text-[#8f6d37]”; }
+
+if (isCompleted(status)) { return “bg-[#e7f1e6] text-[#55704f]”; }
+
+return “bg-[#eef2e9] text-[#647066]”; }
+
+function getPaymentStyle(status: string | null | undefined) { const
+normalized = normalize(status);
+
+if (normalized === “paid”) { return “bg-[#e7f1e6] text-[#55704f]”; }
+
+if (normalized === “overdue” || normalized === “past due”) { return
+“bg-[#f7e7e4] text-[#9a554d]”; }
+
+return “bg-[#f6ecd9] text-[#8f6d37]”; }
+
+function getFollowUpStyle(priority: string | null | undefined) { if
+(normalize(priority) === “high”) { return “bg-[#f7e7e4] text-[#9a554d]”;
 }
 
-function isPaid(status: string | null | undefined) {
-  return normalize(status) === "paid";
-}
+return “bg-[#eef2e9] text-[#5c7454]”; }
 
-function isCompleted(status: string | null | undefined) {
-  return [
-    "complete",
-    "completed",
-    "closed",
-    "cancelled",
-    "canceled",
-  ].includes(normalize(status));
-}
+export default async function Home() { const supabase = await
+createClient();
 
-function isOpenFollowUp(status: string | null | undefined) {
-  return !["completed", "complete", "closed", "cancelled", "canceled"].includes(
-    normalize(status)
-  );
-}
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) {
-    return "No date added";
-  }
-
-  const date = new Date(
-    value.includes("T") ? value : `${value}T12:00:00`
-  );
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
-}
-
-function getTodayLabel() {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date());
-}
-
-function getTodayDateString() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
-
-function getMonthStartDateString() {
-  const now = new Date();
-
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-  }).formatToParts(now);
-
-  const year = parts.find((part) => part.type === "year")?.value ?? "";
-  const month = parts.find((part) => part.type === "month")?.value ?? "";
-
-  return `${year}-${month}-01`;
-}
-
-function getStatusStyle(status: string | null | undefined) {
-  const normalized = normalize(status);
-
-  if (normalized === "revision") {
-    return "bg-[#eee8f3] text-[#6d5878]";
-  }
-
-  if (normalized === "in progress") {
-    return "bg-[#e8eee3] text-[#4d6247]";
-  }
-
-  if (normalized === "on hold") {
-    return "bg-[#f6ecd9] text-[#8f6d37]";
-  }
-
-  if (isCompleted(status)) {
-    return "bg-[#e7f1e6] text-[#55704f]";
-  }
-
-  return "bg-[#eef2e9] text-[#647066]";
-}
-
-function getPaymentStyle(status: string | null | undefined) {
-  const normalized = normalize(status);
-
-  if (normalized === "paid") {
-    return "bg-[#e7f1e6] text-[#55704f]";
-  }
-
-  if (normalized === "overdue" || normalized === "past due") {
-    return "bg-[#f7e7e4] text-[#9a554d]";
-  }
-
-  return "bg-[#f6ecd9] text-[#8f6d37]";
-}
-
-function getFollowUpStyle(priority: string | null | undefined) {
-  if (normalize(priority) === "high") {
-    return "bg-[#f7e7e4] text-[#9a554d]";
-  }
-
-  return "bg-[#eef2e9] text-[#5c7454]";
-}
-
-export default async function Home() {
-  const supabase = await createClient();
-
-  const [
-    clientsResult,
-    paymentsResult,
-    intakeCallsResult,
-    followUpsResult,
-    servicesResult,
-  ] = await Promise.all([
-    supabase.from("clients").select("*").order("id", { ascending: false }),
+const [ clientsResult, paymentsResult, intakeCallsResult,
+followUpsResult, servicesResult, ] = await Promise.all([
+supabase.from(“clients”).select(“*“).order(”id”, { ascending: false }),
 
     supabase
       .from("payments")
@@ -230,167 +134,110 @@ export default async function Home() {
       .from("client_services")
       .select("*")
       .order("service_date", { ascending: false }),
-  ]);
 
-  const clients = (clientsResult.data ?? []) as Client[];
-  const payments = (paymentsResult.data ?? []) as Payment[];
-  const intakeCalls = (intakeCallsResult.data ?? []) as IntakeCall[];
-  const followUps = (followUpsResult.data ?? []) as FollowUp[];
-  const services = (servicesResult.data ?? []) as ClientService[];
+]);
 
-  const databaseErrors = {
-    clients: clientsResult.error,
-    payments: paymentsResult.error,
-    intakeCalls: intakeCallsResult.error,
-    followUps: followUpsResult.error,
-    clientServices: servicesResult.error,
-  };
+const clients = (clientsResult.data ?? []) as Client[]; const payments =
+(paymentsResult.data ?? []) as Payment[]; const intakeCalls =
+(intakeCallsResult.data ?? []) as IntakeCall[]; const followUps =
+(followUpsResult.data ?? []) as FollowUp[]; const services =
+(servicesResult.data ?? []) as ClientService[];
 
-  const today = getTodayDateString();
-  const monthStart = getMonthStartDateString();
+const databaseErrors = { clients: clientsResult.error, payments:
+paymentsResult.error, intakeCalls: intakeCallsResult.error, followUps:
+followUpsResult.error, clientServices: servicesResult.error, };
 
-  const activeClients = clients.filter(
-    (client) => !isCompleted(client.status)
-  );
+const today = getTodayDateString(); const monthStart =
+getMonthStartDateString();
 
-  const completedClients = clients.filter((client) =>
-    isCompleted(client.status)
-  );
+const activeClients = clients.filter( (client) =>
+!isCompleted(client.status) );
 
-  const paidPayments = payments.filter((payment) =>
-    isPaid(payment.payment_status)
-  );
+const completedClients = clients.filter((client) =>
+isCompleted(client.status) );
 
-  const totalPaidRevenue = paidPayments.reduce(
-    (total, payment) => total + Number(payment.amount ?? 0),
-    0
-  );
+const paidPayments = payments.filter((payment) =>
+isPaid(payment.payment_status) );
 
-  const revenueThisMonth = paidPayments
-    .filter(
-      (payment) =>
-        payment.payment_date &&
-        payment.payment_date >= monthStart &&
-        payment.payment_date <= today
-    )
-    .reduce(
-      (total, payment) => total + Number(payment.amount ?? 0),
-      0
+const totalPaidRevenue = paidPayments.reduce( (total, payment) =>
+total + Number(payment.amount ?? 0), 0 );
+
+const revenueThisMonth = paidPayments .filter( (payment) =>
+payment.payment_date && payment.payment_date >= monthStart &&
+payment.payment_date <= today ) .reduce( (total, payment) => total +
+Number(payment.amount ?? 0), 0 );
+
+const outstandingRevenue = services .filter((service) =>
+!isPaid(service.payment_status)) .reduce( (total, service) => total +
+Number(service.price ?? 0), 0 );
+
+const openFollowUps = followUps.filter((followUp) =>
+isOpenFollowUp(followUp.status) );
+
+const overdueFollowUps = openFollowUps.filter( (followUp) =>
+followUp.due_date && followUp.due_date < today );
+
+const intakeCallsNeedingFollowUp = intakeCalls.filter( (call) =>
+normalize(call.status) === “follow-up needed” || (call.follow_up_date &&
+call.follow_up_date <= today && !call.converted_to_client) );
+
+const upcomingIntakeCalls = intakeCalls.filter( (call) => call.call_date
+&& call.call_date >= today && !call.converted_to_client );
+
+const activeLeads = intakeCalls.filter( (call) =>
+!call.converted_to_client );
+
+const newLeads = activeLeads.filter( (call) => normalize(call.status)
+=== “new lead” );
+
+const free15Leads = activeLeads.filter((call) => [“free 15 scheduled”,
+“free 15 completed”].includes( normalize(call.status) ) );
+
+const followUpLeads = activeLeads.filter( (call) =>
+normalize(call.status) === “follow up needed” || normalize(call.status)
+=== “follow-up needed” );
+
+const convertedLeads = intakeCalls.filter( (call) =>
+call.converted_to_client );
+
+const upcomingServices = services .filter( (service) =>
+service.service_date && service.service_date >= today &&
+!service.session_complete ) .slice(0, 5);
+
+const clientTotalMap = new Map<number, number>();
+
+services.forEach((service) => { if (!service.client_id) return;
+
+    const current = clientTotalMap.get(service.client_id) || 0;
+
+    clientTotalMap.set(
+      service.client_id,
+      current + Number(service.price ?? 0)
     );
 
+});
 
-  const outstandingRevenue = services
-    .filter((service) => !isPaid(service.payment_status))
-    .reduce(
-      (total, service) => total + Number(service.price ?? 0),
-      0
-    );
+const recentClients = clients.slice(0, 5); const recentLeads =
+activeLeads.slice(0, 5); const recentPayments = paidPayments.slice(0,
+5); const visibleFollowUps = openFollowUps.slice(0, 6);
 
-  const openFollowUps = followUps.filter((followUp) =>
-    isOpenFollowUp(followUp.status)
-  );
+const clientNameById = new Map( clients.map((client) => [ client.id,
+client.name || “Unnamed Client”, ]) );
 
-  const overdueFollowUps = openFollowUps.filter(
-    (followUp) => followUp.due_date && followUp.due_date < today
-  );
+const stats = [ { label: “Paid Revenue”, value:
+formatCurrency(totalPaidRevenue), detail:
+${formatCurrency(revenueThisMonth)} received this month, }, { label:
+“Outstanding”, value: formatCurrency(outstandingRevenue), detail:
+outstandingRevenue === 0 ? “Everyone is currently paid” : “Payments
+still owed”, }, { label: “Active Leads”, value:
+activeLeads.length.toString(), detail: ${free15Leads.length} in Free 15,
+}, { label: “Total Clients”, value: clients.length.toString(), detail:
+${activeClients.length} active, ${completedClients.length} completed, },
+{ label: “Follow-Ups”, value: openFollowUps.length.toString(), detail:
+overdueFollowUps.length > 0 ? ${overdueFollowUps.length} overdue :
+“Nothing overdue”, }, ];
 
-  const intakeCallsNeedingFollowUp = intakeCalls.filter(
-    (call) =>
-      normalize(call.status) === "follow-up needed" ||
-      (call.follow_up_date &&
-        call.follow_up_date <= today &&
-        !call.converted_to_client)
-  );
-
-  const upcomingIntakeCalls = intakeCalls.filter(
-    (call) =>
-      call.call_date &&
-      call.call_date >= today &&
-      !call.converted_to_client
-  );
-
-  const activeLeads = intakeCalls.filter(
-    (call) => !call.converted_to_client
-  );
-
-  const newLeads = activeLeads.filter(
-    (call) => normalize(call.status) === "new lead"
-  );
-
-  const free15Leads = activeLeads.filter((call) =>
-    ["free 15 scheduled", "free 15 completed"].includes(
-      normalize(call.status)
-    )
-  );
-
-  const followUpLeads = activeLeads.filter(
-    (call) => normalize(call.status) === "follow up needed" ||
-      normalize(call.status) === "follow-up needed"
-  );
-
-  const convertedLeads = intakeCalls.filter(
-    (call) => call.converted_to_client
-  );
-
-  const upcomingServices = services
-    .filter(
-      (service) =>
-        service.service_date &&
-        service.service_date >= today &&
-        !service.session_complete
-    )
-    .slice(0, 5);
-
-  const recentClients = clients.slice(0, 5);
-  const recentLeads = activeLeads.slice(0, 5);
-  const recentPayments = paidPayments.slice(0, 5);
-  const visibleFollowUps = openFollowUps.slice(0, 6);
-
-  const clientNameById = new Map(
-    clients.map((client) => [
-      client.id,
-      client.name || "Unnamed Client",
-    ])
-  );
-
-  const stats = [
-    {
-      label: "Paid Revenue",
-      value: formatCurrency(totalPaidRevenue),
-      detail: `${formatCurrency(revenueThisMonth)} received this month`,
-    },
-    {
-      label: "Outstanding",
-      value: formatCurrency(outstandingRevenue),
-      detail:
-        outstandingRevenue === 0
-          ? "Everyone is currently paid"
-          : "Payments still owed",
-    },
-    {
-      label: "Active Leads",
-      value: activeLeads.length.toString(),
-      detail: `${free15Leads.length} in Free 15`,
-    },
-    {
-      label: "Total Clients",
-      value: clients.length.toString(),
-      detail: `${activeClients.length} active, ${completedClients.length} completed`,
-    },
-    {
-      label: "Follow-Ups",
-      value: openFollowUps.length.toString(),
-      detail:
-        overdueFollowUps.length > 0
-          ? `${overdueFollowUps.length} overdue`
-          : "Nothing overdue",
-    },
-  ];
-
-  return (
-    <section className="min-w-0 flex-1">
-          <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
-            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+return (
               <div>
                 <p className="text-sm font-semibold text-[#7f9975]">
                   {getTodayLabel()}
@@ -432,15 +279,8 @@ export default async function Home() {
 
           <div className="space-y-7 p-6 lg:p-10">
          {Object.values(databaseErrors).some(Boolean) ? (
-  <section className="rounded-2xl border border-red-300 bg-red-50 p-6">
-    <h3 className="text-lg font-bold text-red-700">
-      Dashboard Error
-    </h3>
 
-    <pre className="mt-4 whitespace-pre-wrap text-sm text-red-700">
-      {JSON.stringify(databaseErrors, null, 2)}
-    </pre>
-  </section>
+Dashboard Error
 ) : null}
 
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -743,7 +583,9 @@ export default async function Home() {
                             </td>
 
                             <td className="px-6 py-4 text-sm font-semibold text-[#243128]">
-                              {formatCurrency(Number(client.price ?? 0))}
+                              {formatCurrency(
+                                clientTotalMap.get(client.id) || 0
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -982,5 +824,5 @@ export default async function Home() {
             ) : null}
           </div>
     </section>
-  );
-}
+
+); }
