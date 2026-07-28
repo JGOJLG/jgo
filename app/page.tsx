@@ -106,7 +106,9 @@ function formatDate(value: string | null | undefined) {
     return "No date added";
   }
 
-  const date = new Date(`${value}T12:00:00`);
+  const date = new Date(
+    value.includes("T") ? value : `${value}T12:00:00`
+  );
 
   if (Number.isNaN(date.getTime())) {
     return value;
@@ -236,12 +238,13 @@ export default async function Home() {
   const followUps = (followUpsResult.data ?? []) as FollowUp[];
   const services = (servicesResult.data ?? []) as ClientService[];
 
-  const databaseError =
-    clientsResult.error ||
-    paymentsResult.error ||
-    intakeCallsResult.error ||
-    followUpsResult.error ||
-    servicesResult.error;
+  const databaseErrors = {
+    clients: clientsResult.error,
+    payments: paymentsResult.error,
+    intakeCalls: intakeCallsResult.error,
+    followUps: followUpsResult.error,
+    clientServices: servicesResult.error,
+  };
 
   const today = getTodayDateString();
   const monthStart = getMonthStartDateString();
@@ -275,11 +278,6 @@ export default async function Home() {
       0
     );
 
-  const paidServiceIds = new Set(
-    payments
-      .filter((payment) => isPaid(payment.payment_status))
-      .map((payment) => payment.id)
-  );
 
   const outstandingRevenue = services
     .filter((service) => !isPaid(service.payment_status))
@@ -311,6 +309,29 @@ export default async function Home() {
       !call.converted_to_client
   );
 
+  const activeLeads = intakeCalls.filter(
+    (call) => !call.converted_to_client
+  );
+
+  const newLeads = activeLeads.filter(
+    (call) => normalize(call.status) === "new lead"
+  );
+
+  const free15Leads = activeLeads.filter((call) =>
+    ["free 15 scheduled", "free 15 completed"].includes(
+      normalize(call.status)
+    )
+  );
+
+  const followUpLeads = activeLeads.filter(
+    (call) => normalize(call.status) === "follow up needed" ||
+      normalize(call.status) === "follow-up needed"
+  );
+
+  const convertedLeads = intakeCalls.filter(
+    (call) => call.converted_to_client
+  );
+
   const upcomingServices = services
     .filter(
       (service) =>
@@ -321,6 +342,7 @@ export default async function Home() {
     .slice(0, 5);
 
   const recentClients = clients.slice(0, 5);
+  const recentLeads = activeLeads.slice(0, 5);
   const recentPayments = paidPayments.slice(0, 5);
   const visibleFollowUps = openFollowUps.slice(0, 6);
 
@@ -344,6 +366,11 @@ export default async function Home() {
         outstandingRevenue === 0
           ? "Everyone is currently paid"
           : "Payments still owed",
+    },
+    {
+      label: "Active Leads",
+      value: activeLeads.length.toString(),
+      detail: `${free15Leads.length} in Free 15`,
     },
     {
       label: "Total Clients",
@@ -387,29 +414,36 @@ export default async function Home() {
                 </Link>
 
                 <Link
+                  href="/leads/new"
+                  className="rounded-xl border border-[#cbd8c4] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247] shadow-sm hover:bg-[#f5f7f2]"
+                >
+                  + Add Lead
+                </Link>
+
+                <Link
                   href="/clients/new"
                   className="rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#4d6247]"
                 >
-                  + Add New Client
+                  + Add Client
                 </Link>
               </div>
             </div>
           </header>
 
           <div className="space-y-7 p-6 lg:p-10">
-         {databaseError ? (
+         {Object.values(databaseErrors).some(Boolean) ? (
   <section className="rounded-2xl border border-red-300 bg-red-50 p-6">
     <h3 className="text-lg font-bold text-red-700">
       Dashboard Error
     </h3>
 
     <pre className="mt-4 whitespace-pre-wrap text-sm text-red-700">
-      {JSON.stringify(databaseError, null, 2)}
+      {JSON.stringify(databaseErrors, null, 2)}
     </pre>
   </section>
 ) : null}
 
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               {stats.map((stat) => (
                 <div
                   key={stat.label}
@@ -439,7 +473,7 @@ export default async function Home() {
                     </h3>
 
                     <p className="mt-1 text-sm text-[#708075]">
-                      Clients and intake calls that need your attention.
+                      Clients and leads that need your attention.
                     </p>
                   </div>
 
@@ -498,65 +532,119 @@ export default async function Home() {
               </div>
 
               <div className="rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm">
-                <div>
-                  <h3 className="text-xl font-bold text-[#243128]">
-                    Intake Calls
-                  </h3>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-[#243128]">
+                      Lead Pipeline
+                    </h3>
 
-                  <p className="mt-1 text-sm text-[#708075]">
-                    Free 15 calls and prospective clients.
-                  </p>
-                </div>
-
-                <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-xl border border-[#e4e9df] bg-[#fbfcf9] p-4">
-                    <p className="text-sm text-[#708075]">
-                      Need Follow-Up
-                    </p>
-
-                    <p className="mt-2 text-3xl font-bold text-[#243128]">
-                      {intakeCallsNeedingFollowUp.length}
+                    <p className="mt-1 text-sm text-[#708075]">
+                      Free 15 consultations and prospective clients.
                     </p>
                   </div>
 
-                  <div className="rounded-xl border border-[#e4e9df] bg-[#fbfcf9] p-4">
-                    <p className="text-sm text-[#708075]">
-                      Upcoming Calls
-                    </p>
-
-                    <p className="mt-2 text-3xl font-bold text-[#243128]">
-                      {upcomingIntakeCalls.length}
-                    </p>
-                  </div>
+                  <Link
+                    href="/leads"
+                    className="shrink-0 text-sm font-semibold text-[#647d5b]"
+                  >
+                    View Pipeline
+                  </Link>
                 </div>
 
-                {intakeCallsNeedingFollowUp.length > 0 ? (
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <Link
+                    href="/leads"
+                    className="rounded-xl border border-[#e4e9df] bg-[#fbfcf9] p-4 transition hover:border-[#cbd8c4] hover:bg-white"
+                  >
+                    <p className="text-sm text-[#708075]">New Leads</p>
+                    <p className="mt-2 text-3xl font-bold text-[#243128]">
+                      {newLeads.length}
+                    </p>
+                  </Link>
+
+                  <Link
+                    href="/leads"
+                    className="rounded-xl border border-[#e4e9df] bg-[#fbfcf9] p-4 transition hover:border-[#cbd8c4] hover:bg-white"
+                  >
+                    <p className="text-sm text-[#708075]">Free 15</p>
+                    <p className="mt-2 text-3xl font-bold text-[#243128]">
+                      {free15Leads.length}
+                    </p>
+                  </Link>
+
+                  <Link
+                    href="/leads"
+                    className="rounded-xl border border-[#e4e9df] bg-[#fbfcf9] p-4 transition hover:border-[#cbd8c4] hover:bg-white"
+                  >
+                    <p className="text-sm text-[#708075]">Follow Up</p>
+                    <p className="mt-2 text-3xl font-bold text-[#243128]">
+                      {followUpLeads.length}
+                    </p>
+                  </Link>
+
+                  <Link
+                    href="/leads"
+                    className="rounded-xl border border-[#e4e9df] bg-[#fbfcf9] p-4 transition hover:border-[#cbd8c4] hover:bg-white"
+                  >
+                    <p className="text-sm text-[#708075]">Converted</p>
+                    <p className="mt-2 text-3xl font-bold text-[#243128]">
+                      {convertedLeads.length}
+                    </p>
+                  </Link>
+                </div>
+
+                {recentLeads.length === 0 ? (
+                  <div className="mt-5 rounded-xl border border-dashed border-[#cfd9c9] bg-[#fbfcf9] p-5 text-center">
+                    <p className="text-sm text-[#708075]">
+                      No active leads yet.
+                    </p>
+                  </div>
+                ) : (
                   <div className="mt-5 space-y-3">
-                    {intakeCallsNeedingFollowUp.slice(0, 3).map((call) => (
-                      <div
-                        key={call.id}
-                        className="rounded-xl border border-[#e4e9df] bg-[#fbfcf9] p-4"
+                    {recentLeads.slice(0, 3).map((lead) => (
+                      <Link
+                        key={lead.id}
+                        href={`/leads/${lead.id}`}
+                        className="block rounded-xl border border-[#e4e9df] bg-[#fbfcf9] p-4 transition hover:border-[#cbd8c4] hover:bg-white"
                       >
-                        <p className="text-sm font-semibold text-[#243128]">
-                          {call.name || "Unnamed Intake"}
-                        </p>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-[#243128]">
+                              {lead.name || "Unnamed Lead"}
+                            </p>
 
-                        <p className="mt-1 text-xs text-[#708075]">
-                          {call.needs_help_with ||
-                            call.services_discussed ||
-                            "Follow-up needed"}
-                        </p>
-                      </div>
+                            <p className="mt-1 text-xs text-[#708075]">
+                              {lead.call_type ||
+                                lead.needs_help_with ||
+                                lead.services_discussed ||
+                                "No source added"}
+                            </p>
+                          </div>
+
+                          <span className="rounded-full bg-[#eef2e9] px-2.5 py-1 text-[11px] font-semibold text-[#5c7454]">
+                            {lead.status || "New Lead"}
+                          </span>
+                        </div>
+                      </Link>
                     ))}
                   </div>
-                ) : null}
+                )}
 
-                <Link
-                  href="/intake-calls"
-                  className="mt-5 inline-block text-sm font-semibold text-[#647d5b]"
-                >
-                  Open Intake Calls
-                </Link>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <Link
+                    href="/leads"
+                    className="text-sm font-semibold text-[#647d5b]"
+                  >
+                    Open Leads
+                  </Link>
+
+                  <Link
+                    href="/leads/new"
+                    className="text-sm font-semibold text-[#647d5b]"
+                  >
+                    + Add Lead
+                  </Link>
+                </div>
               </div>
             </section>
 
@@ -683,10 +771,10 @@ export default async function Home() {
                   </Link>
 
                   <Link
-                    href="/intake-calls/new"
+                    href="/leads/new"
                     className="block w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-[#4d6247] shadow-sm hover:bg-[#f8faf6]"
                   >
-                    + Add Intake Call
+                    + Add Lead
                   </Link>
 
                   <Link
@@ -704,6 +792,76 @@ export default async function Home() {
                   </Link>
                 </div>
               </div>
+            </section>
+
+            <section className="rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
+              <div className="flex flex-col gap-4 border-b border-[#e4e9df] p-6 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-[#243128]">
+                    Recent Leads
+                  </h3>
+
+                  <p className="mt-1 text-sm text-[#708075]">
+                    Your newest prospects and Free 15 consultations.
+                  </p>
+                </div>
+
+                <Link
+                  href="/leads"
+                  className="text-sm font-semibold text-[#647d5b]"
+                >
+                  View All Leads
+                </Link>
+              </div>
+
+              {recentLeads.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-sm text-[#708075]">
+                    No active leads yet.
+                  </p>
+
+                  <Link
+                    href="/leads/new"
+                    className="mt-4 inline-block rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white"
+                  >
+                    + Add Lead
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
+                  {recentLeads.map((lead) => (
+                    <Link
+                      key={lead.id}
+                      href={`/leads/${lead.id}`}
+                      className="rounded-2xl border border-[#e4e9df] bg-[#fbfcf9] p-5 transition hover:border-[#cbd8c4] hover:bg-white hover:shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <h4 className="font-bold text-[#243128]">
+                          {lead.name || "Unnamed Lead"}
+                        </h4>
+
+                        <span className="rounded-full bg-[#eef2e9] px-2.5 py-1 text-[11px] font-semibold text-[#5c7454]">
+                          {lead.status || "New Lead"}
+                        </span>
+                      </div>
+
+                      <p className="mt-3 text-sm text-[#708075]">
+                        {lead.call_type || "No source added"}
+                      </p>
+
+                      <p className="mt-3 text-sm font-medium text-[#4d6247]">
+                        {lead.needs_help_with ||
+                          lead.services_discussed ||
+                          "No service selected"}
+                      </p>
+
+                      <p className="mt-4 text-xs text-[#8a968d]">
+                        Free 15: {formatDate(lead.call_date)}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="grid gap-6 xl:grid-cols-2">

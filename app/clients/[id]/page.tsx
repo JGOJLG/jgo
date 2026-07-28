@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
@@ -39,6 +40,29 @@ type ClientService = {
   next_step: string | null;
   notes: string | null;
 };
+
+type Payment = {
+  id: number;
+  client_id: number | null;
+  client_service_id: number | null;
+  amount: number | null;
+  payment_date: string | null;
+  payment_method: string | null;
+  payment_status: string | null;
+  notes: string | null;
+};
+
+
+type Lead = {
+  id: number;
+  name: string | null;
+  status: string | null;
+  call_date: string | null;
+  call_type: string | null;
+  notes: string | null;
+  converted_client_id: number | null;
+};
+
 
 type Props = {
   params: Promise<{
@@ -154,8 +178,32 @@ export default async function ClientPage({ params }: Props) {
     console.error("Unable to load client services:", serviceError);
   }
 
+  const { data: paymentData, error: paymentError } =
+    await supabase
+      .from("payments")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("payment_date", { ascending: false });
+
+  if (paymentError) {
+    console.error("Unable to load payments:", paymentError);
+  }
+
+  const { data: leadData, error: leadError } = await supabase
+    .from("intake_calls")
+    .select("*")
+    .eq("converted_client_id", clientId)
+    .maybeSingle();
+
+  if (leadError) {
+    console.error("Unable to load original lead:", leadError);
+  }
+
+  const originalLead = leadData as Lead | null;
+
   const client = clientData as Client;
   const services = (serviceData ?? []) as ClientService[];
+  const payments = (paymentData ?? []) as Payment[];
 
   const activeServices = services.filter(
     (service) =>
@@ -180,6 +228,13 @@ export default async function ClientPage({ params }: Props) {
     (total, service) => total + Number(service.price ?? 0),
     0
   );
+
+  const totalPaymentsReceived = payments
+    .filter((payment) => payment.payment_status === "Paid")
+    .reduce(
+      (total, payment) => total + Number(payment.amount ?? 0),
+      0
+    );
 
   const isArchived = normalize(client.status) === "archived";
 
@@ -249,6 +304,15 @@ export default async function ClientPage({ params }: Props) {
               </div>
 
               <div className="flex shrink-0 flex-wrap gap-3">
+                {originalLead && (
+                  <Link
+                    href={`/leads/${originalLead.id}`}
+                    className="rounded-xl border border-[#d7e1d0] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+                  >
+                    ← View Original Lead
+                  </Link>
+                )}
+
                 <Link
                   href={`/clients/${client.id}/edit`}
                   className="rounded-xl border border-[#d7e1d0] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
@@ -452,6 +516,76 @@ export default async function ClientPage({ params }: Props) {
               </WorkspaceCard>
             </section>
 
+
+            <section className="rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-[#243128]">
+                    Payments
+                  </h3>
+                  <p className="mt-1 text-sm text-[#708075]">
+                    Track payments received from this client.
+                  </p>
+                </div>
+
+                <Link
+                  href={`/clients/${client.id}/payments/new`}
+                  className="rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white"
+                >
+                  + Add Payment
+                </Link>
+              </div>
+
+              <div className="mt-5 rounded-xl bg-[#eef2e9] p-5">
+                <p className="text-sm text-[#708075]">
+                  Total Payments Received
+                </p>
+                <p className="mt-2 text-3xl font-bold text-[#243128]">
+                  ${totalPaymentsReceived.toLocaleString()}
+                </p>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {payments.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-[#cfd9c9] p-5 text-center text-sm text-[#708075]">
+                    No payments recorded yet.
+                  </div>
+                ) : (
+                  payments.map((payment) => (
+                    <div
+                      key={payment.id}
+                      className="rounded-xl border border-[#dfe6db] bg-[#fbfcf9] p-4"
+                    >
+                      <div className="flex justify-between gap-4">
+                        <div>
+                          <p className="text-lg font-bold text-[#243128]">
+                            ${Number(payment.amount ?? 0).toLocaleString()}
+                          </p>
+                          <p className="text-sm text-[#708075]">
+                            {payment.payment_method || "No method"}
+                          </p>
+                        </div>
+
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getPaymentStyle(payment.payment_status)}`}>
+                          {payment.payment_status || "Pending"}
+                        </span>
+                      </div>
+
+                      <p className="mt-3 text-sm text-[#647066]">
+                        {formatDate(payment.payment_date)}
+                      </p>
+
+                      {payment.notes && (
+                        <p className="mt-2 text-sm text-[#708075]">
+                          {payment.notes}
+                        </p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+
             <ClientFileManager clientId={client.id} />
 
             <section className="rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm">
@@ -466,6 +600,14 @@ export default async function ClientPage({ params }: Props) {
               </div>
 
               <div className="mt-6 space-y-5">
+                {originalLead && (
+                  <TimelineItem
+                    title="Converted from Lead"
+                    description={`${originalLead.status || "Lead"}${originalLead.call_type ? ` · ${originalLead.call_type}` : ""}`}
+                    date={formatDate(originalLead.call_date)}
+                  />
+                )}
+
                 <TimelineItem
                   title="Client record created"
                   description="The client was added to JGO OS."
