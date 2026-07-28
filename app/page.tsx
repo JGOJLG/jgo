@@ -37,8 +37,8 @@ function isPaid(status: string | null | undefined) { return
 normalize(status) === “paid”; }
 
 function isCompleted(status: string | null | undefined) { return [
-“complete”, “completed”, “closed”, “cancelled”, “canceled”,
-].includes(normalize(status)); }
+“complete”, “completed”, “closed”, “cancelled”,
+“canceled”,].includes(normalize(status)); }
 
 function isOpenFollowUp(status: string | null | undefined) { return
 ![“completed”, “complete”, “closed”, “cancelled”, “canceled”].includes(
@@ -76,7 +76,7 @@ const parts = new Intl.DateTimeFormat(“en-US”, { timeZone:
 const year = parts.find((part) => part.type === “year”)?.value ?? ““;
 const month = parts.find((part) => part.type ===”month”)?.value ?? ““;
 
-return ${year}-${month}-01; }
+return year−{month}-01; }
 
 function getStatusStyle(status: string | null | undefined) { const
 normalized = normalize(status);
@@ -208,14 +208,10 @@ const clientTotalMap = new Map<number, number>();
 
 services.forEach((service) => { if (!service.client_id) return;
 
-    const current = clientTotalMap.get(service.client_id) || 0;
+const current = clientTotalMap.get(service.client_id) || 0;
 
-    clientTotalMap.set(
-      service.client_id,
-      current + Number(service.price ?? 0)
-    );
-
-});
+clientTotalMap.set( service.client_id, current + Number(service.price ??
+0) ); });
 
 const recentClients = clients.slice(0, 5); const recentLeads =
 activeLeads.slice(0, 5); const recentPayments = paidPayments.slice(0,
@@ -231,14 +227,13 @@ ${formatCurrency(revenueThisMonth)} received this month, }, { label:
 outstandingRevenue === 0 ? “Everyone is currently paid” : “Payments
 still owed”, }, { label: “Active Leads”, value:
 activeLeads.length.toString(), detail: ${free15Leads.length} in Free 15,
-}, { label: “Total Clients”, value: clients.length.toString(), detail:
-${activeClients.length} active, ${completedClients.length} completed, },
-{ label: “Follow-Ups”, value: openFollowUps.length.toString(), detail:
+}, { label: “Total Clients”, value: clients.length.toString(), detail:${activeClients.length}
+active, ${completedClients.length} completed, }, { label: “Follow-Ups”,
+value: openFollowUps.length.toString(), detail:
 overdueFollowUps.length > 0 ? ${overdueFollowUps.length} overdue :
 “Nothing overdue”, }, ];
 
 return (
-              <div>
                 <p className="text-sm font-semibold text-[#7f9975]">
                   {getTodayLabel()}
                 </p>
@@ -280,8 +275,7 @@ return (
           <div className="space-y-7 p-6 lg:p-10">
          {Object.values(databaseErrors).some(Boolean) ? (
 
-Dashboard Error
-) : null}
+Dashboard Error ) : null}
 
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               {stats.map((stat) => (
