@@ -23,7 +23,11 @@ export default function NewClientPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [company, setCompany] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [postalCode, setPostalCode] = useState("");
 
   const [leadSource, setLeadSource] = useState("");
   const [referralName, setReferralName] = useState("");
@@ -80,7 +84,11 @@ export default function NewClientPage() {
         name: name.trim(),
         email: email.trim() || null,
         phone: phone.trim() || null,
-        company: company.trim() || null,
+        address_line1: addressLine1.trim() || null,
+        address_line2: addressLine2.trim() || null,
+        city: city.trim() || null,
+        state: state.trim().toUpperCase() || null,
+        postal_code: postalCode.trim() || null,
         lead_source: leadSource || null,
         referral_name:
           leadSource === "Referral"
@@ -112,7 +120,7 @@ export default function NewClientPage() {
     }
 
     if (finalService) {
-      const { data: service, error: serviceError } = await supabase
+      const { error: serviceError } = await supabase
         .from("client_services")
         .insert({
           client_id: client.id,
@@ -126,58 +134,13 @@ export default function NewClientPage() {
           due_date: dueDate || null,
           next_step: nextStep.trim() || null,
           notes: clientNotes.trim() || null,
-        })
-        .select("id")
-        .single();
+        });
 
-      if (serviceError || !service) {
+      if (serviceError) {
         console.error("Unable to create service:", serviceError);
-
-        await supabase
-          .from("clients")
-          .delete()
-          .eq("id", client.id);
-
-        setErrorMessage(
-          serviceError?.message ||
-            "The client service could not be saved. The client record was rolled back."
-        );
+        setErrorMessage(serviceError.message);
         setSaving(false);
         return;
-      }
-
-      if (paymentStatus === "Paid") {
-        const { error: paymentError } = await supabase
-          .from("payments")
-          .insert({
-            client_id: client.id,
-            client_service_id: service.id,
-            amount: Number(numericPrice ?? 0),
-            payment_date: dateAdded || getToday(),
-            payment_method: null,
-            payment_status: "Paid",
-            notes: "Created when the client and paid service were added.",
-          });
-
-        if (paymentError) {
-          console.error("Unable to create payment history:", paymentError);
-
-          await supabase
-            .from("client_services")
-            .delete()
-            .eq("id", service.id);
-
-          await supabase
-            .from("clients")
-            .delete()
-            .eq("id", client.id);
-
-          setErrorMessage(
-            `The payment history could not be saved: ${paymentError.message}`
-          );
-          setSaving(false);
-          return;
-        }
       }
     }
 
@@ -202,7 +165,7 @@ export default function NewClientPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl p-6 lg:p-10">
+      <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-10">
         <form
           onSubmit={handleSubmit}
           className="overflow-hidden rounded-3xl border border-[#dfe6db] bg-white shadow-sm"
@@ -237,15 +200,6 @@ export default function NewClientPage() {
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
                   placeholder="(555) 555-5555"
-                  className={inputStyle}
-                />
-              </FormField>
-
-              <FormField label="Company">
-                <input
-                  value={company}
-                  onChange={(event) => setCompany(event.target.value)}
-                  placeholder="Optional"
                   className={inputStyle}
                 />
               </FormField>
@@ -303,6 +257,82 @@ export default function NewClientPage() {
                   </select>
                 </FormField>
               )}
+            </div>
+          </section>
+
+          <section className="border-b border-[#e4e9df] p-6 lg:p-8">
+            <div>
+              <h2 className="text-xl font-bold">Mailing Address</h2>
+
+              <p className="mt-1 text-sm text-[#708075]">
+                Optional. Add an address for holiday cards and client mail.
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-5 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <FormField label="Street Address">
+                  <input
+                    value={addressLine1}
+                    onChange={(event) =>
+                      setAddressLine1(event.target.value)
+                    }
+                    placeholder="123 Main Street"
+                    autoComplete="address-line1"
+                    className={inputStyle}
+                  />
+                </FormField>
+              </div>
+
+              <div className="md:col-span-2">
+                <FormField label="Apartment, Suite, or Unit">
+                  <input
+                    value={addressLine2}
+                    onChange={(event) =>
+                      setAddressLine2(event.target.value)
+                    }
+                    placeholder="Apt 4B"
+                    autoComplete="address-line2"
+                    className={inputStyle}
+                  />
+                </FormField>
+              </div>
+
+              <FormField label="City">
+                <input
+                  value={city}
+                  onChange={(event) => setCity(event.target.value)}
+                  placeholder="West Palm Beach"
+                  autoComplete="address-level2"
+                  className={inputStyle}
+                />
+              </FormField>
+
+              <FormField label="State">
+                <input
+                  value={state}
+                  onChange={(event) =>
+                    setState(event.target.value.slice(0, 2))
+                  }
+                  placeholder="FL"
+                  maxLength={2}
+                  autoComplete="address-level1"
+                  className={`${inputStyle} uppercase`}
+                />
+              </FormField>
+
+              <FormField label="ZIP Code">
+                <input
+                  value={postalCode}
+                  onChange={(event) =>
+                    setPostalCode(event.target.value)
+                  }
+                  placeholder="33401"
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  className={inputStyle}
+                />
+              </FormField>
             </div>
           </section>
 

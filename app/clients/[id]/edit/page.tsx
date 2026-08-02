@@ -23,7 +23,12 @@ export default function EditClientPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [company, setCompany] = useState("");
+
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [postalCode, setPostalCode] = useState("");
 
   const [status, setStatus] = useState("New");
   const [paymentStatus, setPaymentStatus] = useState("Open");
@@ -36,7 +41,6 @@ export default function EditClientPage() {
 
   useEffect(() => {
     async function loadClient() {
-      console.log("CLIENT ID FROM URL:", clientId);
       if (!clientId) {
         setErrorMessage("Invalid client ID.");
         setLoading(false);
@@ -45,13 +49,17 @@ export default function EditClientPage() {
 
       const { data, error } = await supabase
         .from("clients")
-        .select("*")
+        .select(
+          "id, name, email, phone, address_line1, address_line2, city, state, postal_code, status, payment_status, intake_date, due_date, next_step, project_notes"
+        )
         .eq("id", clientId)
         .maybeSingle();
 
       if (error || !data) {
         console.error("Unable to load client:", error);
-        setErrorMessage("The client could not be loaded.");
+        setErrorMessage(
+          error?.message || "The client could not be loaded."
+        );
         setLoading(false);
         return;
       }
@@ -59,7 +67,12 @@ export default function EditClientPage() {
       setName(data.name ?? "");
       setEmail(data.email ?? "");
       setPhone(data.phone ?? "");
-      setCompany(data.company ?? "");
+
+      setAddressLine1(data.address_line1 ?? "");
+      setAddressLine2(data.address_line2 ?? "");
+      setCity(data.city ?? "");
+      setState(data.state ?? "");
+      setPostalCode(data.postal_code ?? "");
 
       setStatus(data.status ?? "New");
       setPaymentStatus(data.payment_status ?? "Open");
@@ -81,6 +94,11 @@ export default function EditClientPage() {
   ) {
     event.preventDefault();
 
+    if (!name.trim()) {
+      setErrorMessage("Please enter the client’s name.");
+      return;
+    }
+
     setSaving(true);
     setErrorMessage("");
 
@@ -90,7 +108,12 @@ export default function EditClientPage() {
         name: name.trim(),
         email: email.trim() || null,
         phone: phone.trim() || null,
-        company: company.trim() || null,
+
+        address_line1: addressLine1.trim() || null,
+        address_line2: addressLine2.trim() || null,
+        city: city.trim() || null,
+        state: state.trim().toUpperCase() || null,
+        postal_code: postalCode.trim() || null,
 
         status,
         payment_status: paymentStatus,
@@ -116,8 +139,8 @@ export default function EditClientPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f7f8f3] p-10 text-[#243128]">
-        <div className="mx-auto max-w-5xl rounded-3xl border border-[#dfe6db] bg-white p-10 shadow-sm">
+      <main className="min-h-screen bg-[#f7f8f3] p-6 text-[#243128] sm:p-10">
+        <div className="mx-auto max-w-5xl rounded-3xl border border-[#dfe6db] bg-white p-8 shadow-sm sm:p-10">
           <p className="text-sm font-semibold text-[#708075]">
             Loading client...
           </p>
@@ -128,7 +151,7 @@ export default function EditClientPage() {
 
   return (
     <main className="min-h-screen bg-[#f7f8f3] text-[#243128]">
-      <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
+      <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-5 py-7 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-5xl">
           <Link
             href={`/clients/${clientId}`}
@@ -142,57 +165,130 @@ export default function EditClientPage() {
           </h1>
 
           <p className="mt-2 text-sm text-[#708075]">
-            Update client information and project details.
+            Update client information, mailing address, and project details.
           </p>
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl p-6 lg:p-10">
+      <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-10">
         <form
           onSubmit={handleSubmit}
           className="overflow-hidden rounded-3xl border border-[#dfe6db] bg-white shadow-sm"
         >
-          <section className="border-b border-[#e4e9df] p-6 lg:p-8">
+          <section className="border-b border-[#e4e9df] p-5 sm:p-6 lg:p-8">
             <h2 className="text-xl font-bold">
               Client Information
             </h2>
 
             <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <FormField label="Full Name">
+              <FormField label="Full Name" required>
                 <input
+                  required
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(event) => setName(event.target.value)}
                   className={inputStyle}
                 />
               </FormField>
 
               <FormField label="Email">
                 <input
+                  type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   className={inputStyle}
                 />
               </FormField>
 
               <FormField label="Phone Number">
                 <input
+                  type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className={inputStyle}
-                />
-              </FormField>
-
-              <FormField label="Company">
-                <input
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
+                  onChange={(event) => setPhone(event.target.value)}
                   className={inputStyle}
                 />
               </FormField>
             </div>
           </section>
 
-          <section className="border-b border-[#e4e9df] p-6 lg:p-8">
+          <section className="border-b border-[#e4e9df] p-5 sm:p-6 lg:p-8">
+            <div>
+              <h2 className="text-xl font-bold">
+                Mailing Address
+              </h2>
+
+              <p className="mt-1 text-sm text-[#708075]">
+                Optional. Add an address for holiday cards and client mail.
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-5 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <FormField label="Street Address">
+                  <input
+                    value={addressLine1}
+                    onChange={(event) =>
+                      setAddressLine1(event.target.value)
+                    }
+                    placeholder="123 Main Street"
+                    autoComplete="address-line1"
+                    className={inputStyle}
+                  />
+                </FormField>
+              </div>
+
+              <div className="md:col-span-2">
+                <FormField label="Apartment, Suite, or Unit">
+                  <input
+                    value={addressLine2}
+                    onChange={(event) =>
+                      setAddressLine2(event.target.value)
+                    }
+                    placeholder="Apt 4B"
+                    autoComplete="address-line2"
+                    className={inputStyle}
+                  />
+                </FormField>
+              </div>
+
+              <FormField label="City">
+                <input
+                  value={city}
+                  onChange={(event) => setCity(event.target.value)}
+                  placeholder="West Palm Beach"
+                  autoComplete="address-level2"
+                  className={inputStyle}
+                />
+              </FormField>
+
+              <FormField label="State">
+                <input
+                  value={state}
+                  onChange={(event) =>
+                    setState(event.target.value.slice(0, 2))
+                  }
+                  placeholder="FL"
+                  maxLength={2}
+                  autoComplete="address-level1"
+                  className={`${inputStyle} uppercase`}
+                />
+              </FormField>
+
+              <FormField label="ZIP Code">
+                <input
+                  value={postalCode}
+                  onChange={(event) =>
+                    setPostalCode(event.target.value)
+                  }
+                  placeholder="33401"
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  className={inputStyle}
+                />
+              </FormField>
+            </div>
+          </section>
+
+          <section className="border-b border-[#e4e9df] p-5 sm:p-6 lg:p-8">
             <h2 className="text-xl font-bold">
               Status and Payment
             </h2>
@@ -201,11 +297,12 @@ export default function EditClientPage() {
               <FormField label="Project Status">
                 <select
                   value={status}
-                  onChange={(e) => setStatus(e.target.value)}
+                  onChange={(event) => setStatus(event.target.value)}
                   className={inputStyle}
                 >
                   <option>New</option>
-                  <option>Free15 Scheduled</option>
+                  <option>Free 15 Scheduled</option>
+                  <option>Free 15 Completed</option>
                   <option>Consultation Complete</option>
                   <option>Session Scheduled</option>
                   <option>In Progress</option>
@@ -218,8 +315,8 @@ export default function EditClientPage() {
               <FormField label="Payment Status">
                 <select
                   value={paymentStatus}
-                  onChange={(e) =>
-                    setPaymentStatus(e.target.value)
+                  onChange={(event) =>
+                    setPaymentStatus(event.target.value)
                   }
                   className={inputStyle}
                 >
@@ -234,8 +331,8 @@ export default function EditClientPage() {
                 <input
                   type="date"
                   value={intakeDate}
-                  onChange={(e) =>
-                    setIntakeDate(e.target.value)
+                  onChange={(event) =>
+                    setIntakeDate(event.target.value)
                   }
                   className={inputStyle}
                 />
@@ -245,8 +342,8 @@ export default function EditClientPage() {
                 <input
                   type="date"
                   value={dueDate}
-                  onChange={(e) =>
-                    setDueDate(e.target.value)
+                  onChange={(event) =>
+                    setDueDate(event.target.value)
                   }
                   className={inputStyle}
                 />
@@ -254,12 +351,12 @@ export default function EditClientPage() {
             </div>
           </section>
 
-          <section className="p-6 lg:p-8">
+          <section className="p-5 sm:p-6 lg:p-8">
             <FormField label="Next Step">
               <input
                 value={nextStep}
-                onChange={(e) =>
-                  setNextStep(e.target.value)
+                onChange={(event) =>
+                  setNextStep(event.target.value)
                 }
                 className={inputStyle}
               />
@@ -270,24 +367,24 @@ export default function EditClientPage() {
                 <textarea
                   rows={6}
                   value={projectNotes}
-                  onChange={(e) =>
-                    setProjectNotes(e.target.value)
+                  onChange={(event) =>
+                    setProjectNotes(event.target.value)
                   }
                   className={`${inputStyle} resize-y`}
                 />
               </FormField>
             </div>
 
-            {errorMessage && (
+            {errorMessage ? (
               <div className="mt-5 rounded-xl border border-[#ead4d0] bg-[#fbefed] p-4 text-sm text-[#8d4f48]">
                 Client could not be updated: {errorMessage}
               </div>
-            )}
+            ) : null}
 
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <Link
                 href={`/clients/${clientId}`}
-                className="rounded-xl border border-[#d7e1d0] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247]"
+                className="rounded-xl border border-[#d7e1d0] bg-white px-5 py-3 text-center text-sm font-semibold text-[#4d6247]"
               >
                 Cancel
               </Link>
@@ -297,9 +394,7 @@ export default function EditClientPage() {
                 disabled={saving}
                 className="rounded-xl bg-[#647d5b] px-6 py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
-                {saving
-                  ? "Saving..."
-                  : "Save Changes"}
+                {saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </section>
@@ -310,19 +405,24 @@ export default function EditClientPage() {
 }
 
 const inputStyle =
-  "w-full rounded-xl border border-[#d7e1d0] bg-[#fbfcf9] px-4 py-3 text-sm text-[#243128] outline-none focus:border-[#9fb294] focus:ring-2 focus:ring-[#e8eee3]";
+  "w-full rounded-xl border border-[#d7e1d0] bg-[#fbfcf9] px-4 py-3 text-sm text-[#243128] outline-none placeholder:text-[#9aa59c] focus:border-[#9fb294] focus:ring-2 focus:ring-[#e8eee3]";
 
 function FormField({
   label,
+  required = false,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: ReactNode;
 }) {
   return (
     <label className="block">
       <span className="text-sm font-semibold text-[#3d4d39]">
         {label}
+        {required ? (
+          <span className="ml-1 text-[#a85656]">*</span>
+        ) : null}
       </span>
 
       <div className="mt-2">{children}</div>
