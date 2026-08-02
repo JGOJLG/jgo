@@ -19,7 +19,11 @@ type Client = {
   name: string | null;
   email: string | null;
   phone: string | null;
-  company: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
   status: string | null;
   payment_status: string | null;
   next_step: string | null;
@@ -208,7 +212,7 @@ export default async function ClientPage({ params }: Props) {
   const { data: clientData, error: clientError } = await supabase
     .from("clients")
     .select(
-      "id, name, email, phone, company, status, payment_status, next_step, project_notes, intake_date, due_date"
+      "id, name, email, phone, address_line1, address_line2, city, state, postal_code, status, payment_status, next_step, project_notes, intake_date, due_date"
     )
     .eq("id", clientId)
     .maybeSingle();
@@ -352,6 +356,20 @@ export default async function ClientPage({ params }: Props) {
     .filter((service): service is string => Boolean(service))
     .join(" • ");
 
+  const cityState = [client.city, client.state]
+    .filter(Boolean)
+    .join(", ");
+
+  const mailingAddress = [
+    client.address_line1,
+    client.address_line2,
+    cityState
+      ? `${cityState}${client.postal_code ? ` ${client.postal_code}` : ""}`
+      : client.postal_code,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   return (
     <section className="min-w-0 flex-1">
           <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-8 lg:px-10">
@@ -391,9 +409,22 @@ export default async function ClientPage({ params }: Props) {
                     {serviceNames || "No services have been added"}
                   </p>
 
-                  <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-[#708075]">
-                    <span>{client.email || "No email added"}</span>
-                    <span>{client.phone || "No phone number added"}</span>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-[#708075]">
+                    {client.email ? (
+                      <span>{client.email}</span>
+                    ) : null}
+
+                    {client.phone ? (
+                      <span>{client.phone}</span>
+                    ) : null}
+
+                    {cityState ? (
+                      <span>{cityState}</span>
+                    ) : null}
+
+                    {!client.email && !client.phone && !cityState ? (
+                      <span>No contact information added</span>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -515,8 +546,8 @@ export default async function ClientPage({ params }: Props) {
 
                 <div className="mt-6 grid gap-6 sm:grid-cols-2">
                   <Detail
-                    label="Company"
-                    value={client.company || "Not added"}
+                    label="Mailing Address"
+                    value={mailingAddress || "Not added"}
                   />
 
                   <Detail
