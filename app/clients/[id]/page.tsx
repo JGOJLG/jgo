@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
 import ClientFileManager from "./ClientFileManager";
+import InterviewCompleteButton from "@/components/InterviewCompleteButton";
 import {
   archiveClient,
   restoreClient,
@@ -137,6 +138,47 @@ function normalize(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? "";
 }
 
+function isInterviewCompleted(interview: CalendarEvent) {
+  return ["completed", "complete", "cancelled", "canceled"].includes(
+    normalize(interview.status)
+  );
+}
+
+function isInterviewPast(interview: CalendarEvent) {
+  if (!interview.start_at) {
+    return false;
+  }
+
+  const interviewTime = new Date(interview.start_at).getTime();
+
+  if (Number.isNaN(interviewTime)) {
+    return false;
+  }
+
+  return interviewTime < Date.now();
+}
+
+function formatInterviewDate(value: string | null) {
+  if (!value) {
+    return "Date and time not added";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  }).format(date);
+}
+
 function getPaymentStyle(paymentStatus: string | null) {
   if (paymentStatus === "Paid") {
     return "bg-[#e7f1e6] text-[#55704f]";
@@ -231,6 +273,32 @@ export default async function ClientPage({ params }: Props) {
   const services = (serviceData ?? []) as ClientService[];
   const payments = (paymentData ?? []) as Payment[];
   const interviews = (interviewData ?? []) as CalendarEvent[];
+
+  const upcomingInterviews = interviews
+    .filter(
+      (interview) =>
+        !isInterviewCompleted(interview) &&
+        !isInterviewPast(interview)
+    )
+    .sort((a, b) => {
+      if (!a.start_at && !b.start_at) return b.id - a.id;
+      if (!a.start_at) return 1;
+      if (!b.start_at) return -1;
+      return a.start_at.localeCompare(b.start_at);
+    });
+
+  const completedInterviews = interviews
+    .filter(
+      (interview) =>
+        isInterviewCompleted(interview) ||
+        isInterviewPast(interview)
+    )
+    .sort((a, b) => {
+      if (!a.start_at && !b.start_at) return b.id - a.id;
+      if (!a.start_at) return 1;
+      if (!b.start_at) return -1;
+      return b.start_at.localeCompare(a.start_at);
+    });
 
   const activeServices = services.filter(
     (service) =>
@@ -509,53 +577,150 @@ export default async function ClientPage({ params }: Props) {
 
               <WorkspaceCard
                 title="Interview Details"
-                description="Track upcoming interviews and good-luck reminders."
+                description="Track upcoming interviews and keep completed interviews in the client history."
                 action="+ Add Interview"
                 actionHref={`/clients/${client.id}/interviews/new`}
               >
                 {interviews.length === 0 ? (
-                  <SimpleEmptyState text="No upcoming interviews added." />
+                  <SimpleEmptyState text="No interviews have been added yet." />
                 ) : (
-                  <div className="space-y-3">
-                    {interviews.map((interview) => (
-                      <Link
-                        key={interview.id}
-                        href={`/calendar/${interview.id}`}
-                        className="block rounded-xl border border-[#dfe6db] bg-[#fbfcf9] p-4 transition hover:border-[#bdcdb7] hover:bg-white"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="font-semibold text-[#243128]">
-                              {interview.title || "Interview"}
-                            </p>
-                            <p className="mt-1 text-sm text-[#708075]">
-                              {interview.start_at
-                                ? new Date(interview.start_at).toLocaleString(
-                                    "en-US",
-                                    {
-                                      month: "long",
-                                      day: "numeric",
-                                      year: "numeric",
-                                      hour: "numeric",
-                                      minute: "2-digit",
-                                      timeZone: "America/New_York",
-                                    }
-                                  )
-                                : "Date not added"}
-                            </p>
-                            {interview.notes ? (
-                              <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#647066]">
-                                {interview.notes}
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <span className="rounded-full bg-[#e8edf3] px-3 py-1 text-xs font-semibold text-[#52697b]">
-                            {interview.status || "Scheduled"}
-                          </span>
+                  <div className="space-y-6">
+                    <div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7f9975]">
+                            Upcoming
+                          </p>
+                          <p className="mt-1 text-sm text-[#708075]">
+                            Scheduled and undated interviews that still need attention.
+                          </p>
                         </div>
-                      </Link>
-                    ))}
+
+                        <span className="rounded-full bg-[#eef2e9] px-3 py-1 text-xs font-semibold text-[#647d5b]">
+                          {upcomingInterviews.length}
+                        </span>
+                      </div>
+
+                      {upcomingInterviews.length === 0 ? (
+                        <div className="mt-4">
+                          <SimpleEmptyState text="No upcoming interviews." />
+                        </div>
+                      ) : (
+                        <div className="mt-4 space-y-3">
+                          {upcomingInterviews.map((interview) => (
+                            <div
+                              key={interview.id}
+                              className="rounded-xl border border-[#dfe6db] bg-[#fbfcf9] p-4 transition hover:border-[#bdcdb7] hover:bg-white"
+                            >
+                              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="font-semibold text-[#243128]">
+                                      {interview.title || "Interview"}
+                                    </p>
+
+                                    {!interview.start_at ? (
+                                      <span className="rounded-full bg-[#f6ecd9] px-2.5 py-1 text-[11px] font-semibold text-[#8f6d37]">
+                                        Date Needed
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  <p className="mt-1 text-sm text-[#708075]">
+                                    {formatInterviewDate(interview.start_at)}
+                                  </p>
+
+                                  {interview.notes ? (
+                                    <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#647066]">
+                                      {interview.notes}
+                                    </p>
+                                  ) : null}
+                                </div>
+
+                                <span className="w-fit rounded-full bg-[#e8edf3] px-3 py-1 text-xs font-semibold text-[#52697b]">
+                                  {interview.status || "Scheduled"}
+                                </span>
+                              </div>
+
+                              <div className="mt-4 flex flex-wrap gap-2 border-t border-[#e4e9df] pt-4">
+                                <Link
+                                  href={`/calendar/${interview.id}`}
+                                  className="rounded-xl border border-[#d7e1d0] bg-white px-3 py-2 text-xs font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+                                >
+                                  View Interview
+                                </Link>
+
+                                <InterviewCompleteButton
+                                  eventId={interview.id}
+                                  compact
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-[#e4e9df] pt-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7b6997]">
+                            Completed Interviews
+                          </p>
+                          <p className="mt-1 text-sm text-[#708075]">
+                            Past and completed interviews stay here for reference.
+                          </p>
+                        </div>
+
+                        <span className="rounded-full bg-[#eee8f3] px-3 py-1 text-xs font-semibold text-[#6d5878]">
+                          {completedInterviews.length}
+                        </span>
+                      </div>
+
+                      {completedInterviews.length === 0 ? (
+                        <div className="mt-4">
+                          <SimpleEmptyState text="No completed interviews yet." />
+                        </div>
+                      ) : (
+                        <div className="mt-4 space-y-3">
+                          {completedInterviews.map((interview) => (
+                            <Link
+                              key={interview.id}
+                              href={`/calendar/${interview.id}`}
+                              className="block rounded-xl border border-[#e4e9df] bg-[#f8f9f6] p-4 opacity-80 transition hover:border-[#cbd8c4] hover:bg-white hover:opacity-100"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#647d5b] text-xs font-bold text-white">
+                                      ✓
+                                    </span>
+
+                                    <p className="font-semibold text-[#243128]">
+                                      {interview.title || "Interview"}
+                                    </p>
+                                  </div>
+
+                                  <p className="mt-2 text-sm text-[#708075]">
+                                    {formatInterviewDate(interview.start_at)}
+                                  </p>
+
+                                  {interview.notes ? (
+                                    <p className="mt-3 line-clamp-2 whitespace-pre-line text-sm leading-6 text-[#647066]">
+                                      {interview.notes}
+                                    </p>
+                                  ) : null}
+                                </div>
+
+                                <span className="rounded-full bg-[#e7f1e6] px-3 py-1 text-xs font-semibold text-[#55704f]">
+                                  Completed
+                                </span>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </WorkspaceCard>

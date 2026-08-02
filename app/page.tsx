@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase-server";
 import JGODailyFour from "@/components/JGODailyFour";
 import HeaderTimeClocks from "@/components/HeaderTimeClocks";
+import InterviewCompleteButton from "@/components/InterviewCompleteButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -515,6 +516,7 @@ export default async function Home() {
     servicesResult,
     tasksResult,
     calendarEventsResult,
+    undatedInterviewsResult,
   ] = await Promise.all([
     safeQuery<Client>(
       "clients",
@@ -578,6 +580,18 @@ export default async function Home() {
         .order("start_at", { ascending: true })
         .limit(150)
     ),
+    safeQuery<CalendarEvent>(
+      "undated interviews",
+      supabase
+        .from("calendar_events")
+        .select(
+          "id, title, event_type, start_at, end_at, client_id, intake_call_id, status, notes"
+        )
+        .eq("event_type", "interview")
+        .is("start_at", null)
+        .order("id", { ascending: false })
+        .limit(50)
+    ),
   ]);
 
   const clients = clientsResult.data;
@@ -586,7 +600,10 @@ export default async function Home() {
   const followUps = followUpsResult.data;
   const services = servicesResult.data;
   const tasks = tasksResult.data;
-  const calendarEvents = calendarEventsResult.data;
+  const calendarEvents = [
+    ...calendarEventsResult.data,
+    ...undatedInterviewsResult.data,
+  ];
 
   const databaseErrors = {
     clients: clientsResult.error,
@@ -596,6 +613,7 @@ export default async function Home() {
     clientServices: servicesResult.error,
     tasks: tasksResult.error,
     calendarEvents: calendarEventsResult.error,
+    undatedInterviews: undatedInterviewsResult.error,
   };
 
   const today = getTodayDateString();
@@ -713,7 +731,6 @@ export default async function Home() {
 
   const activeCalendarEvents = calendarEvents.filter(
     (event) =>
-      event.start_at &&
       !["cancelled", "canceled", "completed", "complete"].includes(
         normalize(event.status)
       )
@@ -757,14 +774,24 @@ export default async function Home() {
     ) ?? null;
 
   const upcomingClientInterviews = activeCalendarEvents
-    .filter(
-      (event) =>
-        normalize(event.event_type) === "interview" &&
-        event.start_at &&
-        new Date(event.start_at).getTime() >= Date.now()
-    )
-    .sort((a, b) => (a.start_at || "").localeCompare(b.start_at || ""))
-    .slice(0, 4);
+    .filter((event) => {
+      if (normalize(event.event_type) !== "interview") {
+        return false;
+      }
+
+      if (!event.start_at) {
+        return true;
+      }
+
+      return new Date(event.start_at).getTime() >= Date.now();
+    })
+    .sort((a, b) => {
+      if (!a.start_at && !b.start_at) return b.id - a.id;
+      if (!a.start_at) return 1;
+      if (!b.start_at) return -1;
+      return a.start_at.localeCompare(b.start_at);
+    })
+    .slice(0, 6);
 
   const peopleToReachOutTo = [
     ...openFollowUps.map((followUp) => ({
@@ -942,64 +969,47 @@ export default async function Home() {
 
           <div className="relative grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
             <div className="grid gap-3">
-              <section className="overflow-hidden rounded-[28px] border border-white/80 bg-white/64 p-6 shadow-[0_18px_55px_rgba(71,91,66,0.11)] backdrop-blur-2xl lg:p-7">
-                <div className="flex flex-col gap-6">
+              <section className="relative overflow-hidden rounded-[28px] border border-[#d9e8f7]/90 bg-[linear-gradient(145deg,rgba(242,248,255,0.96),rgba(250,253,255,0.88),rgba(233,243,253,0.92))] p-6 shadow-[0_22px_65px_rgba(86,125,162,0.15)] backdrop-blur-2xl lg:p-8">
+                <div className="pointer-events-none absolute -left-16 -top-20 h-52 w-52 rounded-full bg-[#d8ebfb]/70 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-24 right-[-40px] h-56 w-56 rounded-full bg-white/80 blur-3xl" />
+
+                <div className="relative flex flex-col gap-6">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <div className="flex items-center gap-3">
-                        <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/80 bg-[#e9f0e5]/90 text-lg shadow-sm">
+                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#cfe1f2] bg-white/82 text-lg font-bold text-[#4f6f8f] shadow-[0_10px_28px_rgba(86,125,162,0.12)]">
                           JG
                         </span>
 
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7f9975]">
+                          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6f8eac]">
                             JGO Hire Command Center
                           </p>
-                          <h3 className="mt-1 text-3xl font-bold tracking-tight text-[#243128]">
+                          <h3 className="mt-2 text-4xl font-bold leading-[1.05] tracking-[-0.035em] text-[#243128] lg:text-5xl">
                             Welcome back, Jen
                           </h3>
                         </div>
                       </div>
 
-                      <p className="mt-4 max-w-xl text-sm leading-6 text-[#68766b]">
+                      <p className="mt-5 max-w-xl text-sm leading-6 text-[#667989]">
                         Your clients, content ideas, interviews, and business priorities are all ready for you.
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-white/80 bg-[#eef2e9]/78 px-4 py-3 text-right shadow-sm backdrop-blur-xl">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f9975]">
+                    <div className="rounded-2xl border border-[#d5e5f4] bg-white/72 px-5 py-4 text-right shadow-[0_12px_30px_rgba(86,125,162,0.11)] backdrop-blur-xl">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f8eac]">
                         Today
                       </p>
-                      <p className="mt-1 text-sm font-bold text-[#3d4d39]">
+                      <p className="mt-1 text-sm font-bold text-[#344f68]">
                         {getTodayLabel()}
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {[
-                      ["Eastern", "ET"],
-                      ["Central", "CT"],
-                      ["Pacific", "PT"],
-                    ].map(([label, short]) => (
-                      <div
-                        key={label}
-                        className="rounded-2xl border border-white/80 bg-white/66 p-4"
-                      >
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f9975]">
-                          {label}
-                        </p>
-                        <p className="mt-2 text-lg font-bold text-[#243128]">
-                          {short}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/80 bg-[linear-gradient(135deg,rgba(238,242,233,0.92),rgba(255,255,255,0.78))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                  <div className="rounded-[24px] border border-[#dbe8f4] bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(237,246,254,0.80))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_32px_rgba(86,125,162,0.08)]">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7f9975]">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6f8eac]">
                           Recruiter Tip of the Day
                         </p>
                         <p className="mt-2 text-xl font-bold text-[#243128]">
@@ -1110,42 +1120,57 @@ export default async function Home() {
                         : "Client";
 
                       return (
-                        <Link
+                        <div
                           key={interview.id}
-                          href={
-                            interview.client_id
-                              ? `/clients/${interview.client_id}`
-                              : `/calendar/${interview.id}`
-                          }
                           className="group rounded-[22px] border border-white/85 bg-white/72 p-4 shadow-[0_10px_30px_rgba(92,76,126,0.09)] transition hover:-translate-y-1 hover:bg-white"
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a78ad]">
-                                Wish them luck!
-                              </p>
-                              <p className="mt-2 text-base font-bold text-[#2f2938]">
-                                {clientName}
-                              </p>
+                          <Link
+                            href={
+                              interview.client_id
+                                ? `/clients/${interview.client_id}`
+                                : `/calendar/${interview.id}`
+                            }
+                            className="block"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a78ad]">
+                                  Wish them luck!
+                                </p>
+                                <p className="mt-2 text-base font-bold text-[#2f2938]">
+                                  {clientName}
+                                </p>
+                              </div>
+
+                              <span className="rounded-full bg-[#eee8f6] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#79659b]">
+                                Interview
+                              </span>
                             </div>
 
-                            <span className="rounded-full bg-[#eee8f6] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#79659b]">
-                              Interview
-                            </span>
-                          </div>
-
-                          <p className="mt-3 text-sm text-[#6f6578]">
-                            {formatDate(interview.start_at)}
-                            {" · "}
-                            {formatTime(interview.start_at) || "Time not added"}
-                          </p>
-
-                          {interview.notes ? (
-                            <p className="mt-3 line-clamp-2 text-xs leading-5 text-[#81768a]">
-                              {interview.notes}
+                            <p className="mt-3 text-sm text-[#6f6578]">
+                              {interview.start_at
+                                ? `${formatDate(interview.start_at)} · ${
+                                    formatTime(interview.start_at) || "Time not added"
+                                  }`
+                                : "Date and time not added"}
                             </p>
+
+                            {interview.notes ? (
+                              <p className="mt-3 line-clamp-2 text-xs leading-5 text-[#81768a]">
+                                {interview.notes}
+                              </p>
+                            ) : null}
+                          </Link>
+
+                          {!interview.start_at ? (
+                            <div className="mt-4 border-t border-[#e9e2f1] pt-3">
+                              <InterviewCompleteButton
+                                eventId={interview.id}
+                                compact
+                              />
+                            </div>
                           ) : null}
-                        </Link>
+                        </div>
                       );
                     })}
                   </div>

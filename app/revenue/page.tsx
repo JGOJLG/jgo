@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase-server";
+import RevenueUnlockForm from "@/components/RevenueUnlockForm";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -108,7 +110,27 @@ function getPaymentStyle(status: string | null | undefined) {
   return "bg-[#f6ecd9] text-[#8f6d37]";
 }
 
-export default async function RevenuePage() {
+type RevenuePageProps = {
+  searchParams: Promise<{
+    error?: string;
+  }>;
+};
+
+export default async function RevenuePage({
+  searchParams,
+}: RevenuePageProps) {
+  const cookieStore = await cookies();
+  const isRevenueUnlocked =
+    cookieStore.get("jgo-revenue-access")?.value === "unlocked";
+
+  if (!isRevenueUnlocked) {
+    const params = await searchParams;
+
+    return (
+      <RevenueUnlockForm error={params.error} />
+    );
+  }
+
   const supabase = await createClient();
 
   const [clientsResult, paymentsResult, servicesResult] = await Promise.all([

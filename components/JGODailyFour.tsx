@@ -107,7 +107,9 @@ export default function JGODailyFour() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#dce5d7] bg-[#eef3ea] text-sm font-bold text-[#4d6247]">
-              4
+              <span className="text-sm font-bold tracking-wide">
+  JGO
+</span>
             </div>
 
             <div className="min-w-0">
