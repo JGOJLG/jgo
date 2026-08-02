@@ -440,7 +440,7 @@ export default async function RevenuePage() {
                         )}
 
                         <p className="mt-1 truncate text-xs text-[#708075]">
-                          {service.service_type || "Client service"}
+                          {service.service || "Client service"}
                         </p>
                       </div>
 
