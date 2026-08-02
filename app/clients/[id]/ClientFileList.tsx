@@ -10,6 +10,7 @@ const DOCUMENT_GROUPS = [
   {
     title: "Original Documents",
     description: "The materials the client started with",
+    tone: "sage" as const,
     categories: [
       {
         value: "Old Resume",
@@ -31,6 +32,7 @@ const DOCUMENT_GROUPS = [
   {
     title: "Final Deliverables",
     description: "Completed documents prepared for the client",
+    tone: "blue" as const,
     categories: [
       {
         value: "Finished Resume",
@@ -47,6 +49,7 @@ const DOCUMENT_GROUPS = [
   {
     title: "JGO Resources",
     description: "Branded resources included with the client’s service",
+    tone: "lavender" as const,
     categories: [
       {
         value: "Resume Ready Report™",
@@ -117,85 +120,125 @@ export default async function ClientFileList({
 
   return (
     <div>
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-[#e2e9de] bg-[#f8faf6] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-[#3d4d39]">
             Document Library
           </p>
 
           <p className="mt-1 text-xs text-[#849080]">
-            Organized by stage and document type
+            Open only the section you need.
           </p>
         </div>
 
-        <p className="rounded-full bg-[#edf2e9] px-3 py-1.5 text-xs font-semibold text-[#647d5b]">
+        <p className="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#647d5b] shadow-sm">
           {files.length} {files.length === 1 ? "document" : "documents"}
         </p>
       </div>
 
-      <div className="space-y-8">
-        {DOCUMENT_GROUPS.map((group) => (
-          <section key={group.title}>
-            <div className="mb-4">
-              <h3 className="text-base font-bold text-[#2f3d2c]">
-                {group.title}
-              </h3>
+      <div className="space-y-6">
+        {DOCUMENT_GROUPS.map((group) => {
+          const groupFileCount = group.categories.reduce(
+            (total, category) =>
+              total +
+              files.filter((file) => file.category === category.value).length,
+            0
+          );
 
-              <p className="mt-1 text-sm text-[#7d897b]">
-                {group.description}
-              </p>
-            </div>
+          return (
+            <section
+              key={group.title}
+              className="overflow-hidden rounded-[24px] border border-[#dfe6db] bg-white shadow-sm"
+            >
+              <div
+                className={`border-b px-5 py-4 sm:px-6 ${
+                  group.tone === "sage"
+                    ? "border-[#dce6d7] bg-[#eef4ea]"
+                    : group.tone === "blue"
+                      ? "border-[#dbe7f2] bg-[#eef6fc]"
+                      : "border-[#e4ddef] bg-[#f4f0f9]"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-bold text-[#2f3d2c]">
+                      {group.title}
+                    </h3>
 
-            <div className="space-y-4">
-              {group.categories.map((category) => {
-                const categoryFiles = files.filter(
-                  (file) => file.category === category.value
-                );
+                    <p className="mt-1 text-sm text-[#71806f]">
+                      {group.description}
+                    </p>
+                  </div>
 
-                return (
-                  <FileCategorySection
-                    key={category.value}
-                    clientId={clientId}
-                    category={category.value}
-                    title={category.title}
-                    description={category.description}
-                    fileCount={categoryFiles.length}
-                  >
-                    {categoryFiles.length > 0 ? (
-                      categoryFiles.map((file) => (
-                        <FileRow
-                          key={file.id}
-                          file={{
-                            id: file.id,
-                            file_name: file.file_name,
-                            file_path: file.file_path,
-                            file_type: file.file_type,
-                            file_size: file.file_size,
-                          }}
-                        />
-                      ))
-                    ) : (
-                      <p className="text-sm text-[#8a968d]">
-                        No document uploaded yet.
-                      </p>
-                    )}
-                  </FileCategorySection>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+                  <span className="shrink-0 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-[#647d5b]">
+                    {groupFileCount}
+                  </span>
+                </div>
+              </div>
+
+              <div className="divide-y divide-[#e8ece5]">
+                {group.categories.map((category) => {
+                  const categoryFiles = files.filter(
+                    (file) => file.category === category.value
+                  );
+
+                  return (
+                    <FileCategorySection
+                      key={category.value}
+                      clientId={clientId}
+                      category={category.value}
+                      title={category.title}
+                      description={category.description}
+                      fileCount={categoryFiles.length}
+                      defaultOpen={categoryFiles.length > 0}
+                      tone={group.tone}
+                    >
+                      {categoryFiles.length > 0 ? (
+                        <div className="space-y-3">
+                          {categoryFiles.map((file) => (
+                            <FileRow
+                              key={file.id}
+                              file={{
+                                id: file.id,
+                                file_name: file.file_name,
+                                file_path: file.file_path,
+                                file_type: file.file_type,
+                                file_size: file.file_size,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-[#d5ddd1] bg-white/70 p-4 text-sm text-[#8a968d]">
+                          No document uploaded yet.
+                        </div>
+                      )}
+                    </FileCategorySection>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
 
         {legacyFiles.length > 0 ? (
-          <section>
-            <div className="mb-4">
-              <h3 className="text-base font-bold text-[#2f3d2c]">
-                Previous Uploads
-              </h3>
+          <section className="overflow-hidden rounded-[24px] border border-[#e4dfd6] bg-white shadow-sm">
+            <div className="border-b border-[#e7e1d8] bg-[#faf5ec] px-5 py-4 sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-bold text-[#2f3d2c]">
+                    Previous Uploads
+                  </h3>
 
-              <p className="mt-1 text-sm text-[#7d897b]">
-                Files uploaded before the new document categories were added.
-              </p>
+                  <p className="mt-1 text-sm text-[#7d897b]">
+                    Files uploaded before the new document categories were added.
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-[#8a6f47]">
+                  {legacyFiles.length}
+                </span>
+              </div>
             </div>
 
             <FileCategorySection
@@ -204,19 +247,23 @@ export default async function ClientFileList({
               title="Previous Uploads"
               description="Existing files are preserved here so nothing is lost"
               fileCount={legacyFiles.length}
+              defaultOpen
+              tone="cream"
             >
-              {legacyFiles.map((file) => (
-                <FileRow
-                  key={file.id}
-                  file={{
-                    id: file.id,
-                    file_name: file.file_name,
-                    file_path: file.file_path,
-                    file_type: file.file_type,
-                    file_size: file.file_size,
-                  }}
-                />
-              ))}
+              <div className="space-y-3">
+                {legacyFiles.map((file) => (
+                  <FileRow
+                    key={file.id}
+                    file={{
+                      id: file.id,
+                      file_name: file.file_name,
+                      file_path: file.file_path,
+                      file_type: file.file_type,
+                      file_size: file.file_size,
+                    }}
+                  />
+                ))}
+              </div>
             </FileCategorySection>
           </section>
         ) : null}

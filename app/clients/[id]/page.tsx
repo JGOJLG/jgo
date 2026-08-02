@@ -824,32 +824,39 @@ export default async function ClientPage({ params }: Props) {
                   payments.map((payment) => (
                     <div
                       key={payment.id}
-                      className="rounded-xl border border-[#dfe6db] bg-[#fbfcf9] p-4"
+                      className="rounded-2xl border border-[#dfe6db] bg-[#fbfcf9] p-5"
                     >
-                      <div className="flex justify-between gap-4">
-                        <div>
-                          <p className="text-lg font-bold text-[#243128]">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-xl font-bold text-[#243128]">
                             ${Number(payment.amount ?? 0).toLocaleString()}
                           </p>
-                          <p className="text-sm text-[#708075]">
-                            {payment.payment_method || "No method"}
-                          </p>
+
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[#708075]">
+                            <span>
+                              {payment.payment_method || "No payment method"}
+                            </span>
+
+                            <span className="hidden sm:inline">•</span>
+
+                            <span>{formatDate(payment.payment_date)}</span>
+                          </div>
+
+                          {payment.notes ? (
+                            <p className="mt-3 text-sm leading-6 text-[#708075]">
+                              {payment.notes}
+                            </p>
+                          ) : null}
                         </div>
 
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getPaymentStyle(payment.payment_status)}`}>
+                        <span
+                          className={`inline-flex h-8 shrink-0 items-center justify-center self-start rounded-full px-4 text-xs font-semibold sm:self-center ${getPaymentStyle(
+                            payment.payment_status
+                          )}`}
+                        >
                           {payment.payment_status || "Pending"}
                         </span>
                       </div>
-
-                      <p className="mt-3 text-sm text-[#647066]">
-                        {formatDate(payment.payment_date)}
-                      </p>
-
-                      {payment.notes && (
-                        <p className="mt-2 text-sm text-[#708075]">
-                          {payment.notes}
-                        </p>
-                      )}
                     </div>
                   ))
                 )}
