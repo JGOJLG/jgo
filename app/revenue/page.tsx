@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase-server";
-import RevenueUnlockForm from "@/components/RevenueUnlockForm";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,25 +11,16 @@ type Client = {
   status: string | null;
 };
 
-type Payment = {
-  id: number;
-  client_id: number | null;
-  amount: number | null;
-  payment_date: string | null;
-  payment_method: string | null;
-  payment_status: string | null;
-  notes: string | null;
-};
 
 type ClientService = {
   id: number;
   client_id: number | null;
-  service_type: string | null;
-  service_date: string | null;
+  service: string | null;
+  date_added: string | null;
   price: number | null;
   payment_status: string | null;
-  payment_method: string | null;
-  session_complete: boolean | null;
+  payment_method?: string | null;
+  notes?: string | null;
 };
 
 function normalize(value: string | null | undefined) {
@@ -110,72 +99,47 @@ function getPaymentStyle(status: string | null | undefined) {
   return "bg-[#f6ecd9] text-[#8f6d37]";
 }
 
-type RevenuePageProps = {
-  searchParams: Promise<{
-    error?: string;
-  }>;
-};
-
-export default async function RevenuePage({
-  searchParams,
-}: RevenuePageProps) {
-  const cookieStore = await cookies();
-  const isRevenueUnlocked =
-    cookieStore.get("jgo-revenue-access")?.value === "unlocked";
-
-  if (!isRevenueUnlocked) {
-    const params = await searchParams;
-
-    return (
-      <RevenueUnlockForm error={params.error} />
-    );
-  }
-
+export default async function RevenuePage() {
   const supabase = await createClient();
 
-  const [clientsResult, paymentsResult, servicesResult] = await Promise.all([
+  const [clientsResult, servicesResult] = await Promise.all([
     supabase.from("clients").select("*").order("id", { ascending: false }),
-    supabase
-      .from("payments")
-      .select("*")
-      .order("payment_date", { ascending: false }),
     supabase
       .from("client_services")
       .select("*")
-      .order("service_date", { ascending: false }),
+      .order("date_added", { ascending: false })
+      .order("id", { ascending: false }),
   ]);
 
   const clients = (clientsResult.data ?? []) as Client[];
-  const payments = (paymentsResult.data ?? []) as Payment[];
   const services = (servicesResult.data ?? []) as ClientService[];
 
   const databaseErrors = {
     clients: clientsResult.error,
-    payments: paymentsResult.error,
     clientServices: servicesResult.error,
   };
 
   const today = getTodayDateString();
   const monthStart = getMonthStartDateString();
 
-  const paidPayments = payments.filter((payment) =>
-    isPaid(payment.payment_status)
+  const paidServices = services.filter((service) =>
+    isPaid(service.payment_status)
   );
 
-  const totalRevenue = paidPayments.reduce(
-    (total, payment) => total + Number(payment.amount ?? 0),
+  const totalRevenue = paidServices.reduce(
+    (total, service) => total + Number(service.price ?? 0),
     0
   );
 
-  const revenueThisMonth = paidPayments
+  const revenueThisMonth = paidServices
     .filter(
-      (payment) =>
-        payment.payment_date &&
-        payment.payment_date >= monthStart &&
-        payment.payment_date <= today
+      (service) =>
+        service.date_added &&
+        service.date_added >= monthStart &&
+        service.date_added <= today
     )
     .reduce(
-      (total, payment) => total + Number(payment.amount ?? 0),
+      (total, service) => total + Number(service.price ?? 0),
       0
     );
 
@@ -205,13 +169,13 @@ export default async function RevenuePage({
 
   const revenueByClient = new Map<number, number>();
 
-  paidPayments.forEach((payment) => {
-    if (!payment.client_id) return;
+  paidServices.forEach((service) => {
+    if (!service.client_id) return;
 
     revenueByClient.set(
-      payment.client_id,
-      (revenueByClient.get(payment.client_id) ?? 0) +
-        Number(payment.amount ?? 0)
+      service.client_id,
+      (revenueByClient.get(service.client_id) ?? 0) +
+        Number(service.price ?? 0)
     );
   });
 
@@ -284,7 +248,7 @@ export default async function RevenuePage({
             </p>
 
             <p className="mt-3 text-xs font-semibold text-[#7f9975]">
-              All paid payments
+              All paid services
             </p>
           </div>
 
@@ -298,7 +262,7 @@ export default async function RevenuePage({
             </p>
 
             <p className="mt-3 text-xs font-semibold text-[#7f9975]">
-              Received this month
+              Services paid this month
             </p>
           </div>
 
@@ -349,84 +313,78 @@ export default async function RevenuePage({
           <div className="overflow-hidden rounded-3xl border border-[#dfe6db] bg-white shadow-sm">
             <div className="border-b border-[#e4e9df] p-6">
               <h2 className="text-xl font-bold text-[#243128]">
-                Payment History
+                Paid Services
               </h2>
 
               <p className="mt-1 text-sm text-[#708075]">
-                Every recorded client payment, newest first.
+                Every service marked paid, newest first.
               </p>
             </div>
 
-            {payments.length === 0 ? (
+            {paidServices.length === 0 ? (
               <div className="p-10 text-center">
                 <p className="text-sm font-semibold text-[#3d4d39]">
-                  No payments recorded yet
+                  No paid services yet
                 </p>
 
                 <p className="mt-2 text-sm text-[#708075]">
-                  Paid client transactions will appear here.
+                  Services marked paid will appear here automatically.
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left">
+                <table className="w-full min-w-[720px] text-left">
                   <thead className="bg-[#f8faf6] text-xs uppercase tracking-wide text-[#708075]">
                     <tr>
                       <th className="px-6 py-4">Client</th>
-                      <th className="px-6 py-4">Date</th>
-                      <th className="px-6 py-4">Method</th>
+                      <th className="px-6 py-4">Service</th>
+                      <th className="px-6 py-4">Date Added</th>
                       <th className="px-6 py-4">Status</th>
                       <th className="px-6 py-4 text-right">Amount</th>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-[#edf0ea]">
-                    {payments.map((payment) => (
+                    {paidServices.map((service) => (
                       <tr
-                        key={payment.id}
+                        key={service.id}
                         className="transition hover:bg-[#fbfcf9]"
                       >
                         <td className="px-6 py-4">
-                          {payment.client_id ? (
+                          {service.client_id ? (
                             <Link
-                              href={`/clients/${payment.client_id}`}
+                              href={`/clients/${service.client_id}`}
                               className="text-sm font-semibold text-[#243128] hover:text-[#647d5b]"
                             >
-                              {clientNameById.get(payment.client_id) || "Client"}
+                              {clientNameById.get(service.client_id) || "Client"}
                             </Link>
                           ) : (
                             <span className="text-sm font-semibold text-[#243128]">
                               Client
                             </span>
                           )}
-
-                          {payment.notes ? (
-                            <p className="mt-1 line-clamp-1 text-xs text-[#708075]">
-                              {payment.notes}
-                            </p>
-                          ) : null}
                         </td>
 
                         <td className="px-6 py-4 text-sm text-[#647066]">
-                          {formatDate(payment.payment_date)}
+                          {service.service || "Client service"}
                         </td>
 
                         <td className="px-6 py-4 text-sm text-[#647066]">
-                          {payment.payment_method || "Not added"}
+                          {formatDate(service.date_added)}
                         </td>
 
                         <td className="px-6 py-4">
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-semibold ${getPaymentStyle(
-                              payment.payment_status
+                              service.payment_status
                             )}`}
                           >
-                            {payment.payment_status || "Pending"}
+                            {service.payment_status || "Paid"}
                           </span>
                         </td>
 
                         <td className="px-6 py-4 text-right text-sm font-bold text-[#243128]">
-                          {formatCurrency(Number(payment.amount ?? 0))}
+                          {formatCurrency(Number(service.price ?? 0))}
                         </td>
                       </tr>
                     ))}
@@ -501,7 +459,7 @@ export default async function RevenuePage({
               </h2>
 
               <p className="mt-1 text-sm text-[#708075]">
-                Clients with the highest recorded paid totals.
+                Clients with the highest paid service totals.
               </p>
 
               {topClients.length === 0 ? (

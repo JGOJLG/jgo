@@ -24,6 +24,16 @@ function getServiceId(formData: FormData) {
   return value;
 }
 
+function revalidateClientData(clientId: number) {
+  revalidatePath("/");
+  revalidatePath("/clients");
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/revenue");
+  revalidatePath("/tasks");
+  revalidatePath("/calendar");
+  revalidatePath("/leads");
+}
+
 export async function markServicePaid(formData: FormData) {
   const clientId = getClientId(formData);
   const serviceId = getServiceId(formData);
@@ -31,7 +41,7 @@ export async function markServicePaid(formData: FormData) {
 
   const { data: service, error: serviceError } = await supabase
     .from("client_services")
-    .select("id, price")
+    .select("id, price, payment_status")
     .eq("id", serviceId)
     .eq("client_id", clientId)
     .single();
@@ -42,34 +52,52 @@ export async function markServicePaid(formData: FormData) {
     );
   }
 
-  const { error: updateError } = await supabase
-    .from("client_services")
-    .update({
-      payment_status: "Paid",
-    })
-    .eq("id", serviceId)
-    .eq("client_id", clientId);
+  if (service.payment_status !== "Paid") {
+    const { error: updateError } = await supabase
+      .from("client_services")
+      .update({
+        payment_status: "Paid",
+      })
+      .eq("id", serviceId)
+      .eq("client_id", clientId);
 
-  if (updateError) {
-    throw new Error(`Unable to mark service paid: ${updateError.message}`);
+    if (updateError) {
+      throw new Error(`Unable to mark service paid: ${updateError.message}`);
+    }
   }
 
-  const { error: paymentError } = await supabase
+  const { data: existingPayment, error: existingPaymentError } = await supabase
     .from("payments")
-    .insert({
-      client_id: clientId,
-      client_service_id: serviceId,
-      amount: Number(service.price ?? 0),
-      payment_date: new Date().toISOString().slice(0, 10),
-      payment_method: null,
-      payment_status: "Paid",
-      notes: "Marked paid from client profile.",
-    });
+    .select("id")
+    .eq("client_service_id", serviceId)
+    .eq("payment_status", "Paid")
+    .limit(1)
+    .maybeSingle();
 
-  if (paymentError) {
+  if (existingPaymentError) {
     throw new Error(
-      `Service was marked paid, but payment history could not be added: ${paymentError.message}`
+      `Unable to check payment history: ${existingPaymentError.message}`
     );
+  }
+
+  if (!existingPayment) {
+    const { error: paymentError } = await supabase
+      .from("payments")
+      .insert({
+        client_id: clientId,
+        client_service_id: serviceId,
+        amount: Number(service.price ?? 0),
+        payment_date: new Date().toISOString().slice(0, 10),
+        payment_method: null,
+        payment_status: "Paid",
+        notes: "Marked paid from client profile.",
+      });
+
+    if (paymentError) {
+      throw new Error(
+        `Service was marked paid, but payment history could not be added: ${paymentError.message}`
+      );
+    }
   }
 
   const { data: unpaidServices, error: unpaidError } = await supabase
@@ -85,25 +113,23 @@ export async function markServicePaid(formData: FormData) {
     );
   }
 
-  if ((unpaidServices ?? []).length === 0) {
-    const { error: clientUpdateError } = await supabase
-      .from("clients")
-      .update({
-        payment_status: "Paid",
-      })
-      .eq("id", clientId);
+  const clientPaymentStatus =
+    (unpaidServices ?? []).length === 0 ? "Paid" : "Open";
 
-    if (clientUpdateError) {
-      throw new Error(
-        `Payment was saved, but client status could not be updated: ${clientUpdateError.message}`
-      );
-    }
+  const { error: clientUpdateError } = await supabase
+    .from("clients")
+    .update({
+      payment_status: clientPaymentStatus,
+    })
+    .eq("id", clientId);
+
+  if (clientUpdateError) {
+    throw new Error(
+      `Payment was saved, but client payment status could not be updated: ${clientUpdateError.message}`
+    );
   }
 
-  revalidatePath("/");
-  revalidatePath("/revenue");
-  revalidatePath("/clients");
-  revalidatePath(`/clients/${clientId}`);
+  revalidateClientData(clientId);
 }
 
 export async function archiveClient(formData: FormData) {
@@ -121,9 +147,7 @@ export async function archiveClient(formData: FormData) {
     throw new Error(`Unable to archive client: ${error.message}`);
   }
 
-  revalidatePath("/");
-  revalidatePath("/clients");
-  revalidatePath(`/clients/${clientId}`);
+  revalidateClientData(clientId);
 
   redirect("/clients?message=archived");
 }
@@ -143,9 +167,7 @@ export async function restoreClient(formData: FormData) {
     throw new Error(`Unable to restore client: ${error.message}`);
   }
 
-  revalidatePath("/");
-  revalidatePath("/clients");
-  revalidatePath(`/clients/${clientId}`);
+  revalidateClientData(clientId);
 
   redirect(`/clients/${clientId}`);
 }
@@ -153,6 +175,17 @@ export async function restoreClient(formData: FormData) {
 export async function deleteClientPermanently(formData: FormData) {
   const clientId = getClientId(formData);
   const supabase = await createClient();
+
+  const tasksResult = await supabase
+    .from("tasks")
+    .delete()
+    .eq("client_id", clientId);
+
+  if (tasksResult.error) {
+    throw new Error(
+      `Unable to delete client tasks: ${tasksResult.error.message}`
+    );
+  }
 
   const calendarResult = await supabase
     .from("calendar_events")
@@ -198,6 +231,20 @@ export async function deleteClientPermanently(formData: FormData) {
     );
   }
 
+  const leadResetResult = await supabase
+    .from("intake_calls")
+    .update({
+      converted_client_id: null,
+      converted_to_client: false,
+    })
+    .eq("converted_client_id", clientId);
+
+  if (leadResetResult.error) {
+    throw new Error(
+      `Unable to disconnect the original lead: ${leadResetResult.error.message}`
+    );
+  }
+
   const { error: clientError } = await supabase
     .from("clients")
     .delete()
@@ -207,8 +254,7 @@ export async function deleteClientPermanently(formData: FormData) {
     throw new Error(`Unable to delete client: ${clientError.message}`);
   }
 
-  revalidatePath("/");
-  revalidatePath("/clients");
+  revalidateClientData(clientId);
 
   redirect("/clients?message=deleted");
 }

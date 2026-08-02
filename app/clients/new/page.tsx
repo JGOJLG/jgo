@@ -112,7 +112,7 @@ export default function NewClientPage() {
     }
 
     if (finalService) {
-      const { error: serviceError } = await supabase
+      const { data: service, error: serviceError } = await supabase
         .from("client_services")
         .insert({
           client_id: client.id,
@@ -126,13 +126,58 @@ export default function NewClientPage() {
           due_date: dueDate || null,
           next_step: nextStep.trim() || null,
           notes: clientNotes.trim() || null,
-        });
+        })
+        .select("id")
+        .single();
 
-      if (serviceError) {
+      if (serviceError || !service) {
         console.error("Unable to create service:", serviceError);
-        setErrorMessage(serviceError.message);
+
+        await supabase
+          .from("clients")
+          .delete()
+          .eq("id", client.id);
+
+        setErrorMessage(
+          serviceError?.message ||
+            "The client service could not be saved. The client record was rolled back."
+        );
         setSaving(false);
         return;
+      }
+
+      if (paymentStatus === "Paid") {
+        const { error: paymentError } = await supabase
+          .from("payments")
+          .insert({
+            client_id: client.id,
+            client_service_id: service.id,
+            amount: Number(numericPrice ?? 0),
+            payment_date: dateAdded || getToday(),
+            payment_method: null,
+            payment_status: "Paid",
+            notes: "Created when the client and paid service were added.",
+          });
+
+        if (paymentError) {
+          console.error("Unable to create payment history:", paymentError);
+
+          await supabase
+            .from("client_services")
+            .delete()
+            .eq("id", service.id);
+
+          await supabase
+            .from("clients")
+            .delete()
+            .eq("id", client.id);
+
+          setErrorMessage(
+            `The payment history could not be saved: ${paymentError.message}`
+          );
+          setSaving(false);
+          return;
+        }
       }
     }
 

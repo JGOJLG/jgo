@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase-server";
 import JGODailyFour from "@/components/JGODailyFour";
 import HeaderTimeClocks from "@/components/HeaderTimeClocks";
 import InterviewCompleteButton from "@/components/InterviewCompleteButton";
+import DashboardTaskCheckbox from "@/components/DashboardTaskCheckbox";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -20,15 +21,6 @@ type Client = {
   next_step: string | null;
 };
 
-type Payment = {
-  id: number;
-  client_id: number | null;
-  amount: number | null;
-  payment_date: string | null;
-  payment_method: string | null;
-  payment_status: string | null;
-  notes: string | null;
-};
 
 type IntakeCall = {
   id: number;
@@ -510,7 +502,6 @@ export default async function Home() {
 
   const [
     clientsResult,
-    paymentsResult,
     intakeCallsResult,
     followUpsResult,
     servicesResult,
@@ -524,14 +515,6 @@ export default async function Home() {
         .from("clients")
         .select("*")
         .order("id", { ascending: false })
-        .limit(150)
-    ),
-    safeQuery<Payment>(
-      "payments",
-      supabase
-        .from("payments")
-        .select("*")
-        .order("payment_date", { ascending: false })
         .limit(150)
     ),
     safeQuery<IntakeCall>(
@@ -594,8 +577,10 @@ export default async function Home() {
     ),
   ]);
 
-  const clients = clientsResult.data;
-  const payments = paymentsResult.data;
+  const allClients = clientsResult.data;
+  const clients = allClients.filter(
+    (client) => normalize(client.status) !== "archived"
+  );
   const intakeCalls = intakeCallsResult.data;
   const followUps = followUpsResult.data;
   const services = servicesResult.data;
@@ -607,7 +592,6 @@ export default async function Home() {
 
   const databaseErrors = {
     clients: clientsResult.error,
-    payments: paymentsResult.error,
     intakeCalls: intakeCallsResult.error,
     followUps: followUpsResult.error,
     clientServices: servicesResult.error,
@@ -631,9 +615,6 @@ export default async function Home() {
   );
   const completedClients = clients.filter((client) =>
     isCompleted(client.status)
-  );
-  const paidPayments = payments.filter((payment) =>
-    isPaid(payment.payment_status)
   );
   const paidServices = services.filter((service) =>
     isPaid(service.payment_status)
@@ -666,17 +647,6 @@ export default async function Home() {
       normalize(task.status) !== "canceled"
   );
 
-  const completedTodayTasks = tasks
-    .filter(
-      (task) =>
-        normalize(task.status) === "completed" &&
-        task.completed_at?.slice(0, 10) === today
-    )
-    .sort((a, b) =>
-      (b.completed_at || "").localeCompare(a.completed_at || "")
-    )
-    .slice(0, 3);
-
   const sortedOpenTasks = [...openTasks].sort((a, b) => {
     const aOverdue = Boolean(a.due_date && a.due_date < today);
     const bOverdue = Boolean(b.due_date && b.due_date < today);
@@ -696,10 +666,7 @@ export default async function Home() {
       );
   });
 
-  const dashboardTasks = [
-    ...sortedOpenTasks.slice(0, 5),
-    ...completedTodayTasks,
-  ].slice(0, 7);
+  const dashboardTasks = sortedOpenTasks.slice(0, 7);
 
   const overdueTaskCount = openTasks.filter(
     (task) => task.due_date && task.due_date < today
@@ -725,6 +692,64 @@ export default async function Home() {
   const clientNameById = new Map(
     clients.map((client) => [client.id, client.name || "Unnamed Client"])
   );
+
+  const servicesByClientId = new Map<number, ClientService[]>();
+
+  services.forEach((service) => {
+    if (!service.client_id) return;
+
+    const existing = servicesByClientId.get(service.client_id) ?? [];
+    existing.push(service);
+    servicesByClientId.set(service.client_id, existing);
+  });
+
+  function getClientServiceNames(client: Client) {
+    const clientServices = servicesByClientId.get(client.id) ?? [];
+    const names = clientServices
+      .map((service) => service.service)
+      .filter((service): service is string => Boolean(service));
+
+    if (names.length > 0) {
+      return names.join(" • ");
+    }
+
+    return client.service || "Not selected";
+  }
+
+  function getClientServiceTotal(client: Client) {
+    const clientServices = servicesByClientId.get(client.id) ?? [];
+
+    if (clientServices.length > 0) {
+      return clientServices.reduce(
+        (total, service) => total + Number(service.price ?? 0),
+        0
+      );
+    }
+
+    return Number(client.price ?? 0);
+  }
+
+  function getClientPaymentStatus(client: Client) {
+    const clientServices = servicesByClientId.get(client.id) ?? [];
+
+    if (clientServices.length === 0) {
+      return client.payment_status || "Open";
+    }
+
+    if (clientServices.every((service) => isPaid(service.payment_status))) {
+      return "Paid";
+    }
+
+    if (
+      clientServices.some(
+        (service) => normalize(service.payment_status) === "invoice sent"
+      )
+    ) {
+      return "Invoice Sent";
+    }
+
+    return "Open";
+  }
   const leadNameById = new Map(
     intakeCalls.map((call) => [call.id, call.name || "Unnamed Lead"])
   );
@@ -888,7 +913,6 @@ export default async function Home() {
   ].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
 
   const recentClients = clients.slice(0, 5);
-  const recentPayments = paidPayments.slice(0, 4);
 
   const priorityStats = [
     {
@@ -1254,16 +1278,10 @@ export default async function Home() {
                       }`}
                     >
                       <div className="flex min-w-0 items-start gap-3">
-                        <span
-                          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${
-                            completed
-                              ? "border-[#647d5b] bg-[#647d5b] text-white"
-                              : "border-[#bfcbb9] bg-white text-transparent"
-                          }`}
-                          aria-hidden="true"
-                        >
-                          ✓
-                        </span>
+                        <DashboardTaskCheckbox
+                          taskId={task.id}
+                          completed={completed}
+                        />
 
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -1500,8 +1518,8 @@ export default async function Home() {
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(client.status)}`}>
                         {client.status || "Lead"}
                       </span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getPaymentStyle(client.payment_status)}`}>
-                        {client.payment_status || "Open"}
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getPaymentStyle(getClientPaymentStatus(client))}`}>
+                        {getClientPaymentStatus(client)}
                       </span>
                     </div>
                   </Link>
@@ -1550,19 +1568,19 @@ export default async function Home() {
                           </Link>
                           <p className="mt-1 text-xs text-[#708075]">{client.email || "No email added"}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm text-[#647066]">{client.service || "Not selected"}</td>
+                        <td className="px-6 py-4 text-sm text-[#647066]">{getClientServiceNames(client)}</td>
                         <td className="px-6 py-4">
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(client.status)}`}>
                             {client.status || "Lead"}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getPaymentStyle(client.payment_status)}`}>
-                            {client.payment_status || "Open"}
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getPaymentStyle(getClientPaymentStatus(client))}`}>
+                            {getClientPaymentStatus(client)}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-[#243128]">
-                          {formatCurrency(Number(client.price ?? 0))}
+                          {formatCurrency(getClientServiceTotal(client))}
                         </td>
                       </tr>
                     ))}
@@ -1614,26 +1632,6 @@ export default async function Home() {
               <p className="mt-3 text-2xl font-bold text-[#243128]">{completedClients.length}</p>
             </div>
           </div>
-
-          {recentPayments.length > 0 ? (
-            <div className="mt-7 border-t border-[#edf0ea] pt-6">
-              <div className="flex items-center justify-between gap-4">
-                <h4 className="text-sm font-bold text-[#243128]">Recent Payments</h4>
-                <Link href="/clients" className="text-sm font-semibold text-[#647d5b]">View clients</Link>
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {recentPayments.map((payment) => (
-                  <div key={payment.id} className="rounded-2xl border border-[#e4e9df] bg-[#fbfcf9] p-4">
-                    <p className="truncate text-sm font-semibold text-[#243128]">
-                      {payment.client_id ? clientNameById.get(payment.client_id) || "Client" : "Client"}
-                    </p>
-                    <p className="mt-1 text-xs text-[#708075]">{formatDate(payment.payment_date)}</p>
-                    <p className="mt-3 text-lg font-bold text-[#55704f]">{formatCurrency(Number(payment.amount ?? 0))}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
         </section>
       </div>
     </section>
