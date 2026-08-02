@@ -2,53 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  type FormEvent,
-  type ReactNode,
-  useMemo,
-  useState,
-} from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 const serviceOptions = [
-  {
-    name: "Resume",
-    description: "Professional resume writing",
-    price: 250,
-  },
-  {
-    name: "Cover Letter",
-    description: "Standalone professional cover letter",
-    price: 250,
-  },
-  {
-    name: "Resume + Cover Letter",
-    description: "Complete resume and cover letter package",
-    price: 400,
-  },
-  {
-    name: "Career Coaching",
-    description: "One career coaching session",
-    price: 250,
-  },
+  "Resume",
+  "Cover Letter",
+  "Resume + Cover Letter",
+  "Career Coaching",
+  "Other",
 ];
 
-function calculatePrice(selectedServices: string[]) {
-  return selectedServices.reduce((total, serviceName) => {
-    const service = serviceOptions.find(
-      (option) => option.name === serviceName
-    );
-
-    return total + (service?.price ?? 0);
-  }, 0);
-}
-
-function getServicePrice(serviceName: string) {
-  const service = serviceOptions.find(
-    (option) => option.name === serviceName
-  );
-
-  return service?.price ?? 0;
+function getToday() {
+  return new Date().toISOString().split("T")[0];
 }
 
 export default function NewClientPage() {
@@ -63,61 +29,29 @@ export default function NewClientPage() {
   const [referralName, setReferralName] = useState("");
   const [linkedinSource, setLinkedinSource] = useState("");
 
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [serviceSelection, setServiceSelection] = useState("");
+  const [customService, setCustomService] = useState("");
+  const [price, setPrice] = useState("");
 
-  const [status, setStatus] = useState("New");
+  const [status, setStatus] = useState("Lead");
   const [paymentStatus, setPaymentStatus] = useState("Open");
-  const [intakeDate, setIntakeDate] = useState("");
+
+  const [dateAdded, setDateAdded] = useState(getToday());
   const [free15Date, setFree15Date] = useState("");
-  const [scheduledSessionDate, setScheduledSessionDate] =
-    useState("");
+  const [scheduledSessionDate, setScheduledSessionDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [nextStep, setNextStep] = useState("");
-  const [projectNotes, setProjectNotes] = useState("");
+  const [clientNotes, setClientNotes] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const totalPrice = useMemo(
-    () => calculatePrice(selectedServices),
-    [selectedServices]
-  );
+  const finalService =
+    serviceSelection === "Other"
+      ? customService.trim()
+      : serviceSelection;
 
-  function toggleService(serviceName: string) {
-    setSelectedServices((currentServices) => {
-      const isSelected = currentServices.includes(serviceName);
-
-      if (isSelected) {
-        return currentServices.filter(
-          (service) => service !== serviceName
-        );
-      }
-
-      let updatedServices = [...currentServices];
-
-      if (serviceName === "Resume + Cover Letter") {
-        updatedServices = updatedServices.filter(
-          (service) =>
-            service !== "Resume" && service !== "Cover Letter"
-        );
-      }
-
-      if (
-        serviceName === "Resume" ||
-        serviceName === "Cover Letter"
-      ) {
-        updatedServices = updatedServices.filter(
-          (service) => service !== "Resume + Cover Letter"
-        );
-      }
-
-      return [...updatedServices, serviceName];
-    });
-  }
-
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>
-  ) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!name.trim()) {
@@ -125,57 +59,84 @@ export default function NewClientPage() {
       return;
     }
 
+    if (serviceSelection === "Other" && !customService.trim()) {
+      setErrorMessage("Please type the custom service.");
+      return;
+    }
+
+    if (finalService && price === "") {
+      setErrorMessage("Please enter a price for the service.");
+      return;
+    }
+
     setSaving(true);
     setErrorMessage("");
 
-    const workflowNotes = [
-      projectNotes.trim(),
-      free15Date
-        ? `Free15 date: ${free15Date}`
-        : "",
-      scheduledSessionDate
-        ? `Scheduled session date: ${scheduledSessionDate}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const numericPrice = price === "" ? null : Number(price);
 
-    const { error } = await supabase.from("clients").insert({
-      name: name.trim(),
-      email: email.trim() || null,
-      phone: phone.trim() || null,
-      company: company.trim() || null,
-      lead_source: leadSource || null,
-      referral_name:
-        leadSource === "Referral"
-          ? referralName.trim() || null
-          : null,
-     linkedin_source:
-  leadSource === "LinkedIn"
-    ? linkedinSource || null
-    : null,
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .insert({
+        name: name.trim(),
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        company: company.trim() || null,
+        lead_source: leadSource || null,
+        referral_name:
+          leadSource === "Referral"
+            ? referralName.trim() || null
+            : null,
+        linkedin_source:
+          leadSource === "LinkedIn"
+            ? linkedinSource || null
+            : null,
+        service: finalService || null,
+        price: numericPrice,
+        status,
+        payment_status: paymentStatus,
+        intake_date: dateAdded || null,
+        due_date: dueDate || null,
+        next_step: nextStep.trim() || null,
+        project_notes: clientNotes.trim() || null,
+      })
+      .select("id")
+      .single();
 
-service: selectedServices.length
-  ? selectedServices.join(" + ")
-  : null,
-
-price: totalPrice || null,
-      status,
-      payment_status: paymentStatus,
-      intake_date: intakeDate || null,
-      due_date: dueDate || null,
-      next_step: nextStep.trim() || null,
-      project_notes: workflowNotes || null,
-    });
-
-    if (error) {
-      console.error("Unable to create client:", error);
-      setErrorMessage(error.message);
+    if (clientError || !client) {
+      console.error("Unable to create client:", clientError);
+      setErrorMessage(
+        clientError?.message || "The client could not be saved."
+      );
       setSaving(false);
       return;
     }
 
-    router.push("/clients");
+    if (finalService) {
+      const { error: serviceError } = await supabase
+        .from("client_services")
+        .insert({
+          client_id: client.id,
+          service: finalService,
+          price: numericPrice,
+          status,
+          payment_status: paymentStatus,
+          date_added: dateAdded || getToday(),
+          free15_date: free15Date || null,
+          scheduled_date: scheduledSessionDate || null,
+          due_date: dueDate || null,
+          next_step: nextStep.trim() || null,
+          notes: clientNotes.trim() || null,
+        });
+
+      if (serviceError) {
+        console.error("Unable to create service:", serviceError);
+        setErrorMessage(serviceError.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    router.push(`/clients/${client.id}`);
     router.refresh();
   }
 
@@ -193,11 +154,6 @@ price: totalPrice || null,
           <h1 className="mt-4 text-3xl font-bold tracking-tight">
             Add New Client
           </h1>
-
-          <p className="mt-2 text-sm text-[#708075]">
-            Add their contact information, services, dates, and
-            next steps.
-          </p>
         </div>
       </header>
 
@@ -207,22 +163,14 @@ price: totalPrice || null,
           className="overflow-hidden rounded-3xl border border-[#dfe6db] bg-white shadow-sm"
         >
           <section className="border-b border-[#e4e9df] p-6 lg:p-8">
-            <h2 className="text-xl font-bold">
-              Client Information
-            </h2>
-
-            <p className="mt-1 text-sm text-[#708075]">
-              Basic contact details for the client.
-            </p>
+            <h2 className="text-xl font-bold">Client Information</h2>
 
             <div className="mt-6 grid gap-5 md:grid-cols-2">
               <FormField label="Full Name" required>
                 <input
                   required
                   value={name}
-                  onChange={(event) =>
-                    setName(event.target.value)
-                  }
+                  onChange={(event) => setName(event.target.value)}
                   placeholder="Client’s full name"
                   className={inputStyle}
                 />
@@ -232,9 +180,7 @@ price: totalPrice || null,
                 <input
                   type="email"
                   value={email}
-                  onChange={(event) =>
-                    setEmail(event.target.value)
-                  }
+                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="client@email.com"
                   className={inputStyle}
                 />
@@ -244,9 +190,7 @@ price: totalPrice || null,
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(event) =>
-                    setPhone(event.target.value)
-                  }
+                  onChange={(event) => setPhone(event.target.value)}
                   placeholder="(555) 555-5555"
                   className={inputStyle}
                 />
@@ -255,9 +199,7 @@ price: totalPrice || null,
               <FormField label="Company">
                 <input
                   value={company}
-                  onChange={(event) =>
-                    setCompany(event.target.value)
-                  }
+                  onChange={(event) => setCompany(event.target.value)}
                   placeholder="Optional"
                   className={inputStyle}
                 />
@@ -266,9 +208,7 @@ price: totalPrice || null,
               <FormField label="Where Did You Find Us?">
                 <select
                   value={leadSource}
-                  onChange={(event) =>
-                    setLeadSource(event.target.value)
-                  }
+                  onChange={(event) => setLeadSource(event.target.value)}
                   className={inputStyle}
                 >
                   <option value="">Select source</option>
@@ -308,25 +248,13 @@ price: totalPrice || null,
                     }
                     className={inputStyle}
                   >
-                    <option value="">
-                      Select LinkedIn source
-                    </option>
-                    <option value="LinkedIn Request">
-                      LinkedIn Request
-                    </option>
-                    <option value="LinkedIn Message">
-                      LinkedIn Message
-                    </option>
-                    <option value="LinkedIn Post">
-                      LinkedIn Post
-                    </option>
-                    <option value="LinkedIn Comment">
-                      LinkedIn Comment
-                    </option>
-                    <option value="LinkedIn Referral">
-                      LinkedIn Referral
-                    </option>
-                    <option value="Other">Other</option>
+                    <option value="">Select LinkedIn source</option>
+                    <option>LinkedIn Request</option>
+                    <option>LinkedIn Message</option>
+                    <option>LinkedIn Post</option>
+                    <option>LinkedIn Comment</option>
+                    <option>LinkedIn Referral</option>
+                    <option>Other</option>
                   </select>
                 </FormField>
               )}
@@ -334,108 +262,72 @@ price: totalPrice || null,
           </section>
 
           <section className="border-b border-[#e4e9df] p-6 lg:p-8">
-            <h2 className="text-xl font-bold">
-              Services and Pricing
-            </h2>
-
-            <p className="mt-1 text-sm text-[#708075]">
-              Select one or more services. Pricing updates
-              automatically.
-            </p>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {serviceOptions.map((service) => {
-                const isSelected =
-                  selectedServices.includes(service.name);
-
-                return (
-                  <button
-                    key={service.name}
-                    type="button"
-                    onClick={() =>
-                      toggleService(service.name)
-                    }
-                    className={`rounded-2xl border p-5 text-left transition ${
-                      isSelected
-                        ? "border-[#7f9975] bg-[#eef2e9] shadow-sm"
-                        : "border-[#dfe6db] bg-[#fbfcf9] hover:border-[#becdb5]"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-bold text-[#243128]">
-                          {service.name}
-                        </p>
-
-                        <p className="mt-1 text-sm leading-6 text-[#708075]">
-                          {service.description}
-                        </p>
-                      </div>
-
-                      <div
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${
-                          isSelected
-                            ? "border-[#647d5b] bg-[#647d5b] text-white"
-                            : "border-[#cbd8c4] bg-white text-transparent"
-                        }`}
-                      >
-                        ✓
-                      </div>
-                    </div>
-
-                    <p className="mt-4 text-sm font-bold text-[#4d6247]">
-                      $
-                      {getServicePrice(
-                        service.name
-                      ).toLocaleString()}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-[#d7e1d0] bg-[#eef2e9] p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-[#4d6247]">
-                    Selected Services
-                  </p>
-
-                  <p className="mt-2 text-sm text-[#708075]">
-                    {selectedServices.length > 0
-                      ? selectedServices.join(", ")
-                      : "No services selected"}
-                  </p>
-                </div>
-
-                <div className="sm:text-right">
-                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7f9975]">
-                    Total
-                  </p>
-
-                  <p className="mt-1 text-3xl font-bold text-[#243128]">
-                    ${totalPrice.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <h2 className="text-xl font-bold">Service and Price</h2>
 
             <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <FormField label="Project Status">
+              <FormField label="Service">
                 <select
-                  value={status}
-                  onChange={(event) =>
-                    setStatus(event.target.value)
-                  }
+                  value={serviceSelection}
+                  onChange={(event) => {
+                    setServiceSelection(event.target.value);
+                    if (event.target.value !== "Other") {
+                      setCustomService("");
+                    }
+                  }}
                   className={inputStyle}
                 >
-                  <option>New</option>
-                  <option>Free15 Scheduled</option>
-                  <option>Consultation Complete</option>
-                  <option>Session Scheduled</option>
-                  <option>In Progress</option>
-                  <option>Revision</option>
-                  <option>On Hold</option>
+                  <option value="">Select service</option>
+                  {serviceOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+
+              <FormField label="Price">
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#708075]">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={price}
+                    onChange={(event) => setPrice(event.target.value)}
+                    placeholder="0"
+                    className={`${inputStyle} pl-8`}
+                  />
+                </div>
+              </FormField>
+
+              {serviceSelection === "Other" && (
+                <div className="md:col-span-2">
+                  <FormField label="Custom Service">
+                    <input
+                      value={customService}
+                      onChange={(event) =>
+                        setCustomService(event.target.value)
+                      }
+                      placeholder="Type the service name"
+                      className={inputStyle}
+                    />
+                  </FormField>
+                </div>
+              )}
+
+              <FormField label="Service Status">
+                <select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value)}
+                  className={inputStyle}
+                >
+                  <option>Lead</option>
+                  <option>Free 15 Scheduled</option>
+                  <option>Free 15 Completed</option>
+                  <option>In Process</option>
+                  <option>Coaching Session Scheduled</option>
                   <option>Completed</option>
                 </select>
               </FormField>
@@ -450,7 +342,6 @@ price: totalPrice || null,
                 >
                   <option>Open</option>
                   <option>Invoice Sent</option>
-                  <option>Pending</option>
                   <option>Paid</option>
                 </select>
               </FormField>
@@ -458,39 +349,28 @@ price: totalPrice || null,
           </section>
 
           <section className="border-b border-[#e4e9df] p-6 lg:p-8">
-            <h2 className="text-xl font-bold">
-              Dates and Workflow
-            </h2>
-
-            <p className="mt-1 text-sm text-[#708075]">
-              Track the client from initial outreach through
-              completion.
-            </p>
+            <h2 className="text-xl font-bold">Dates and Workflow</h2>
 
             <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <FormField label="Date Reached Out">
+              <FormField label="Date Added">
                 <input
                   type="date"
-                  value={intakeDate}
-                  onChange={(event) =>
-                    setIntakeDate(event.target.value)
-                  }
+                  value={dateAdded}
+                  onChange={(event) => setDateAdded(event.target.value)}
                   className={inputStyle}
                 />
               </FormField>
 
-              <FormField label="Free15 / Consultation Date">
+              <FormField label="Free 15 Date">
                 <input
                   type="date"
                   value={free15Date}
-                  onChange={(event) =>
-                    setFree15Date(event.target.value)
-                  }
+                  onChange={(event) => setFree15Date(event.target.value)}
                   className={inputStyle}
                 />
               </FormField>
 
-              <FormField label="Scheduled Session Date">
+              <FormField label="Scheduled Coaching Session">
                 <input
                   type="date"
                   value={scheduledSessionDate}
@@ -501,13 +381,11 @@ price: totalPrice || null,
                 />
               </FormField>
 
-              <FormField label="Project Due Date">
+              <FormField label="Due Date">
                 <input
                   type="date"
                   value={dueDate}
-                  onChange={(event) =>
-                    setDueDate(event.target.value)
-                  }
+                  onChange={(event) => setDueDate(event.target.value)}
                   className={inputStyle}
                 />
               </FormField>
@@ -516,24 +394,22 @@ price: totalPrice || null,
                 <FormField label="Next Step">
                   <input
                     value={nextStep}
-                    onChange={(event) =>
-                      setNextStep(event.target.value)
-                    }
-                    placeholder="Example: Send intake form or schedule Free15"
+                    onChange={(event) => setNextStep(event.target.value)}
+                    placeholder="Example: Send intake form"
                     className={inputStyle}
                   />
                 </FormField>
               </div>
 
               <div className="md:col-span-2">
-                <FormField label="Project Notes">
+                <FormField label="Client Notes">
                   <textarea
                     rows={5}
-                    value={projectNotes}
+                    value={clientNotes}
                     onChange={(event) =>
-                      setProjectNotes(event.target.value)
+                      setClientNotes(event.target.value)
                     }
-                    placeholder="Add initial details, goals, or follow-up notes..."
+                    placeholder="Add client notes..."
                     className={`${inputStyle} resize-y`}
                   />
                 </FormField>
@@ -544,14 +420,14 @@ price: totalPrice || null,
           <section className="p-6 lg:p-8">
             {errorMessage && (
               <div className="mb-5 rounded-xl border border-[#ead4d0] bg-[#fbefed] p-4 text-sm text-[#8d4f48]">
-                Client could not be saved: {errorMessage}
+                {errorMessage}
               </div>
             )}
 
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <Link
                 href="/clients"
-                className="rounded-xl border border-[#d7e1d0] bg-white px-5 py-3 text-center text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+                className="rounded-xl border border-[#d7e1d0] bg-white px-5 py-3 text-center text-sm font-semibold text-[#4d6247]"
               >
                 Cancel
               </Link>
@@ -559,9 +435,9 @@ price: totalPrice || null,
               <button
                 type="submit"
                 disabled={saving}
-                className="rounded-xl bg-[#647d5b] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d6247] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-[#647d5b] px-6 py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
-                {saving ? "Saving Client..." : "Save Client"}
+                {saving ? "Saving..." : "Save Client"}
               </button>
             </div>
           </section>
@@ -587,11 +463,8 @@ function FormField({
     <label className="block">
       <span className="text-sm font-semibold text-[#3d4d39]">
         {label}
-        {required && (
-          <span className="ml-1 text-[#a85656]">*</span>
-        )}
+        {required && <span className="ml-1 text-[#a85656]">*</span>}
       </span>
-
       <div className="mt-2">{children}</div>
     </label>
   );

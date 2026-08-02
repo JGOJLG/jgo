@@ -1,40 +1,21 @@
-"use client";
+import { login } from "./actions";
 
-import { useState } from "react";
-import { createClient } from "@/lib/supabase-browser";
+type LoginPageProps = {
+  searchParams: Promise<{
+    error?: string;
+  }>;
+};
 
-export default function LoginPage() {
-  const supabase = createClient();
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-
-    setLoading(true);
-    setError("");
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
-    }
-
-    window.location.href = "/";
-  }
+export default async function LoginPage({
+  searchParams,
+}: LoginPageProps) {
+  const params = await searchParams;
+  const error = params.error;
 
   return (
-    <main className="min-h-screen bg-[#f7f8f3] flex items-center justify-center p-8">
-      <div className="w-full max-w-md rounded-3xl bg-white border border-[#dfe6db] shadow-xl p-10">
-        <p className="text-xs uppercase tracking-[0.3em] text-[#7f9975] font-semibold">
+    <main className="flex min-h-screen items-center justify-center bg-[#f7f8f3] p-8">
+      <div className="w-full max-w-md rounded-3xl border border-[#dfe6db] bg-white p-10 shadow-xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#7f9975]">
           JGO Hire
         </p>
 
@@ -46,46 +27,54 @@ export default function LoginPage() {
           Sign in to your business command center.
         </p>
 
-        <form onSubmit={handleLogin} className="mt-8 space-y-5">
+        <form action={login} className="mt-8 space-y-5">
           <div>
-            <label className="text-sm font-semibold text-[#3d4d39]">
+            <label
+              htmlFor="email"
+              className="text-sm font-semibold text-[#3d4d39]"
+            >
               Email
             </label>
 
             <input
+              id="email"
+              name="email"
               type="email"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
               className="mt-2 w-full rounded-xl border border-[#d7e1d0] px-4 py-3 outline-none focus:border-[#7f9975]"
             />
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-[#3d4d39]">
+            <label
+              htmlFor="password"
+              className="text-sm font-semibold text-[#3d4d39]"
+            >
               Password
             </label>
 
             <input
+              id="password"
+              name="password"
               type="password"
               required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
               className="mt-2 w-full rounded-xl border border-[#d7e1d0] px-4 py-3 outline-none focus:border-[#7f9975]"
             />
           </div>
 
-          {error && (
+          {error ? (
             <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
               {error}
             </div>
-          )}
+          ) : null}
 
           <button
-            disabled={loading}
+            type="submit"
             className="w-full rounded-xl bg-[#647d5b] py-3 font-semibold text-white hover:bg-[#4d6247]"
           >
-            {loading ? "Signing In..." : "Sign In"}
+            Sign In
           </button>
         </form>
       </div>

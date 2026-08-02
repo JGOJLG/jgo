@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase-server";
+import DashboardTaskCheckbox from "@/components/DashboardTaskCheckbox";
+import TimeZoneClocks from "@/components/TimeZoneClocks";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -263,53 +265,6 @@ function getRecruiterTopicOfTheDay() {
   return recruiterTopics[dayOfYear % recruiterTopics.length];
 }
 
-
-type QueryResult<T> = {
-  data: T[];
-  error: { message: string } | null;
-};
-
-async function safeQuery<T>(
-  label: string,
-  query: PromiseLike<{
-    data: T[] | null;
-    error: { message: string } | null;
-  }>,
-  timeoutMs = 8000
-): Promise<QueryResult<T>> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    const result = await Promise.race([
-      Promise.resolve(query),
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => {
-          reject(new Error(`${label} timed out after ${timeoutMs / 1000} seconds`));
-        }, timeoutMs);
-      }),
-    ]);
-
-    return {
-      data: result.data ?? [],
-      error: result.error,
-    };
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : `Unable to load ${label}`;
-
-    console.error(`Dashboard ${label} query failed:`, error);
-
-    return {
-      data: [],
-      error: { message },
-    };
-  } finally {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-  }
-}
-
 function normalize(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? "";
 }
@@ -499,12 +454,6 @@ function getTaskPriorityStyle(priority: string | null | undefined) {
 export default async function Home() {
   const supabase = await createClient();
 
-  const calendarStart = new Date();
-  calendarStart.setDate(calendarStart.getDate() - 30);
-
-  const calendarEnd = new Date();
-  calendarEnd.setDate(calendarEnd.getDate() + 120);
-
   const [
     clientsResult,
     paymentsResult,
@@ -514,77 +463,32 @@ export default async function Home() {
     tasksResult,
     calendarEventsResult,
   ] = await Promise.all([
-    safeQuery<Client>(
-      "clients",
-      supabase
-        .from("clients")
-        .select("*")
-        .order("id", { ascending: false })
-        .limit(150)
-    ),
-    safeQuery<Payment>(
-      "payments",
-      supabase
-        .from("payments")
-        .select("*")
-        .order("payment_date", { ascending: false })
-        .limit(150)
-    ),
-    safeQuery<IntakeCall>(
-      "intake calls",
-      supabase
-        .from("intake_calls")
-        .select("*")
-        .order("call_date", { ascending: false })
-        .limit(100)
-    ),
-    safeQuery<FollowUp>(
-      "follow ups",
-      supabase
-        .from("follow_ups")
-        .select("*")
-        .order("due_date", { ascending: true })
-        .limit(100)
-    ),
-    safeQuery<ClientService>(
-      "client services",
-      supabase
-        .from("client_services")
-        .select("*")
-        .order("date_added", { ascending: false })
-        .limit(250)
-    ),
-    safeQuery<Task>(
-      "tasks",
-      supabase
-        .from("tasks")
-        .select("*")
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .order("due_time", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false })
-        .limit(100)
-    ),
-    safeQuery<CalendarEvent>(
-      "calendar events",
-      supabase
-        .from("calendar_events")
-        .select(
-          "id, title, event_type, start_at, end_at, client_id, intake_call_id, status, notes"
-        )
-        .gte("start_at", calendarStart.toISOString())
-        .lte("start_at", calendarEnd.toISOString())
-        .order("start_at", { ascending: true })
-        .limit(150)
-    ),
+    supabase.from("clients").select("*").order("id", { ascending: false }),
+    supabase.from("payments").select("*").order("payment_date", { ascending: false }),
+    supabase.from("intake_calls").select("*").order("call_date", { ascending: false }),
+    supabase.from("follow_ups").select("*").order("due_date", { ascending: true }),
+    supabase.from("client_services").select("*").order("date_added", { ascending: false }),
+    supabase
+      .from("tasks")
+      .select("*")
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("due_time", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("calendar_events")
+      .select(
+        "id, title, event_type, start_at, end_at, client_id, intake_call_id, status, notes"
+      )
+      .order("start_at", { ascending: true }),
   ]);
 
-  const clients = clientsResult.data;
-  const payments = paymentsResult.data;
-  const intakeCalls = intakeCallsResult.data;
-  const followUps = followUpsResult.data;
-  const services = servicesResult.data;
-  const tasks = tasksResult.data;
-  const calendarEvents = calendarEventsResult.data;
+  const clients = (clientsResult.data ?? []) as Client[];
+  const payments = (paymentsResult.data ?? []) as Payment[];
+  const intakeCalls = (intakeCallsResult.data ?? []) as IntakeCall[];
+  const followUps = (followUpsResult.data ?? []) as FollowUp[];
+  const services = (servicesResult.data ?? []) as ClientService[];
+  const tasks = (tasksResult.data ?? []) as Task[];
+  const calendarEvents = (calendarEventsResult.data ?? []) as CalendarEvent[];
 
   const databaseErrors = {
     clients: clientsResult.error,
@@ -962,25 +866,7 @@ export default async function Home() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {[
-                      ["Eastern", "ET"],
-                      ["Central", "CT"],
-                      ["Pacific", "PT"],
-                    ].map(([label, short]) => (
-                      <div
-                        key={label}
-                        className="rounded-2xl border border-white/80 bg-white/66 p-4"
-                      >
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f9975]">
-                          {label}
-                        </p>
-                        <p className="mt-2 text-lg font-bold text-[#243128]">
-                          {short}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                  <TimeZoneClocks />
 
                   <div className="rounded-[24px] border border-white/80 bg-[linear-gradient(135deg,rgba(238,242,233,0.92),rgba(255,255,255,0.78))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1141,20 +1027,6 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-white/75 bg-white/54 p-4 shadow-[0_20px_60px_rgba(71,91,66,0.10)] backdrop-blur-2xl">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p className="text-sm font-bold text-[#243128]">JGO Daily Four</p>
-              <p className="mt-1 text-xs text-[#708075]">
-                LinkedIn Requests · LinkedIn Post · Substack Article · Social Media
-              </p>
-            </div>
-            <p className="text-xs font-semibold text-[#647d5b]">
-              Interactive bubbles temporarily paused while we stabilize the dashboard.
-            </p>
-          </div>
-        </section>
-
         <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[30px] border border-white/70 bg-white/64 p-7 shadow-[0_26px_70px_rgba(71,91,66,0.14)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:bg-white/78 lg:p-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1227,16 +1099,10 @@ export default async function Home() {
                       }`}
                     >
                       <div className="flex min-w-0 items-start gap-3">
-                        <span
-                          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${
-                            completed
-                              ? "border-[#647d5b] bg-[#647d5b] text-white"
-                              : "border-[#bfcbb9] bg-white text-transparent"
-                          }`}
-                          aria-hidden="true"
-                        >
-                          ✓
-                        </span>
+                        <DashboardTaskCheckbox
+                          taskId={task.id}
+                          completed={completed}
+                        />
 
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">

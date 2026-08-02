@@ -4,146 +4,211 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
 
-function getClientId(formData: FormData): number {
-  const rawClientId = formData.get("clientId");
-  const clientId = Number(rawClientId);
+function getClientId(formData: FormData) {
+  const value = Number(formData.get("clientId"));
 
-  if (!Number.isInteger(clientId) || clientId <= 0) {
+  if (!Number.isInteger(value) || value <= 0) {
     throw new Error("Invalid client ID.");
   }
 
-  return clientId;
+  return value;
 }
 
-async function updateClientStatus(
-  clientId: number,
-  status: "Active" | "Archived"
-): Promise<void> {
+function getServiceId(formData: FormData) {
+  const value = Number(formData.get("serviceId"));
+
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error("Invalid service ID.");
+  }
+
+  return value;
+}
+
+export async function markServicePaid(formData: FormData) {
+  const clientId = getClientId(formData);
+  const serviceId = getServiceId(formData);
   const supabase = await createClient();
 
-  const { data: existingClient, error: lookupError } = await supabase
-    .from("clients")
-    .select("id, status")
-    .eq("id", clientId)
-    .maybeSingle();
+  const { data: service, error: serviceError } = await supabase
+    .from("client_services")
+    .select("id, price")
+    .eq("id", serviceId)
+    .eq("client_id", clientId)
+    .single();
 
-  if (lookupError) {
+  if (serviceError || !service) {
     throw new Error(
-      `Unable to find client before updating status: ${lookupError.message}`
+      `Unable to load service: ${serviceError?.message || "Service not found."}`
     );
   }
 
-  if (!existingClient) {
-    throw new Error(
-      "The client could not be found or your Supabase security policy does not allow access to it."
-    );
-  }
-
-  const { data: updatedClients, error: updateError } = await supabase
-    .from("clients")
-    .update({ status })
-    .eq("id", clientId)
-    .select("id, status");
+  const { error: updateError } = await supabase
+    .from("client_services")
+    .update({
+      payment_status: "Paid",
+    })
+    .eq("id", serviceId)
+    .eq("client_id", clientId);
 
   if (updateError) {
+    throw new Error(`Unable to mark service paid: ${updateError.message}`);
+  }
+
+  const { error: paymentError } = await supabase
+    .from("payments")
+    .insert({
+      client_id: clientId,
+      client_service_id: serviceId,
+      amount: Number(service.price ?? 0),
+      payment_date: new Date().toISOString().slice(0, 10),
+      payment_method: null,
+      payment_status: "Paid",
+      notes: "Marked paid from client profile.",
+    });
+
+  if (paymentError) {
     throw new Error(
-      `Unable to update client status to ${status}: ${updateError.message}`
+      `Service was marked paid, but payment history could not be added: ${paymentError.message}`
     );
   }
 
-  if (!updatedClients || updatedClients.length === 0) {
+  const { data: unpaidServices, error: unpaidError } = await supabase
+    .from("client_services")
+    .select("id")
+    .eq("client_id", clientId)
+    .neq("payment_status", "Paid")
+    .limit(1);
+
+  if (unpaidError) {
     throw new Error(
-      `Supabase did not update the client. The most likely cause is that the clients table does not have an UPDATE security policy for the signed-in user.`
+      `Payment was saved, but client payment status could not be checked: ${unpaidError.message}`
     );
   }
 
-  const updatedClient = updatedClients[0];
+  if ((unpaidServices ?? []).length === 0) {
+    const { error: clientUpdateError } = await supabase
+      .from("clients")
+      .update({
+        payment_status: "Paid",
+      })
+      .eq("id", clientId);
 
-  if (updatedClient.id !== clientId) {
-    throw new Error(
-      "Client status verification failed because Supabase returned a different client."
-    );
-  }
-
-  if (updatedClient.status !== status) {
-    throw new Error(
-      `Client status verification failed. Expected ${status}, but Supabase returned ${updatedClient.status ?? "no status"}.`
-    );
-  }
-}
-
-function revalidateClientPages(clientId: number): void {
-  revalidatePath("/");
-  revalidatePath("/clients");
-  revalidatePath("/clients/archived");
-  revalidatePath(`/clients/${clientId}`);
-}
-
-export async function archiveClient(formData: FormData): Promise<never> {
-  const clientId = getClientId(formData);
-
-  await updateClientStatus(clientId, "Archived");
-
-  revalidateClientPages(clientId);
-
-  redirect("/clients?message=archived");
-}
-
-export async function restoreClient(formData: FormData): Promise<never> {
-  const clientId = getClientId(formData);
-
-  await updateClientStatus(clientId, "Active");
-
-  revalidateClientPages(clientId);
-
-  redirect(`/clients/${clientId}?message=restored`);
-}
-
-export async function deleteClientPermanently(
-  formData: FormData
-): Promise<never> {
-  const clientId = getClientId(formData);
-  const supabase = await createClient();
-
-  const relatedTables = [
-    "follow_ups",
-    "payments",
-    "client_services",
-    "client_files",
-  ] as const;
-
-  for (const table of relatedTables) {
-    const { error } = await supabase
-      .from(table)
-      .delete()
-      .eq("client_id", clientId);
-
-    if (error) {
+    if (clientUpdateError) {
       throw new Error(
-        `Unable to delete related records from ${table}: ${error.message}`
+        `Payment was saved, but client status could not be updated: ${clientUpdateError.message}`
       );
     }
   }
 
-  const { data: deletedClients, error: clientError } = await supabase
+  revalidatePath("/");
+  revalidatePath("/revenue");
+  revalidatePath("/clients");
+  revalidatePath(`/clients/${clientId}`);
+}
+
+export async function archiveClient(formData: FormData) {
+  const clientId = getClientId(formData);
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("clients")
+    .update({
+      status: "Archived",
+    })
+    .eq("id", clientId);
+
+  if (error) {
+    throw new Error(`Unable to archive client: ${error.message}`);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/clients");
+  revalidatePath(`/clients/${clientId}`);
+
+  redirect("/clients?message=archived");
+}
+
+export async function restoreClient(formData: FormData) {
+  const clientId = getClientId(formData);
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("clients")
+    .update({
+      status: "Active",
+    })
+    .eq("id", clientId);
+
+  if (error) {
+    throw new Error(`Unable to restore client: ${error.message}`);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/clients");
+  revalidatePath(`/clients/${clientId}`);
+
+  redirect(`/clients/${clientId}`);
+}
+
+export async function deleteClientPermanently(formData: FormData) {
+  const clientId = getClientId(formData);
+  const supabase = await createClient();
+
+  const calendarResult = await supabase
+    .from("calendar_events")
+    .delete()
+    .eq("client_id", clientId);
+
+  if (calendarResult.error) {
+    throw new Error(
+      `Unable to delete client calendar events: ${calendarResult.error.message}`
+    );
+  }
+
+  const followUpsResult = await supabase
+    .from("follow_ups")
+    .delete()
+    .eq("client_id", clientId);
+
+  if (followUpsResult.error) {
+    throw new Error(
+      `Unable to delete client follow-ups: ${followUpsResult.error.message}`
+    );
+  }
+
+  const paymentsResult = await supabase
+    .from("payments")
+    .delete()
+    .eq("client_id", clientId);
+
+  if (paymentsResult.error) {
+    throw new Error(
+      `Unable to delete client payments: ${paymentsResult.error.message}`
+    );
+  }
+
+  const servicesResult = await supabase
+    .from("client_services")
+    .delete()
+    .eq("client_id", clientId);
+
+  if (servicesResult.error) {
+    throw new Error(
+      `Unable to delete client services: ${servicesResult.error.message}`
+    );
+  }
+
+  const { error: clientError } = await supabase
     .from("clients")
     .delete()
-    .eq("id", clientId)
-    .select("id");
+    .eq("id", clientId);
 
   if (clientError) {
     throw new Error(`Unable to delete client: ${clientError.message}`);
   }
 
-  if (!deletedClients || deletedClients.length === 0) {
-    throw new Error(
-      "Supabase did not delete the client. Check the DELETE security policy on the clients table."
-    );
-  }
-
   revalidatePath("/");
   revalidatePath("/clients");
-  revalidatePath("/clients/archived");
 
   redirect("/clients?message=deleted");
 }

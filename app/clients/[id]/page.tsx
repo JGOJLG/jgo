@@ -7,6 +7,7 @@ import {
   archiveClient,
   restoreClient,
   deleteClientPermanently,
+  markServicePaid,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,18 @@ type Payment = {
   notes: string | null;
 };
 
+
+
+type CalendarEvent = {
+  id: number;
+  title: string | null;
+  event_type: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  status: string | null;
+  client_id: number | null;
+  notes: string | null;
+};
 
 type Lead = {
   id: number;
@@ -189,6 +202,19 @@ export default async function ClientPage({ params }: Props) {
     console.error("Unable to load payments:", paymentError);
   }
 
+  const { data: interviewData, error: interviewError } = await supabase
+    .from("calendar_events")
+    .select(
+      "id, title, event_type, start_at, end_at, status, client_id, notes"
+    )
+    .eq("client_id", clientId)
+    .eq("event_type", "interview")
+    .order("start_at", { ascending: true });
+
+  if (interviewError) {
+    console.error("Unable to load interviews:", interviewError);
+  }
+
   const { data: leadData, error: leadError } = await supabase
     .from("intake_calls")
     .select("*")
@@ -204,6 +230,7 @@ export default async function ClientPage({ params }: Props) {
   const client = clientData as Client;
   const services = (serviceData ?? []) as ClientService[];
   const payments = (paymentData ?? []) as Payment[];
+  const interviews = (interviewData ?? []) as CalendarEvent[];
 
   const activeServices = services.filter(
     (service) =>
@@ -472,6 +499,7 @@ export default async function ClientPage({ params }: Props) {
                 title="Client Notes"
                 description="Keep overall relationship notes and follow-up details together."
                 action="+ Add Note"
+                actionHref={`/clients/${client.id}/edit`}
               >
                 <p className="text-sm leading-6 text-[#647066]">
                   {client.project_notes ||
@@ -483,14 +511,60 @@ export default async function ClientPage({ params }: Props) {
                 title="Interview Details"
                 description="Track upcoming interviews and good-luck reminders."
                 action="+ Add Interview"
+                actionHref={`/clients/${client.id}/interviews/new`}
               >
-                <SimpleEmptyState text="No upcoming interviews added." />
+                {interviews.length === 0 ? (
+                  <SimpleEmptyState text="No upcoming interviews added." />
+                ) : (
+                  <div className="space-y-3">
+                    {interviews.map((interview) => (
+                      <Link
+                        key={interview.id}
+                        href={`/calendar/${interview.id}`}
+                        className="block rounded-xl border border-[#dfe6db] bg-[#fbfcf9] p-4 transition hover:border-[#bdcdb7] hover:bg-white"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="font-semibold text-[#243128]">
+                              {interview.title || "Interview"}
+                            </p>
+                            <p className="mt-1 text-sm text-[#708075]">
+                              {interview.start_at
+                                ? new Date(interview.start_at).toLocaleString(
+                                    "en-US",
+                                    {
+                                      month: "long",
+                                      day: "numeric",
+                                      year: "numeric",
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                      timeZone: "America/New_York",
+                                    }
+                                  )
+                                : "Date not added"}
+                            </p>
+                            {interview.notes ? (
+                              <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#647066]">
+                                {interview.notes}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <span className="rounded-full bg-[#e8edf3] px-3 py-1 text-xs font-semibold text-[#52697b]">
+                            {interview.status || "Scheduled"}
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </WorkspaceCard>
 
               <WorkspaceCard
                 title="Revenue Summary"
                 description="Paid revenue and money still owed by this client."
                 action="View Revenue"
+                actionHref="/revenue"
               >
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border border-[#e4e9df] bg-[#fbfcf9] p-4">
@@ -813,12 +887,31 @@ function ServiceCard({
         </div>
       )}
 
-      <Link
-        href={`/clients/${clientId}/services/${service.id}/edit`}
-        className="mt-5 block w-full rounded-xl border border-[#d7e1d0] bg-white px-4 py-3 text-center text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
-      >
-        Edit Service
-      </Link>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        {service.payment_status !== "Paid" ? (
+          <form action={markServicePaid}>
+            <input type="hidden" name="clientId" value={clientId} />
+            <input type="hidden" name="serviceId" value={service.id} />
+            <button
+              type="submit"
+              className="w-full rounded-xl bg-[#647d5b] px-4 py-3 text-sm font-semibold text-white hover:bg-[#4d6247]"
+            >
+              Mark Paid
+            </button>
+          </form>
+        ) : (
+          <div className="flex items-center justify-center rounded-xl bg-[#e7f1e6] px-4 py-3 text-sm font-semibold text-[#55704f]">
+            Paid
+          </div>
+        )}
+
+        <Link
+          href={`/clients/${clientId}/services/${service.id}/edit`}
+          className="block w-full rounded-xl border border-[#d7e1d0] bg-white px-4 py-3 text-center text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+        >
+          Edit Service
+        </Link>
+      </div>
     </div>
   );
 }
@@ -852,11 +945,13 @@ function WorkspaceCard({
   title,
   description,
   action,
+  actionHref,
   children,
 }: {
   title: string;
   description: string;
   action?: string;
+  actionHref?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -872,13 +967,13 @@ function WorkspaceCard({
           </p>
         </div>
 
-        {action ? (
-          <button
-            type="button"
-            className="shrink-0 text-sm font-semibold text-[#647d5b]"
+        {action && actionHref ? (
+          <Link
+            href={actionHref}
+            className="shrink-0 text-sm font-semibold text-[#647d5b] hover:text-[#4d6247]"
           >
             {action}
-          </button>
+          </Link>
         ) : null}
       </div>
 

@@ -18,6 +18,14 @@ type ClientService = {
   payment_status: string | null;
 };
 
+const standardServices = [
+  { name: "Resume", price: 250 },
+  { name: "Cover Letter", price: 250 },
+  { name: "Resume + Cover Letter", price: 400 },
+  { name: "Career Coaching", price: 250 },
+  { name: "Other", price: 0 },
+];
+
 const paymentMethods = [
   "Venmo",
   "Zelle",
@@ -30,11 +38,7 @@ const paymentMethods = [
   "Other",
 ];
 
-const paymentStatuses = [
-  "Paid",
-  "Pending",
-  "Invoice Sent",
-];
+const paymentStatuses = ["Open", "Invoice Sent", "Paid"];
 
 const inputStyle =
   "w-full rounded-xl border border-[#d7e1d0] bg-[#fbfcf9] px-4 py-3 text-sm text-[#243128] outline-none placeholder:text-[#9aa59c] focus:border-[#9fb294]";
@@ -57,7 +61,8 @@ export default function NewPaymentPage() {
   const [client, setClient] = useState<Client | null>(null);
   const [services, setServices] = useState<ClientService[]>([]);
 
-  const [clientServiceId, setClientServiceId] = useState("");
+  const [serviceChoice, setServiceChoice] = useState("");
+  const [customService, setCustomService] = useState("");
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(getTodayDateString());
   const [paymentMethod, setPaymentMethod] = useState("Venmo");
@@ -68,13 +73,19 @@ export default function NewPaymentPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const selectedService = useMemo(
-    () =>
-      services.find(
-        (service) => service.id === Number(clientServiceId)
-      ) ?? null,
-    [clientServiceId, services]
-  );
+  const selectedExistingService = useMemo(() => {
+    if (!serviceChoice.startsWith("existing:")) return null;
+
+    const id = Number(serviceChoice.replace("existing:", ""));
+    return services.find((service) => service.id === id) ?? null;
+  }, [serviceChoice, services]);
+
+  const selectedNewService = useMemo(() => {
+    if (!serviceChoice.startsWith("new:")) return null;
+
+    const name = serviceChoice.replace("new:", "");
+    return standardServices.find((service) => service.name === name) ?? null;
+  }, [serviceChoice]);
 
   useEffect(() => {
     if (!Number.isInteger(clientId)) {
@@ -128,23 +139,49 @@ export default function NewPaymentPage() {
   }, [clientId]);
 
   function handleServiceChange(value: string) {
-    setClientServiceId(value);
+    setServiceChoice(value);
+    setCustomService("");
 
-    const service = services.find(
-      (item) => item.id === Number(value)
-    );
+    if (value.startsWith("existing:")) {
+      const id = Number(value.replace("existing:", ""));
+      const service = services.find((item) => item.id === id);
 
-    if (service?.price != null) {
-      setAmount(String(service.price));
+      if (service?.price != null) {
+        setAmount(String(service.price));
+      }
+
+      return;
+    }
+
+    if (value.startsWith("new:")) {
+      const name = value.replace("new:", "");
+      const service = standardServices.find((item) => item.name === name);
+
+      if (service && service.name !== "Other") {
+        setAmount(String(service.price));
+      } else {
+        setAmount("");
+      }
     }
   }
 
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>
-  ) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const parsedAmount = Number(amount);
+
+    if (!serviceChoice) {
+      setError("Please select a service.");
+      return;
+    }
+
+    if (
+      serviceChoice === "new:Other" &&
+      !customService.trim()
+    ) {
+      setError("Please type the custom service.");
+      return;
+    }
 
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       setError("Please enter a valid payment amount.");
@@ -159,13 +196,50 @@ export default function NewPaymentPage() {
     setSaving(true);
     setError("");
 
+    let clientServiceId: number | null =
+      selectedExistingService?.id ?? null;
+
+    if (!clientServiceId && selectedNewService) {
+      const serviceName =
+        selectedNewService.name === "Other"
+          ? customService.trim()
+          : selectedNewService.name;
+
+      const { data: createdService, error: serviceCreateError } =
+        await supabase
+          .from("client_services")
+          .insert({
+            client_id: clientId,
+            service: serviceName,
+            price: parsedAmount,
+            status: "In Process",
+            payment_status: paymentStatus,
+            date_added: paymentDate,
+            scheduled_date: null,
+            due_date: null,
+            next_step: null,
+            notes: notes.trim() || null,
+          })
+          .select("id")
+          .single();
+
+      if (serviceCreateError || !createdService) {
+        setError(
+          serviceCreateError?.message ||
+            "The service could not be created."
+        );
+        setSaving(false);
+        return;
+      }
+
+      clientServiceId = createdService.id;
+    }
+
     const { error: paymentError } = await supabase
       .from("payments")
       .insert({
         client_id: clientId,
-        client_service_id: clientServiceId
-          ? Number(clientServiceId)
-          : null,
+        client_service_id: clientServiceId,
         amount: parsedAmount,
         payment_date: paymentDate,
         payment_method: paymentMethod || null,
@@ -179,20 +253,18 @@ export default function NewPaymentPage() {
       return;
     }
 
-    if (
-      paymentStatus === "Paid" &&
-      selectedService
-    ) {
-      const { error: serviceError } = await supabase
+    if (clientServiceId) {
+      const { error: serviceUpdateError } = await supabase
         .from("client_services")
         .update({
-          payment_status: "Paid",
+          price: parsedAmount,
+          payment_status: paymentStatus,
         })
-        .eq("id", selectedService.id);
+        .eq("id", clientServiceId);
 
-      if (serviceError) {
+      if (serviceUpdateError) {
         setError(
-          `Payment was saved, but the service status could not be updated: ${serviceError.message}`
+          `Payment was saved, but the service could not be updated: ${serviceUpdateError.message}`
         );
         setSaving(false);
         return;
@@ -202,16 +274,13 @@ export default function NewPaymentPage() {
     const { error: clientError } = await supabase
       .from("clients")
       .update({
-        payment_status:
-          paymentStatus === "Paid"
-            ? "Paid"
-            : paymentStatus,
+        payment_status: paymentStatus,
       })
       .eq("id", clientId);
 
     if (clientError) {
       setError(
-        `Payment was saved, but the client payment status could not be updated: ${clientError.message}`
+        `Payment was saved, but the client could not be updated: ${clientError.message}`
       );
       setSaving(false);
       return;
@@ -240,13 +309,10 @@ export default function NewPaymentPage() {
             ← Back to Client
           </Link>
 
-          <h1 className="mt-4 text-3xl font-bold">
-            Add Payment
-          </h1>
+          <h1 className="mt-4 text-3xl font-bold">Add Payment</h1>
 
           <p className="mt-2 text-sm text-[#708075]">
-            Record a payment for{" "}
-            {client?.name || "this client"}.
+            Record a payment for {client?.name || "this client"}.
           </p>
         </div>
       </header>
@@ -257,9 +323,7 @@ export default function NewPaymentPage() {
           className="space-y-6 rounded-3xl border border-[#dfe6db] bg-white p-8 shadow-sm"
         >
           <section>
-            <h2 className="text-xl font-bold">
-              Payment Details
-            </h2>
+            <h2 className="text-xl font-bold">Payment Details</h2>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
@@ -268,30 +332,60 @@ export default function NewPaymentPage() {
                 </label>
 
                 <select
-                  value={clientServiceId}
+                  value={serviceChoice}
                   onChange={(event) =>
                     handleServiceChange(event.target.value)
                   }
                   className={inputStyle}
                 >
-                  <option value="">
-                    General payment or no service selected
-                  </option>
+                  <option value="">Select service</option>
 
-                  {services.map((service) => (
-                    <option
-                      key={service.id}
-                      value={service.id}
-                    >
-                      {service.service || "Unnamed Service"} · $
-                      {Number(service.price ?? 0).toLocaleString("en-US")}
-                      {service.payment_status
-                        ? ` · ${service.payment_status}`
-                        : ""}
-                    </option>
-                  ))}
+                  {services.length > 0 && (
+                    <optgroup label="Existing Services">
+                      {services.map((service) => (
+                        <option
+                          key={service.id}
+                          value={`existing:${service.id}`}
+                        >
+                          {service.service || "Unnamed Service"} · $
+                          {Number(service.price ?? 0).toLocaleString("en-US")}
+                          {service.payment_status
+                            ? ` · ${service.payment_status}`
+                            : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  <optgroup label="Add a New Service">
+                    {standardServices.map((service) => (
+                      <option
+                        key={service.name}
+                        value={`new:${service.name}`}
+                      >
+                        {service.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
+
+              {serviceChoice === "new:Other" && (
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-[#4d6247]">
+                    Custom Service
+                  </label>
+
+                  <input
+                    value={customService}
+                    onChange={(event) =>
+                      setCustomService(event.target.value)
+                    }
+                    placeholder="Type the service name"
+                    className={inputStyle}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-[#4d6247]">
@@ -305,9 +399,7 @@ export default function NewPaymentPage() {
                   required
                   placeholder="0.00"
                   value={amount}
-                  onChange={(event) =>
-                    setAmount(event.target.value)
-                  }
+                  onChange={(event) => setAmount(event.target.value)}
                   className={inputStyle}
                 />
               </div>
@@ -341,10 +433,7 @@ export default function NewPaymentPage() {
                   className={inputStyle}
                 >
                   {paymentMethods.map((method) => (
-                    <option
-                      key={method}
-                      value={method}
-                    >
+                    <option key={method} value={method}>
                       {method}
                     </option>
                   ))}
@@ -364,10 +453,7 @@ export default function NewPaymentPage() {
                   className={inputStyle}
                 >
                   {paymentStatuses.map((status) => (
-                    <option
-                      key={status}
-                      value={status}
-                    >
+                    <option key={status} value={status}>
                       {status}
                     </option>
                   ))}
@@ -385,33 +471,10 @@ export default function NewPaymentPage() {
               rows={5}
               placeholder="Add any payment details or notes."
               value={notes}
-              onChange={(event) =>
-                setNotes(event.target.value)
-              }
+              onChange={(event) => setNotes(event.target.value)}
               className={inputStyle}
             />
           </section>
-
-          {selectedService && (
-            <div className="rounded-xl bg-[#eef2e9] p-4 text-sm text-[#4d6247]">
-              <p className="font-semibold">
-                {selectedService.service || "Selected Service"}
-              </p>
-
-              <p className="mt-1 text-[#708075]">
-                Service price: $
-                {Number(
-                  selectedService.price ?? 0
-                ).toLocaleString("en-US")}
-              </p>
-
-              {paymentStatus === "Paid" && (
-                <p className="mt-2 text-xs font-semibold text-[#647d5b]">
-                  Saving this payment will mark the service as Paid.
-                </p>
-              )}
-            </div>
-          )}
 
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">

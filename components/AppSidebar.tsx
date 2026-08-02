@@ -6,10 +6,9 @@ import { usePathname } from "next/navigation";
 const navigation = [
   { label: "Dashboard", href: "/" },
   { label: "Clients", href: "/clients" },
-  { label: "Leads", href: "#" },
-  { label: "Calendar", href: "#" },
- { label: "Tasks", href: "/tasks" },
-  { label: "Revenue", href: "#" },
+  { label: "Calendar", href: "/calendar" },
+  { label: "Tasks", href: "/tasks" },
+  { label: "Revenue", href: "/revenue" },
   { label: "Files", href: "#" },
   { label: "Email Templates", href: "#" },
   { label: "Marketing", href: "#" },
@@ -33,7 +32,11 @@ export default function AppSidebar() {
 
   return (
     <aside className="hidden w-64 flex-col border-r border-[#dfe6db] bg-[#f1f4ed] px-5 py-7 lg:flex">
-      <div className="mb-10 px-2">
+      <Link
+        href="/"
+        className="mb-10 block rounded-2xl px-2 py-1 transition hover:bg-white/70"
+        aria-label="Return to JGO OS dashboard"
+      >
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#7f9975]">
           JGO Hire
         </p>
@@ -45,7 +48,7 @@ export default function AppSidebar() {
         <p className="mt-2 text-xs leading-5 text-[#708075]">
           Your business command center
         </p>
-      </div>
+      </Link>
 
       <nav className="space-y-2">
         {navigation.map((item) => {
