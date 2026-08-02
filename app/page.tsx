@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase-server";
+import JGODailyFour from "@/components/JGODailyFour";
+import HeaderTimeClocks from "@/components/HeaderTimeClocks";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -890,28 +892,40 @@ export default async function Home() {
 
   return (
     <section className="relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(217,229,210,0.95),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(241,226,209,0.8),_transparent_30%),linear-gradient(180deg,_#f7f8f3_0%,_#f3f5ef_100%)] before:pointer-events-none before:absolute before:left-[-120px] before:top-[220px] before:h-80 before:w-80 before:rounded-full before:bg-white/45 before:blur-3xl after:pointer-events-none after:absolute after:right-[-140px] after:top-[520px] after:h-96 after:w-96 after:rounded-full after:bg-[#dfead9]/55 after:blur-3xl">
-      <header className="relative z-10 border-b border-white/60 bg-white/45 px-6 py-7 backdrop-blur-2xl lg:px-10">
-        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-[#7f9975]">{getTodayLabel()}</p>
+      <header className="relative z-10 border-b border-white/70 bg-white/62 px-6 py-5 shadow-[0_12px_35px_rgba(71,91,66,0.08)] backdrop-blur-2xl lg:px-10">
+        <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7f9975]">
+              JGO Hire Command Center
+            </p>
+
             <h2 className="mt-2 text-3xl font-bold tracking-tight text-[#243128]">
               Welcome back, Jen
             </h2>
-            <p className="mt-2 text-sm text-[#708075]">
+
+            <p className="mt-1.5 text-sm text-[#708075]">
               Here is what needs your attention today.
             </p>
           </div>
 
-          <Link
-            href="/clients/new"
-            className="inline-flex w-fit items-center justify-center rounded-2xl border border-white/70 bg-white/65 px-5 py-3 text-sm font-semibold text-[#3d4d39] shadow-[0_16px_40px_rgba(80,104,72,0.14)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white"
-          >
-            + Add Client
-          </Link>
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+            <HeaderTimeClocks />
+
+            <Link
+              href="/clients/new"
+              className="inline-flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_35px_rgba(80,104,72,0.20)] transition hover:-translate-y-0.5 hover:bg-[#526b4b] sm:w-auto"
+            >
+              + Add Client
+            </Link>
+          </div>
         </div>
       </header>
 
-      <div className="relative z-10 space-y-7 p-6 lg:p-10">
+      <div className="relative z-20 px-6 pt-5 lg:px-10">
+        <JGODailyFour />
+      </div>
+
+      <div className="relative z-10 space-y-7 p-6 pt-5 lg:p-10 lg:pt-6">
         {Object.values(databaseErrors).some(Boolean) ? (
           <section className="rounded-2xl border border-red-300 bg-red-50 p-6">
             <h3 className="text-lg font-bold text-red-700">Dashboard Error</h3>
@@ -1141,19 +1155,7 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-white/75 bg-white/54 p-4 shadow-[0_20px_60px_rgba(71,91,66,0.10)] backdrop-blur-2xl">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p className="text-sm font-bold text-[#243128]">JGO Daily Four</p>
-              <p className="mt-1 text-xs text-[#708075]">
-                LinkedIn Requests · LinkedIn Post · Substack Article · Social Media
-              </p>
-            </div>
-            <p className="text-xs font-semibold text-[#647d5b]">
-              Interactive bubbles temporarily paused while we stabilize the dashboard.
-            </p>
-          </div>
-        </section>
+
 
         <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[30px] border border-white/70 bg-white/64 p-7 shadow-[0_26px_70px_rgba(71,91,66,0.14)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:bg-white/78 lg:p-8">
