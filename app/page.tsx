@@ -4,6 +4,7 @@ import JGODailyFour from "@/components/JGODailyFour";
 import HeaderTimeClocks from "@/components/HeaderTimeClocks";
 import InterviewCompleteButton from "@/components/InterviewCompleteButton";
 import DashboardTaskCheckbox from "@/components/DashboardTaskCheckbox";
+import { getRecruiterTopicOfTheDay } from "@/lib/recruiterTopics";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -87,176 +88,6 @@ type CalendarEvent = {
   status: string | null;
   notes: string | null;
 };
-
-
-
-const recruiterTopics = [
-  {
-    title: "How to answer salary expectation questions",
-    prompt:
-      "Talk about why candidates should give a realistic target instead of an extremely wide salary range.",
-  },
-  {
-    title: "Why your resume needs measurable results",
-    prompt:
-      "Explain how accomplishments are stronger than a list of responsibilities.",
-  },
-  {
-    title: "The best way to follow up after an interview",
-    prompt:
-      "Share what to say, when to send it, and how to avoid sounding pushy.",
-  },
-  {
-    title: "How to explain a career gap",
-    prompt:
-      "Give candidates a confident and honest framework for discussing time away from work.",
-  },
-  {
-    title: "Why recruiters ask about other interviews",
-    prompt:
-      "Explain what recruiters are really trying to understand and how candidates should respond.",
-  },
-  {
-    title: "How to prepare for a recruiter screen",
-    prompt:
-      "Cover the information candidates should know before a first conversation.",
-  },
-  {
-    title: "When a candidate should negotiate",
-    prompt:
-      "Discuss timing, leverage, and how to negotiate without damaging the relationship.",
-  },
-  {
-    title: "Why one resume should not be used for every role",
-    prompt:
-      "Explain how tailoring improves relevance without rewriting everything.",
-  },
-  {
-    title: "How to talk about being laid off",
-    prompt:
-      "Help candidates separate a business decision from their professional value.",
-  },
-  {
-    title: "What makes a strong LinkedIn headline",
-    prompt:
-      "Share a simple formula candidates can use to make their profile easier to understand.",
-  },
-  {
-    title: "How to answer: Tell me about yourself",
-    prompt:
-      "Teach a concise present, past, and future structure for interviews.",
-  },
-  {
-    title: "Why job titles do not always tell the full story",
-    prompt:
-      "Discuss transferable skills and how candidates can position work beyond their official title.",
-  },
-  {
-    title: "What to do when a company ghosts you",
-    prompt:
-      "Give a practical follow-up timeline and explain when it is time to move on.",
-  },
-  {
-    title: "How to research a company before an interview",
-    prompt:
-      "Share the most useful places to look and what information actually matters.",
-  },
-  {
-    title: "The difference between confidence and overselling",
-    prompt:
-      "Help candidates describe their value honestly without minimizing themselves.",
-  },
-  {
-    title: "Why interview examples need a clear result",
-    prompt:
-      "Explain how to finish STAR stories with a measurable or meaningful outcome.",
-  },
-  {
-    title: "How to decide whether a role is worth pursuing",
-    prompt:
-      "Discuss compensation, growth, manager quality, workload, and long-term fit.",
-  },
-  {
-    title: "What recruiters notice in the first resume scan",
-    prompt:
-      "Explain the importance of clarity, relevance, recent experience, and clean formatting.",
-  },
-  {
-    title: "How to ask better questions in an interview",
-    prompt:
-      "Give candidates questions that uncover expectations, team culture, and success measures.",
-  },
-  {
-    title: "Why being open to feedback matters in a job search",
-    prompt:
-      "Discuss how small changes in positioning can improve results.",
-  },
-  {
-    title: "How to explain why you are leaving your job",
-    prompt:
-      "Offer positive language that focuses on growth instead of complaints.",
-  },
-  {
-    title: "When certifications help and when they do not",
-    prompt:
-      "Explain how credentials should support experience rather than replace it.",
-  },
-  {
-    title: "Why candidates should track their applications",
-    prompt:
-      "Share a simple system for organizing roles, contacts, interviews, and follow-ups.",
-  },
-  {
-    title: "How to handle a lower-than-expected offer",
-    prompt:
-      "Discuss evaluating the full package and responding professionally.",
-  },
-  {
-    title: "What to include in a strong professional summary",
-    prompt:
-      "Explain how to lead with target role, experience, strengths, and value.",
-  },
-  {
-    title: "How to prepare examples before an interview",
-    prompt:
-      "Encourage candidates to prepare stories about challenges, leadership, conflict, and results.",
-  },
-  {
-    title: "Why networking should not feel transactional",
-    prompt:
-      "Share ways to build real professional relationships before asking for help.",
-  },
-  {
-    title: "How to know when your resume is too long",
-    prompt:
-      "Discuss relevance, career level, repetition, and recruiter readability.",
-  },
-  {
-    title: "What to do after a rejection",
-    prompt:
-      "Help candidates process the outcome, request useful feedback, and keep momentum.",
-  },
-  {
-    title: "How to discuss remote or hybrid preferences",
-    prompt:
-      "Show candidates how to be clear without closing doors too early.",
-  },
-  {
-    title: "Why clarity beats cleverness in a job search",
-    prompt:
-      "Explain why resumes, LinkedIn profiles, and interview answers should be easy to understand.",
-  },
-];
-
-function getRecruiterTopicOfTheDay() {
-  const now = new Date();
-  const startOfYear = new Date(now.getFullYear(), 0, 0);
-  const dayOfYear = Math.floor(
-    (now.getTime() - startOfYear.getTime()) / 86_400_000
-  );
-
-  return recruiterTopics[dayOfYear % recruiterTopics.length];
-}
 
 
 type QueryResult<T> = {
@@ -583,7 +414,15 @@ export default async function Home() {
   );
   const intakeCalls = intakeCallsResult.data;
   const followUps = followUpsResult.data;
-  const services = servicesResult.data;
+  const validClientIds = new Set(
+  allClients.map((client) => client.id)
+);
+
+const services = servicesResult.data.filter(
+  (service) =>
+    service.client_id !== null &&
+    validClientIds.has(service.client_id)
+);
   const tasks = tasksResult.data;
   const calendarEvents = [
     ...calendarEventsResult.data,
@@ -1042,6 +881,12 @@ export default async function Home() {
                         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#647066]">
                           {recruiterTopic.prompt}
                         </p>
+                        <Link
+                          href="/recruiter-tips"
+                          className="mt-3 inline-block text-xs font-semibold text-[#647d5b] hover:text-[#4d6247]"
+                        >
+                          View all →
+                        </Link>
                       </div>
 
                       <span className="w-fit rounded-full border border-white/80 bg-white/75 px-3 py-1.5 text-xs font-semibold text-[#647d5b] shadow-sm">
@@ -1186,14 +1031,12 @@ export default async function Home() {
                             ) : null}
                           </Link>
 
-                          {!interview.start_at ? (
-                            <div className="mt-4 border-t border-[#e9e2f1] pt-3">
-                              <InterviewCompleteButton
-                                eventId={interview.id}
-                                compact
-                              />
-                            </div>
-                          ) : null}
+                          <div className="mt-4 border-t border-[#e9e2f1] pt-3">
+                            <InterviewCompleteButton
+                              eventId={interview.id}
+                              compact
+                            />
+                          </div>
                         </div>
                       );
                     })}

@@ -8,6 +8,7 @@ const navigation = [
   { label: "Clients", href: "/clients" },
   { label: "Calendar", href: "/calendar" },
   { label: "Tasks", href: "/tasks" },
+  { label: "Recruiter Tips", href: "/recruiter-tips" },
   { label: "Revenue", href: "/revenue" },
   { label: "Files", href: "#" },
   { label: "Email Templates", href: "#" },

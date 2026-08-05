@@ -16,6 +16,12 @@ const zones = [
     timeZone: "America/Chicago",
   },
   {
+    label: "Mountain",
+    shortLabel: "MT",
+    city: "Denver",
+    timeZone: "America/Denver",
+  },
+  {
     label: "Pacific",
     shortLabel: "PT",
     city: "Los Angeles",
@@ -37,7 +43,7 @@ export default function HeaderTimeClocks() {
   }, []);
 
   return (
-    <div className="grid w-full gap-2 sm:grid-cols-3 xl:w-auto">
+    <div className="grid w-full gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:w-auto">
       {zones.map((zone) => {
         const time = now
           ? new Intl.DateTimeFormat("en-US", {
