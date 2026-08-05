@@ -23,4 +23,5 @@ export async function updateFollowUpStatus(formData: FormData) {
   }
 
   revalidatePath("/clients");
+  revalidatePath("/");
 }

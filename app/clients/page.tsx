@@ -333,11 +333,14 @@ export default async function ClientsPage({
   ).length;
 
   const activeLeadRows = clientRows.filter(
-    (c) => c.follow_up_status !== "No Follow-Up Necessary"
+    (client) =>
+      normalize(client.follow_up_status) === "needs follow-up"
   );
 
   const noFollowUpRows = clientRows.filter(
-    (c) => c.follow_up_status === "No Follow-Up Necessary"
+    (client) =>
+      normalize(client.follow_up_status) ===
+      "no follow-up necessary"
   );
 
   const error = clientsResult.error || servicesResult.error;

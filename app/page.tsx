@@ -20,6 +20,7 @@ type Client = {
   due_date: string | null;
   price: number | null;
   next_step: string | null;
+  follow_up_status: string | null;
 };
 
 
@@ -414,15 +415,7 @@ export default async function Home() {
   );
   const intakeCalls = intakeCallsResult.data;
   const followUps = followUpsResult.data;
-  const validClientIds = new Set(
-  allClients.map((client) => client.id)
-);
-
-const services = servicesResult.data.filter(
-  (service) =>
-    service.client_id !== null &&
-    validClientIds.has(service.client_id)
-);
+  const services = servicesResult.data;
   const tasks = tasksResult.data;
   const calendarEvents = [
     ...calendarEventsResult.data,
@@ -657,38 +650,27 @@ const services = servicesResult.data.filter(
     })
     .slice(0, 6);
 
-  const peopleToReachOutTo = [
-    ...openFollowUps.map((followUp) => ({
-      key: `follow-up-${followUp.id}`,
-      name: followUp.client_id
-        ? clientNameById.get(followUp.client_id) || "Client"
-        : followUp.intake_call_id
-          ? leadNameById.get(followUp.intake_call_id) || "Lead"
-          : followUp.title || "Follow-up",
-      label: followUp.title || "Follow-up",
-      date: followUp.due_date,
-      priority: followUp.priority,
-      href: followUp.client_id
-        ? `/clients/${followUp.client_id}`
-        : followUp.intake_call_id
-          ? `/leads/${followUp.intake_call_id}`
-          : "/follow-ups",
-      overdue: Boolean(followUp.due_date && followUp.due_date < today),
-    })),
-    ...followUpLeads.map((lead) => ({
-      key: `lead-${lead.id}`,
-      name: lead.name || "Unnamed Lead",
-      label: lead.services_discussed || lead.needs_help_with || "Lead follow-up",
-      date: lead.follow_up_date,
+  const peopleToReachOutTo = leadClients
+    .filter(
+      (client) =>
+        normalize(client.follow_up_status) === "needs follow-up"
+    )
+    .map((client) => ({
+      key: `lead-client-${client.id}`,
+      name: client.name || "Unnamed Lead",
+      label: client.next_step || "Follow-up needed",
+      date: client.due_date,
       priority: "Normal",
-      href: `/leads/${lead.id}`,
-      overdue: Boolean(lead.follow_up_date && lead.follow_up_date < today),
-    })),
-  ]
+      href: `/clients/${client.id}`,
+      overdue: Boolean(client.due_date && client.due_date < today),
+    }))
     .sort((a, b) => {
       if (a.overdue && !b.overdue) return -1;
       if (!a.overdue && b.overdue) return 1;
-      return (a.date || "9999-12-31").localeCompare(b.date || "9999-12-31");
+
+      return (a.date || "9999-12-31").localeCompare(
+        b.date || "9999-12-31"
+      );
     })
     .slice(0, 7);
 
