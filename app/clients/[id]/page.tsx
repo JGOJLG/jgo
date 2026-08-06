@@ -8,6 +8,7 @@ import ClientHistory from "@/components/ClientHistory";
 import ClientFileManager from "./ClientFileManager";
 import ClientActions from "./ClientActions";
 import ServiceCard from "./ServiceCard";
+import SendInvoiceButton from "@/components/SendInvoiceButton";
 
 import { addClientNote, deleteClientNote, convertToActiveClient, revertToLead } from "./actions";
 
@@ -152,6 +153,12 @@ export default async function ClientPage({ params }: Props) {
                 {isLead ? "Mark as Client" : "Mark as Lead"}
               </button>
             </form>
+
+            <SendInvoiceButton
+              clientId={clientId}
+              clientName={client.name}
+              clientEmail={client.email ?? null}
+            />
 
             <Link
               href={`/clients/${clientId}/services/new`}

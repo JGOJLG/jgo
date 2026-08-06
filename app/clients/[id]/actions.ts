@@ -231,13 +231,31 @@ export async function updateServiceStatus(formData: FormData) {
     throw new Error(error.message);
   }
 
-  await createTimelineEvent(
-    clientId,
-    `service_${status.toLowerCase().replace(/\s+/g, "_")}`,
-    status
-  );
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/");
+}
+
+
+export async function markServiceInvoiceSent(formData: FormData) {
+  const clientId = getClientId(formData);
+  const serviceId = getServiceId(formData);
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("client_services")
+    .update({
+      payment_status: "Invoice Sent",
+    })
+    .eq("id", serviceId)
+    .eq("client_id", clientId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/revenue");
   revalidatePath("/");
 }
 
@@ -285,12 +303,6 @@ export async function markServicePaid(formData: FormData) {
       payment_method: null,
       notes: "Marked paid from client profile.",
     });
-
-  await createTimelineEvent(
-    clientId,
-    "paid",
-    "Paid"
-  );
 
   revalidatePath(`/clients/${clientId}`);
   revalidatePath("/");

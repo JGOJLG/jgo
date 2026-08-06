@@ -41,6 +41,27 @@ function getToday() {
   return new Date().toISOString().split("T")[0];
 }
 
+function formatPhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length === 0) {
+    return "";
+  }
+
+  if (digits.length <= 3) {
+    return `(${digits}`;
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  }
+
+  return `(${digits.slice(0, 3)}) ${digits.slice(
+    3,
+    6
+  )}-${digits.slice(6)}`;
+}
+
 export default function NewClientPage() {
   const router = useRouter();
 
@@ -257,8 +278,16 @@ export default function NewClientPage() {
 
               <FormField label="Phone">
                 <input
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  maxLength={14}
                   value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
+                  onChange={(event) =>
+                    setPhone(
+                      formatPhoneNumber(event.target.value)
+                    )
+                  }
                   className={inputStyle}
                   placeholder="(555) 555-5555"
                 />
