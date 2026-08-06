@@ -48,13 +48,21 @@ function getWeatherLabel(code: number | null) {
   if ([80, 81, 82].includes(code)) return "Rain Showers";
   if ([85, 86].includes(code)) return "Snow Showers";
   if ([95, 96, 99].includes(code)) return "Thunderstorms";
+
   return "Current Conditions";
 }
 
 function getWeatherIcon(code: number | null) {
+  const iconClassName =
+    "h-12 w-12 shrink-0 md:h-14 md:w-14 2xl:h-16 2xl:w-16";
+
   if (code === 0) {
     return (
-      <svg viewBox="0 0 64 64" fill="none" className="h-16 w-16">
+      <svg
+        viewBox="0 0 64 64"
+        fill="none"
+        className={iconClassName}
+      >
         <circle cx="32" cy="32" r="12" fill="#F5B942" />
         <path
           d="M32 5v9M32 50v9M5 32h9M50 32h9M13 13l7 7M44 44l7 7M51 13l-7 7M20 44l-7 7"
@@ -68,12 +76,17 @@ function getWeatherIcon(code: number | null) {
 
   if (
     code !== null &&
-    [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(
-      code
-    )
+    [
+      51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82,
+      95, 96, 99,
+    ].includes(code)
   ) {
     return (
-      <svg viewBox="0 0 64 64" fill="none" className="h-16 w-16">
+      <svg
+        viewBox="0 0 64 64"
+        fill="none"
+        className={iconClassName}
+      >
         <path
           d="M17 43h31a11 11 0 0 0 1-22 16 16 0 0 0-30-3 13 13 0 0 0-2 25Z"
           fill="#E7EAEC"
@@ -89,7 +102,11 @@ function getWeatherIcon(code: number | null) {
   }
 
   return (
-    <svg viewBox="0 0 64 64" fill="none" className="h-16 w-16">
+    <svg
+      viewBox="0 0 64 64"
+      fill="none"
+      className={iconClassName}
+    >
       <circle cx="25" cy="23" r="11" fill="#F5B942" />
       <path
         d="M17 45h31a11 11 0 0 0 1-22 16 16 0 0 0-30-3 13 13 0 0 0-2 25Z"
@@ -125,7 +142,9 @@ async function getWestPalmBeachWeather(): Promise<WeatherDisplay> {
     );
 
     if (!response.ok) {
-      throw new Error(`Weather request failed with status ${response.status}`);
+      throw new Error(
+        `Weather request failed with status ${response.status}`
+      );
     }
 
     const data = (await response.json()) as WeatherResponse;
@@ -154,7 +173,10 @@ async function getWestPalmBeachWeather(): Promise<WeatherDisplay> {
           : null,
     };
   } catch (error) {
-    console.error("Unable to load West Palm Beach weather:", error);
+    console.error(
+      "Unable to load West Palm Beach weather:",
+      error
+    );
 
     return {
       temperature: null,
@@ -175,81 +197,93 @@ export default async function DashboardHeader() {
   const weatherLabel = getWeatherLabel(weather.weatherCode);
 
   return (
-    <header className="relative z-10 border-b border-white/70 bg-white/72 px-6 py-6 shadow-[0_12px_35px_rgba(71,91,66,0.08)] backdrop-blur-2xl lg:px-10">
-      <div className="grid gap-7 2xl:grid-cols-[1fr_auto_1fr] 2xl:items-start">
+    <header className="relative z-10 border-b border-white/70 bg-white/72 px-5 py-5 shadow-[0_12px_35px_rgba(71,91,66,0.08)] backdrop-blur-2xl md:px-6 lg:px-8 xl:px-10">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(250px,0.8fr)_minmax(320px,1fr)] xl:items-start xl:gap-6 2xl:grid-cols-[1fr_auto_1fr] 2xl:gap-8">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6f8966]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#6f8966] sm:text-xs">
             JGO Hire Command Center
           </p>
 
-          <h1 className="mt-3 text-3xl font-bold tracking-tight text-[#243128] lg:text-4xl">
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#243128] sm:text-3xl xl:text-[2rem] 2xl:text-4xl">
             Welcome back, Jen
           </h1>
 
-          <p className="mt-2 text-sm text-[#708075]">
+          <p className="mt-1.5 text-xs text-[#708075] sm:text-sm">
             Here is what needs your attention today.
           </p>
         </div>
 
-        <div className="text-left 2xl:min-w-[320px] 2xl:text-center">
-          <p className="text-base font-medium text-[#647066]">{weekday}</p>
+        <div className="min-w-0 text-left xl:text-center">
+          <p className="text-sm font-medium text-[#647066] sm:text-base">
+            {weekday}
+          </p>
 
-          <p className="mt-1 text-4xl font-bold tracking-[-0.035em] text-[#17231c] lg:text-5xl">
+          <p className="mt-0.5 text-3xl font-bold tracking-[-0.035em] text-[#17231c] sm:text-4xl xl:text-[2.5rem] 2xl:text-5xl">
             {date}
           </p>
         </div>
 
-        <div className="2xl:justify-self-end">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#4f7149]">
+        <div className="min-w-0 xl:justify-self-end">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#4f7149] sm:text-xs">
             West Palm Beach, FL
           </p>
 
-          <div className="mt-3 flex items-center gap-4">
-            <div className="shrink-0">{getWeatherIcon(weather.weatherCode)}</div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-3 xl:flex-nowrap">
+            {getWeatherIcon(weather.weatherCode)}
 
-            <div className="flex items-center gap-4">
-              <p className="text-5xl font-light tracking-tight text-[#17231c]">
+            <div className="flex min-w-0 items-center gap-3">
+              <p className="shrink-0 text-4xl font-light tracking-tight text-[#17231c] xl:text-[2.75rem] 2xl:text-5xl">
                 {weather.temperature !== null
                   ? `${weather.temperature}°F`
                   : "--°F"}
               </p>
 
-              <div className="border-l border-[#dfe6db] pl-4">
-                <p className="text-sm font-semibold text-[#30402f]">
+              <div className="min-w-0 border-l border-[#dfe6db] pl-3">
+                <p className="text-xs font-semibold text-[#30402f] sm:text-sm">
                   {weather.feelsLike !== null
                     ? `Feels like ${weather.feelsLike}°`
                     : "Feels like --"}
                 </p>
 
-                <p className="mt-1 text-sm text-[#647066]">{weatherLabel}</p>
+                <p className="mt-0.5 truncate text-xs text-[#647066] sm:text-sm">
+                  {weatherLabel}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[#647066]">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#647066] sm:text-sm">
             <span>
-              Humidity {weather.humidity !== null ? `${weather.humidity}%` : "--"}
+              Humidity{" "}
+              {weather.humidity !== null
+                ? `${weather.humidity}%`
+                : "--"}
             </span>
+
             <span aria-hidden="true">•</span>
+
             <span>
-              Wind {weather.windSpeed !== null ? `${weather.windSpeed} mph` : "--"}
+              Wind{" "}
+              {weather.windSpeed !== null
+                ? `${weather.windSpeed} mph`
+                : "--"}
             </span>
           </div>
 
-          <p className="mt-1 text-[10px] text-[#98a098]">
+          <p className="mt-1 text-[9px] text-[#98a098] sm:text-[10px]">
             Weather by Open-Meteo
           </p>
         </div>
       </div>
 
-      <div className="mt-7 flex flex-col gap-3 xl:flex-row xl:items-center">
+      <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="min-w-0 flex-1">
           <HeaderTimeClocks />
         </div>
 
         <Link
           href="/clients/new"
-          className="inline-flex min-h-14 w-full shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-[#647d5b] px-7 py-3 text-base font-semibold text-white shadow-[0_14px_35px_rgba(80,104,72,0.20)] transition hover:-translate-y-0.5 hover:bg-[#526b4b] sm:w-auto"
+          className="inline-flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-[#647d5b] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_14px_35px_rgba(80,104,72,0.20)] transition hover:-translate-y-0.5 hover:bg-[#526b4b] sm:w-auto sm:text-base xl:min-h-14 xl:px-7 xl:py-3"
         >
           + Add Client
         </Link>
