@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
+import CalendarEventEditor from "./CalendarEventEditor";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -37,10 +38,110 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function toEasternLocalInput(
+  value: string | null
+) {
+  if (!value) {
+    return "";
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(value));
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+}
+
 function getTypeLabel(value: string) {
-  if (value === "follow_up") return "Follow-Up";
-  if (value === "reminder") return "General Reminder";
+  const normalized = value
+    .trim()
+    .toLowerCase();
+
+  if (
+    normalized === "follow_up" ||
+    normalized === "follow-up"
+  ) {
+    return "Follow-Up";
+  }
+
+  if (normalized === "reminder") {
+    return "General Reminder";
+  }
+
+  if (
+    normalized === "interview" ||
+    normalized === "client interview"
+  ) {
+    return "Client Interview";
+  }
+
+  if (
+    normalized === "free15" ||
+    normalized === "free 15"
+  ) {
+    return "Free 15";
+  }
+
+  if (
+    normalized === "client_session" ||
+    normalized === "client session"
+  ) {
+    return "Client Session";
+  }
+
   return "Appointment";
+}
+
+function getEditorEventType(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase();
+
+  if (
+    normalized === "client interview" ||
+    normalized === "interview"
+  ) {
+    return "interview";
+  }
+
+  if (
+    normalized === "free 15" ||
+    normalized === "free15"
+  ) {
+    return "free15";
+  }
+
+  if (
+    normalized === "client session" ||
+    normalized === "client_session"
+  ) {
+    return "client_session";
+  }
+
+  if (
+    normalized === "follow-up" ||
+    normalized === "follow_up"
+  ) {
+    return "follow_up";
+  }
+
+  if (normalized === "reminder") {
+    return "reminder";
+  }
+
+  return "appointment";
 }
 
 function toGoogleCalendarDate(value: string) {
@@ -50,17 +151,22 @@ function toGoogleCalendarDate(value: string) {
     .replace(/\.\d{3}Z$/, "Z");
 }
 
-function buildGoogleCalendarUrl(event: CalendarEvent) {
+function buildGoogleCalendarUrl(
+  event: CalendarEvent
+) {
   const endAt =
     event.end_at ||
-    new Date(new Date(event.start_at).getTime() + 60 * 60 * 1000).toISOString();
+    new Date(
+      new Date(event.start_at).getTime() +
+        60 * 60 * 1000
+    ).toISOString();
 
   const params = new URLSearchParams({
     action: "TEMPLATE",
     text: event.title,
-    dates: `${toGoogleCalendarDate(event.start_at)}/${toGoogleCalendarDate(
-      endAt
-    )}`,
+    dates: `${toGoogleCalendarDate(
+      event.start_at
+    )}/${toGoogleCalendarDate(endAt)}`,
     details: event.notes || "",
   });
 
@@ -73,24 +179,29 @@ function buildGoogleCalendarUrl(event: CalendarEvent) {
 
 function buildMailtoUrl(event: CalendarEvent) {
   const subject = `Calendar invitation: ${event.title}`;
+
   const body = [
-    `Hi,`,
-    ``,
+    "Hi,",
+    "",
     `Here are the details for ${event.title}:`,
-    ``,
+    "",
     `Start: ${formatDateTime(event.start_at)}`,
-    event.end_at ? `End: ${formatDateTime(event.end_at)}` : "",
+    event.end_at
+      ? `End: ${formatDateTime(event.end_at)}`
+      : "",
     event.notes ? `Notes: ${event.notes}` : "",
-    ``,
-    `I have attached the calendar invitation to this email.`,
-    ``,
-    `Best,`,
-    `Jen`,
+    "",
+    "I have attached the calendar invitation to this email.",
+    "",
+    "Best,",
+    "Jen",
   ]
     .filter(Boolean)
     .join("\n");
 
-  return `mailto:${encodeURIComponent(event.guest_email || "")}?subject=${encodeURIComponent(
+  return `mailto:${encodeURIComponent(
+    event.guest_email || ""
+  )}?subject=${encodeURIComponent(
     subject
   )}&body=${encodeURIComponent(body)}`;
 }
@@ -101,7 +212,10 @@ export default async function CalendarEventPage({
   const { id } = await params;
   const eventId = Number(id);
 
-  if (!Number.isInteger(eventId) || eventId <= 0) {
+  if (
+    !Number.isInteger(eventId) ||
+    eventId <= 0
+  ) {
     notFound();
   }
 
@@ -144,7 +258,9 @@ export default async function CalendarEventPage({
     attachedHref = `/leads/${event.intake_call_id}`;
   }
 
-  const googleCalendarUrl = buildGoogleCalendarUrl(event);
+  const googleCalendarUrl =
+    buildGoogleCalendarUrl(event);
+
   const mailtoUrl = buildMailtoUrl(event);
 
   return (
@@ -155,11 +271,13 @@ export default async function CalendarEventPage({
             <p className="text-sm font-semibold text-[#7f9975]">
               {getTypeLabel(event.event_type)}
             </p>
+
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#243128]">
               {event.title}
             </h1>
+
             <p className="mt-2 text-sm text-[#708075]">
-              Your calendar item is saved.
+              View, edit, send, or delete this calendar item.
             </p>
           </div>
 
@@ -167,91 +285,125 @@ export default async function CalendarEventPage({
             href="/calendar"
             className="w-fit rounded-xl border border-[#cbd8c4] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247] shadow-sm transition hover:bg-[#f5f7f2]"
           >
-            Back to Calendar
+            ← Back to Calendar
           </Link>
         </div>
       </header>
 
       <div className="mx-auto grid max-w-5xl gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-10">
-        <section className="rounded-3xl border border-[#dfe6db] bg-white p-6 shadow-sm lg:p-8">
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full bg-[#eef3ea] px-3 py-1 text-xs font-semibold text-[#5d7556]">
-              {getTypeLabel(event.event_type)}
-            </span>
-            <span className="rounded-full bg-[#f6f1e5] px-3 py-1 text-xs font-semibold text-[#826b3f]">
-              {event.status || "Scheduled"}
-            </span>
-          </div>
+        <div className="space-y-6">
+          <section className="rounded-3xl border border-[#dfe6db] bg-white p-6 shadow-sm lg:p-8">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-[#eef3ea] px-3 py-1 text-xs font-semibold text-[#5d7556]">
+                  {getTypeLabel(event.event_type)}
+                </span>
 
-          <div className="mt-7 space-y-6">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7f9975]">
-                Starts
-              </p>
-              <p className="mt-2 text-lg font-bold text-[#243128]">
-                {formatDateTime(event.start_at)}
-              </p>
+                <span className="rounded-full bg-[#f6f1e5] px-3 py-1 text-xs font-semibold text-[#826b3f]">
+                  {event.status || "Scheduled"}
+                </span>
+              </div>
+
+              <CalendarEventEditor
+                event={{
+                  id: event.id,
+                  title: event.title,
+                  eventType: getEditorEventType(
+                    event.event_type
+                  ),
+                  startAt: toEasternLocalInput(
+                    event.start_at
+                  ),
+                  endAt: toEasternLocalInput(
+                    event.end_at
+                  ),
+                  guestEmail:
+                    event.guest_email || "",
+                  notes: event.notes || "",
+                  status:
+                    event.status || "Scheduled",
+                }}
+              />
             </div>
 
-            {event.end_at ? (
+            <div className="mt-8 grid gap-6 sm:grid-cols-2">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7f9975]">
-                  Ends
+                <p className={detailLabelStyle}>
+                  Starts
                 </p>
-                <p className="mt-2 text-lg font-bold text-[#243128]">
-                  {formatDateTime(event.end_at)}
-                </p>
-              </div>
-            ) : null}
 
-            {attachedName && attachedHref ? (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7f9975]">
-                  Attached To
+                <p className={detailValueStyle}>
+                  {formatDateTime(event.start_at)}
                 </p>
-                <Link
-                  href={attachedHref}
-                  className="mt-2 inline-block text-base font-bold text-[#58704f] hover:underline"
-                >
-                  {attachedName}
-                </Link>
               </div>
-            ) : null}
 
-            {event.guest_email ? (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7f9975]">
-                  Guest Email
-                </p>
-                <p className="mt-2 text-base font-semibold text-[#243128]">
-                  {event.guest_email}
-                </p>
-              </div>
-            ) : null}
+              {event.end_at ? (
+                <div>
+                  <p className={detailLabelStyle}>
+                    Ends
+                  </p>
+
+                  <p className={detailValueStyle}>
+                    {formatDateTime(event.end_at)}
+                  </p>
+                </div>
+              ) : null}
+
+              {attachedName && attachedHref ? (
+                <div>
+                  <p className={detailLabelStyle}>
+                    Attached To
+                  </p>
+
+                  <Link
+                    href={attachedHref}
+                    className="mt-2 inline-block text-base font-bold text-[#58704f] hover:underline"
+                  >
+                    {attachedName}
+                  </Link>
+                </div>
+              ) : null}
+
+              {event.guest_email ? (
+                <div>
+                  <p className={detailLabelStyle}>
+                    Guest Email
+                  </p>
+
+                  <p className="mt-2 break-words text-base font-semibold text-[#243128]">
+                    {event.guest_email}
+                  </p>
+                </div>
+              ) : null}
+            </div>
 
             {event.notes ? (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7f9975]">
+              <div className="mt-7 border-t border-[#edf0ea] pt-7">
+                <p className={detailLabelStyle}>
                   Notes
                 </p>
+
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#59665d]">
                   {event.notes}
                 </p>
               </div>
             ) : null}
-          </div>
-        </section>
+          </section>
+        </div>
 
         <aside className="space-y-6">
           <section className="rounded-3xl border border-[#dce4d7] bg-[#eaf0e5] p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6f8966]">
-              Free Calendar Invite
+              Calendar Invite
             </p>
+
             <h2 className="mt-2 text-xl font-bold text-[#243128]">
               Add or Send This Event
             </h2>
+
             <p className="mt-2 text-sm leading-6 text-[#637166]">
-              No Google Cloud account or paid integration is required.
+              Download an invite, add it to Google Calendar,
+              or open an email to the guest.
             </p>
 
             <div className="mt-5 space-y-3">
@@ -284,16 +436,23 @@ export default async function CalendarEventPage({
 
           <section className="rounded-3xl border border-[#dfe6db] bg-white p-6 shadow-sm">
             <h2 className="text-lg font-bold text-[#243128]">
-              How to Send It
+              Quick Tip
             </h2>
-            <ol className="mt-4 space-y-3 text-sm leading-6 text-[#66736a]">
-              <li>1. Download the calendar invitation.</li>
-              <li>2. Open the email to the guest.</li>
-              <li>3. Attach the downloaded .ics file and send.</li>
-            </ol>
+
+            <p className="mt-3 text-sm leading-6 text-[#66736a]">
+              Click any item on the month view, Today&apos;s
+              Agenda, or Coming Up list to return here and edit
+              or delete it.
+            </p>
           </section>
         </aside>
       </div>
     </section>
   );
 }
+
+const detailLabelStyle =
+  "text-xs font-semibold uppercase tracking-[0.15em] text-[#7f9975]";
+
+const detailValueStyle =
+  "mt-2 text-lg font-bold text-[#243128]";
