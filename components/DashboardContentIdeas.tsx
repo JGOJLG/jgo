@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 
@@ -9,6 +9,7 @@ type DashboardContentIdea = {
   id: number;
   title: string;
   content_type: string;
+  sort_order?: number | null;
 };
 
 type Props = {
@@ -47,6 +48,57 @@ export default function DashboardContentIdeas({
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  async function loadOrderedIdeas() {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("content_ideas")
+      .select("id, title, content_type, sort_order")
+      .eq("is_archived", false)
+      .neq("status", "Posted")
+      .order("sort_order", {
+        ascending: true,
+        nullsFirst: false,
+      })
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (error) {
+      console.error(
+        "Unable to load ordered dashboard ideas:",
+        error
+      );
+      return;
+    }
+
+    setIdeas((data ?? []) as DashboardContentIdea[]);
+  }
+
+  useEffect(() => {
+    void loadOrderedIdeas();
+  }, []);
+
+  async function getNextSortOrder() {
+    const supabase = createClient();
+
+    const { data } = await supabase
+      .from("content_ideas")
+      .select("sort_order")
+      .eq("is_archived", false)
+      .neq("status", "Posted")
+      .order("sort_order", {
+        ascending: true,
+        nullsFirst: false,
+      })
+      .limit(1);
+
+    const currentFirst = data?.[0]?.sort_order;
+
+    return typeof currentFirst === "number"
+      ? currentFirst - 1
+      : 0;
+  }
+
   async function addIdea(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -72,9 +124,10 @@ export default function DashboardContentIdeas({
               : "Social Media",
         status: "Idea",
         is_archived: false,
+        sort_order: await getNextSortOrder(),
         updated_at: new Date().toISOString(),
       })
-      .select("id, title, content_type")
+      .select("id, title, content_type, sort_order")
       .single();
 
     if (error || !data) {
@@ -85,12 +138,9 @@ export default function DashboardContentIdeas({
       return;
     }
 
-    setIdeas((current) => [
-      data as DashboardContentIdea,
-      ...current,
-    ].slice(0, 5));
     setTitle("");
     setSaving(false);
+    await loadOrderedIdeas();
     router.refresh();
   }
 
@@ -118,6 +168,7 @@ export default function DashboardContentIdeas({
       return;
     }
 
+    await loadOrderedIdeas();
     router.refresh();
   }
 
@@ -137,7 +188,7 @@ export default function DashboardContentIdeas({
             </h3>
 
             <p className="mt-1 text-sm text-[#708075]">
-              Your five newest open ideas.
+              Your first five open ideas in saved order.
             </p>
           </div>
 
