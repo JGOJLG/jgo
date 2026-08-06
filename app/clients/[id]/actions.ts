@@ -521,6 +521,7 @@ export async function addCalendarEvent(formData: FormData) {
   }
 
   revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/calendar");
   revalidatePath("/");
 }
 
@@ -546,4 +547,6 @@ export async function deleteCalendarEvent(formData: FormData) {
   }
 
   revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/calendar");
+  revalidatePath("/");
 }

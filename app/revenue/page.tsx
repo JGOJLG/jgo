@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
+import RevenueAccessReset from "@/components/RevenueAccessReset";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -17,6 +20,7 @@ type ClientService = {
   client_id: number | null;
   service: string | null;
   date_added: string | null;
+  scheduled_date: string | null;
   price: number | null;
   payment_status: string | null;
   payment_method?: string | null;
@@ -100,6 +104,14 @@ function getPaymentStyle(status: string | null | undefined) {
 }
 
 export default async function RevenuePage() {
+  const cookieStore = await cookies();
+  const unlocked =
+    cookieStore.get("jgo-revenue-access")?.value === "unlocked";
+
+  if (!unlocked) {
+    redirect("/revenue/unlock");
+  }
+
   const supabase = await createClient();
 
   const [clientsResult, servicesResult] = await Promise.all([
@@ -143,9 +155,19 @@ export default async function RevenuePage() {
       0
     );
 
-  const outstandingServices = services.filter(
-    (service) => !isPaid(service.payment_status)
-  );
+  const outstandingServices = services.filter((service) => {
+    if (isPaid(service.payment_status)) {
+      return false;
+    }
+
+    const paymentStatus = normalize(service.payment_status);
+
+    return (
+      paymentStatus === "invoice sent" ||
+      paymentStatus === "pending" ||
+      Boolean(service.scheduled_date)
+    );
+  });
 
   const outstandingRevenue = outstandingServices.reduce(
     (total, service) => total + Number(service.price ?? 0),
@@ -190,6 +212,7 @@ export default async function RevenuePage() {
 
   return (
     <section className="min-w-0 flex-1 bg-[#f6f5ef]">
+      <RevenueAccessReset />
       <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
@@ -403,7 +426,7 @@ export default async function RevenuePage() {
                   </h2>
 
                   <p className="mt-1 text-sm text-[#708075]">
-                    Services that have not been marked paid.
+                    Scheduled services and invoices that are still awaiting payment.
                   </p>
                 </div>
 

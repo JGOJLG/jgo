@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase-server";
 import JGODailyFour from "@/components/JGODailyFour";
-import HeaderTimeClocks from "@/components/HeaderTimeClocks";
+import DashboardHeader from "@/components/DashboardHeader";
 import InterviewCompleteButton from "@/components/InterviewCompleteButton";
 import DashboardTaskCheckbox from "@/components/DashboardTaskCheckbox";
 import { getRecruiterTopicOfTheDay } from "@/lib/recruiterTopics";
@@ -746,7 +746,7 @@ export default async function Home() {
       label: "Outstanding",
       value: formatCurrency(outstandingRevenue),
       detail: "Open or invoice sent",
-      href: "/revenue",
+      href: "/revenue/unlock",
     },
     {
       label: "Active Clients",
@@ -764,34 +764,7 @@ export default async function Home() {
 
   return (
     <section className="relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(217,229,210,0.95),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(241,226,209,0.8),_transparent_30%),linear-gradient(180deg,_#f7f8f3_0%,_#f3f5ef_100%)] before:pointer-events-none before:absolute before:left-[-120px] before:top-[220px] before:h-80 before:w-80 before:rounded-full before:bg-white/45 before:blur-3xl after:pointer-events-none after:absolute after:right-[-140px] after:top-[520px] after:h-96 after:w-96 after:rounded-full after:bg-[#dfead9]/55 after:blur-3xl">
-      <header className="relative z-10 border-b border-white/70 bg-white/62 px-6 py-5 shadow-[0_12px_35px_rgba(71,91,66,0.08)] backdrop-blur-2xl lg:px-10">
-        <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7f9975]">
-              JGO Hire Command Center
-            </p>
-
-            <h2 className="mt-2 text-3xl font-bold tracking-tight text-[#243128]">
-              Welcome back, Jen
-            </h2>
-
-            <p className="mt-1.5 text-sm text-[#708075]">
-              Here is what needs your attention today.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-            <HeaderTimeClocks />
-
-            <Link
-              href="/clients/new"
-              className="inline-flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_35px_rgba(80,104,72,0.20)] transition hover:-translate-y-0.5 hover:bg-[#526b4b] sm:w-auto"
-            >
-              + Add Client
-            </Link>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader />
 
       <div className="relative z-20 px-6 pt-5 lg:px-10">
         <JGODailyFour />
@@ -818,69 +791,50 @@ export default async function Home() {
                 <div className="pointer-events-none absolute -left-16 -top-20 h-52 w-52 rounded-full bg-[#d8ebfb]/70 blur-3xl" />
                 <div className="pointer-events-none absolute -bottom-24 right-[-40px] h-56 w-56 rounded-full bg-white/80 blur-3xl" />
 
-                <div className="relative flex flex-col gap-6">
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#cfe1f2] bg-white/82 text-lg font-bold text-[#4f6f8f] shadow-[0_10px_28px_rgba(86,125,162,0.12)]">
-                          JG
-                        </span>
+                <div className="relative flex items-start gap-4">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#cfe1f2] bg-white/82 text-[#4f6f8f] shadow-[0_10px_28px_rgba(86,125,162,0.12)]">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="h-5 w-5"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M9 18h6m-5 3h4M8.2 14.8A7 7 0 1 1 15.8 14.8c-.9.6-1.3 1.4-1.3 2.2h-5c0-.8-.4-1.6-1.3-2.2Z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
 
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6f8eac]">
-                            JGO Hire Command Center
-                          </p>
-                          <h3 className="mt-2 text-4xl font-bold leading-[1.05] tracking-[-0.035em] text-[#243128] lg:text-5xl">
-                            Welcome back, Jen
-                          </h3>
-                        </div>
-                      </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6f8eac]">
+                      JGO Hire Recruiter Insight
+                    </p>
 
-                      <p className="mt-5 max-w-xl text-sm leading-6 text-[#667989]">
-                        Your clients, content ideas, interviews, and business priorities are all ready for you.
-                      </p>
-                    </div>
+                    <h3 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.025em] text-[#243128] lg:text-4xl">
+                      {recruiterTopic.title}
+                    </h3>
 
-                    <div className="rounded-2xl border border-[#d5e5f4] bg-white/72 px-5 py-4 text-right shadow-[0_12px_30px_rgba(86,125,162,0.11)] backdrop-blur-xl">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f8eac]">
-                        Today
-                      </p>
-                      <p className="mt-1 text-sm font-bold text-[#344f68]">
-                        {getTodayLabel()}
-                      </p>
-                    </div>
-                  </div>
+                    <p className="mt-4 max-w-3xl text-sm leading-7 text-[#647066]">
+                      {recruiterTopic.prompt}
+                    </p>
 
-                  <div className="rounded-[24px] border border-[#dbe8f4] bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(237,246,254,0.80))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_32px_rgba(86,125,162,0.08)]">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6f8eac]">
-                          Recruiter Tip of the Day
-                        </p>
-                        <p className="mt-2 text-xl font-bold text-[#243128]">
-                          {recruiterTopic.title}
-                        </p>
-                        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#647066]">
-                          {recruiterTopic.prompt}
-                        </p>
-                        <Link
-                          href="/recruiter-tips"
-                          className="mt-3 inline-block text-xs font-semibold text-[#647d5b] hover:text-[#4d6247]"
-                        >
-                          View all →
-                        </Link>
-                      </div>
-
-                      <span className="w-fit rounded-full border border-white/80 bg-white/75 px-3 py-1.5 text-xs font-semibold text-[#647d5b] shadow-sm">
-                        Daily inspiration
-                      </span>
-                    </div>
+                    <Link
+                      href="/recruiter-tips"
+                      className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#d3e2ef] bg-white/75 px-4 py-2 text-xs font-semibold text-[#567896] shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+                    >
+                      View all recruiter insights
+                      <span aria-hidden="true">→</span>
+                    </Link>
                   </div>
                 </div>
               </section>
 
               <Link
-                href="/revenue"
+                href="/revenue/unlock"
                 className="group block overflow-hidden rounded-[28px] border border-white/80 bg-[linear-gradient(135deg,rgba(255,252,246,0.88),rgba(255,255,255,0.66))] p-6 shadow-[0_18px_55px_rgba(112,83,42,0.10)] backdrop-blur-2xl transition duration-300 hover:-translate-y-1 hover:bg-white/88 lg:p-7"
               >
                 <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -1437,7 +1391,7 @@ export default async function Home() {
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Link
-              href="/revenue"
+              href="/revenue/unlock"
               className="rounded-2xl border border-[#e4e9df] bg-[#fbfcf9] p-5 transition hover:-translate-y-0.5 hover:border-[#cbd8c4] hover:bg-white"
             >
               <p className="text-sm text-[#708075]">Total Revenue</p>

@@ -339,12 +339,17 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           : "/clients",
       })),
     ...storedCalendarEvents
-      .filter(
-        (event) =>
-          Boolean(event.start_at) &&
-          !["cancelled", "canceled"].includes(normalize(event.status))
-      )
-      .map((event) => {
+  .filter((event) => {
+    const isActive =
+      Boolean(event.start_at) &&
+      !["cancelled", "canceled"].includes(normalize(event.status));
+
+    const hasValidClient =
+      event.client_id === null || clientNameById.has(event.client_id);
+
+    return isActive && hasValidClient;
+  })
+  .map((event) => {
         const isInterview = normalize(event.event_type) === "interview";
 
         return {

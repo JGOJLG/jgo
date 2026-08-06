@@ -1,0 +1,259 @@
+import Link from "next/link";
+import HeaderTimeClocks from "@/components/HeaderTimeClocks";
+
+type WeatherResponse = {
+  current?: {
+    temperature_2m?: number;
+    apparent_temperature?: number;
+    relative_humidity_2m?: number;
+    weather_code?: number;
+    wind_speed_10m?: number;
+  };
+};
+
+type WeatherDisplay = {
+  temperature: number | null;
+  feelsLike: number | null;
+  humidity: number | null;
+  windSpeed: number | null;
+  weatherCode: number | null;
+};
+
+function getDateParts() {
+  const now = new Date();
+
+  return {
+    weekday: new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      weekday: "long",
+    }).format(now),
+    date: new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).format(now),
+  };
+}
+
+function getWeatherLabel(code: number | null) {
+  if (code === null) return "Weather unavailable";
+  if (code === 0) return "Clear";
+  if ([1, 2].includes(code)) return "Partly Cloudy";
+  if (code === 3) return "Cloudy";
+  if ([45, 48].includes(code)) return "Foggy";
+  if ([51, 53, 55, 56, 57].includes(code)) return "Drizzle";
+  if ([61, 63, 65, 66, 67].includes(code)) return "Rain";
+  if ([71, 73, 75, 77].includes(code)) return "Snow";
+  if ([80, 81, 82].includes(code)) return "Rain Showers";
+  if ([85, 86].includes(code)) return "Snow Showers";
+  if ([95, 96, 99].includes(code)) return "Thunderstorms";
+  return "Current Conditions";
+}
+
+function getWeatherIcon(code: number | null) {
+  if (code === 0) {
+    return (
+      <svg viewBox="0 0 64 64" fill="none" className="h-16 w-16">
+        <circle cx="32" cy="32" r="12" fill="#F5B942" />
+        <path
+          d="M32 5v9M32 50v9M5 32h9M50 32h9M13 13l7 7M44 44l7 7M51 13l-7 7M20 44l-7 7"
+          stroke="#F5B942"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
+  if (
+    code !== null &&
+    [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(
+      code
+    )
+  ) {
+    return (
+      <svg viewBox="0 0 64 64" fill="none" className="h-16 w-16">
+        <path
+          d="M17 43h31a11 11 0 0 0 1-22 16 16 0 0 0-30-3 13 13 0 0 0-2 25Z"
+          fill="#E7EAEC"
+        />
+        <path
+          d="m22 49-3 7m14-7-3 7m14-7-3 7"
+          stroke="#79A7C7"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 64 64" fill="none" className="h-16 w-16">
+      <circle cx="25" cy="23" r="11" fill="#F5B942" />
+      <path
+        d="M17 45h31a11 11 0 0 0 1-22 16 16 0 0 0-30-3 13 13 0 0 0-2 25Z"
+        fill="#E7EAEC"
+      />
+      <path
+        d="M25 5v6M7 23h6M12 10l5 5"
+        stroke="#F5B942"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+async function getWestPalmBeachWeather(): Promise<WeatherDisplay> {
+  try {
+    const params = new URLSearchParams({
+      latitude: "26.7153",
+      longitude: "-80.0534",
+      current:
+        "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m",
+      temperature_unit: "fahrenheit",
+      wind_speed_unit: "mph",
+      timezone: "America/New_York",
+    });
+
+    const response = await fetch(
+      `https://api.open-meteo.com/v1/forecast?${params.toString()}`,
+      {
+        next: { revalidate: 900 },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Weather request failed with status ${response.status}`);
+    }
+
+    const data = (await response.json()) as WeatherResponse;
+    const current = data.current;
+
+    return {
+      temperature:
+        typeof current?.temperature_2m === "number"
+          ? Math.round(current.temperature_2m)
+          : null,
+      feelsLike:
+        typeof current?.apparent_temperature === "number"
+          ? Math.round(current.apparent_temperature)
+          : null,
+      humidity:
+        typeof current?.relative_humidity_2m === "number"
+          ? Math.round(current.relative_humidity_2m)
+          : null,
+      windSpeed:
+        typeof current?.wind_speed_10m === "number"
+          ? Math.round(current.wind_speed_10m)
+          : null,
+      weatherCode:
+        typeof current?.weather_code === "number"
+          ? current.weather_code
+          : null,
+    };
+  } catch (error) {
+    console.error("Unable to load West Palm Beach weather:", error);
+
+    return {
+      temperature: null,
+      feelsLike: null,
+      humidity: null,
+      windSpeed: null,
+      weatherCode: null,
+    };
+  }
+}
+
+export default async function DashboardHeader() {
+  const [{ weekday, date }, weather] = await Promise.all([
+    Promise.resolve(getDateParts()),
+    getWestPalmBeachWeather(),
+  ]);
+
+  const weatherLabel = getWeatherLabel(weather.weatherCode);
+
+  return (
+    <header className="relative z-10 border-b border-white/70 bg-white/72 px-6 py-6 shadow-[0_12px_35px_rgba(71,91,66,0.08)] backdrop-blur-2xl lg:px-10">
+      <div className="grid gap-7 2xl:grid-cols-[1fr_auto_1fr] 2xl:items-start">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6f8966]">
+            JGO Hire Command Center
+          </p>
+
+          <h1 className="mt-3 text-3xl font-bold tracking-tight text-[#243128] lg:text-4xl">
+            Welcome back, Jen
+          </h1>
+
+          <p className="mt-2 text-sm text-[#708075]">
+            Here is what needs your attention today.
+          </p>
+        </div>
+
+        <div className="text-left 2xl:min-w-[320px] 2xl:text-center">
+          <p className="text-base font-medium text-[#647066]">{weekday}</p>
+
+          <p className="mt-1 text-4xl font-bold tracking-[-0.035em] text-[#17231c] lg:text-5xl">
+            {date}
+          </p>
+        </div>
+
+        <div className="2xl:justify-self-end">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#4f7149]">
+            West Palm Beach, FL
+          </p>
+
+          <div className="mt-3 flex items-center gap-4">
+            <div className="shrink-0">{getWeatherIcon(weather.weatherCode)}</div>
+
+            <div className="flex items-center gap-4">
+              <p className="text-5xl font-light tracking-tight text-[#17231c]">
+                {weather.temperature !== null
+                  ? `${weather.temperature}°F`
+                  : "--°F"}
+              </p>
+
+              <div className="border-l border-[#dfe6db] pl-4">
+                <p className="text-sm font-semibold text-[#30402f]">
+                  {weather.feelsLike !== null
+                    ? `Feels like ${weather.feelsLike}°`
+                    : "Feels like --"}
+                </p>
+
+                <p className="mt-1 text-sm text-[#647066]">{weatherLabel}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[#647066]">
+            <span>
+              Humidity {weather.humidity !== null ? `${weather.humidity}%` : "--"}
+            </span>
+            <span aria-hidden="true">•</span>
+            <span>
+              Wind {weather.windSpeed !== null ? `${weather.windSpeed} mph` : "--"}
+            </span>
+          </div>
+
+          <p className="mt-1 text-[10px] text-[#98a098]">
+            Weather by Open-Meteo
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-7 flex flex-col gap-3 xl:flex-row xl:items-center">
+        <div className="min-w-0 flex-1">
+          <HeaderTimeClocks />
+        </div>
+
+        <Link
+          href="/clients/new"
+          className="inline-flex min-h-14 w-full shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-[#647d5b] px-7 py-3 text-base font-semibold text-white shadow-[0_14px_35px_rgba(80,104,72,0.20)] transition hover:-translate-y-0.5 hover:bg-[#526b4b] sm:w-auto"
+        >
+          + Add Client
+        </Link>
+      </div>
+    </header>
+  );
+}
