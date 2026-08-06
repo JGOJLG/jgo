@@ -4,6 +4,7 @@ import JGODailyFour from "@/components/JGODailyFour";
 import DashboardHeader from "@/components/DashboardHeader";
 import InterviewCompleteButton from "@/components/InterviewCompleteButton";
 import DashboardTaskCheckbox from "@/components/DashboardTaskCheckbox";
+import DashboardContentIdeas from "@/components/DashboardContentIdeas";
 import { getRecruiterTopicOfTheDay } from "@/lib/recruiterTopics";
 
 export const dynamic = "force-dynamic";
@@ -88,6 +89,16 @@ type CalendarEvent = {
   intake_call_id: number | null;
   status: string | null;
   notes: string | null;
+};
+
+
+type ContentIdea = {
+  id: number;
+  title: string;
+  content_type: string;
+  status: string;
+  is_archived: boolean;
+  created_at: string;
 };
 
 
@@ -338,6 +349,7 @@ export default async function Home() {
     followUpsResult,
     servicesResult,
     tasksResult,
+    contentIdeasResult,
     calendarEventsResult,
     undatedInterviewsResult,
   ] = await Promise.all([
@@ -383,6 +395,16 @@ export default async function Home() {
         .order("created_at", { ascending: false })
         .limit(100)
     ),
+    safeQuery<ContentIdea>(
+      "content ideas",
+      supabase
+        .from("content_ideas")
+        .select("id, title, content_type, status, is_archived, created_at")
+        .eq("is_archived", false)
+        .neq("status", "Posted")
+        .order("created_at", { ascending: false })
+        .limit(5)
+    ),
     safeQuery<CalendarEvent>(
       "calendar events",
       supabase
@@ -417,6 +439,7 @@ export default async function Home() {
   const followUps = followUpsResult.data;
   const services = servicesResult.data;
   const tasks = tasksResult.data;
+  const contentIdeas = contentIdeasResult.data;
   const calendarEvents = [
     ...calendarEventsResult.data,
     ...undatedInterviewsResult.data,
@@ -428,6 +451,7 @@ export default async function Home() {
     followUps: followUpsResult.error,
     clientServices: servicesResult.error,
     tasks: tasksResult.error,
+    contentIdeas: contentIdeasResult.error,
     calendarEvents: calendarEventsResult.error,
     undatedInterviews: undatedInterviewsResult.error,
   };
@@ -469,7 +493,19 @@ export default async function Home() {
     .reduce((total, service) => total + Number(service.price ?? 0), 0);
 
   const outstandingRevenue = services
-    .filter((service) => !isPaid(service.payment_status))
+    .filter((service) => {
+      if (isPaid(service.payment_status)) {
+        return false;
+      }
+
+      const paymentStatus = normalize(service.payment_status);
+
+      return (
+        paymentStatus === "invoice sent" ||
+        paymentStatus === "pending" ||
+        Boolean(service.scheduled_date)
+      );
+    })
     .reduce((total, service) => total + Number(service.price ?? 0), 0);
 
   const openTasks = tasks.filter(
@@ -786,13 +822,21 @@ export default async function Home() {
           <div className="pointer-events-none absolute bottom-[-110px] left-[38%] h-64 w-64 rounded-full bg-[#f3e4cf]/70 blur-3xl" />
 
           <div className="relative grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
+            <DashboardContentIdeas
+              initialIdeas={contentIdeas.map((idea) => ({
+                id: idea.id,
+                title: idea.title,
+                content_type: idea.content_type,
+              }))}
+            />
+
             <div className="grid gap-3">
-              <section className="relative overflow-hidden rounded-[28px] border border-[#d9e8f7]/90 bg-[linear-gradient(145deg,rgba(242,248,255,0.96),rgba(250,253,255,0.88),rgba(233,243,253,0.92))] p-6 shadow-[0_22px_65px_rgba(86,125,162,0.15)] backdrop-blur-2xl lg:p-8">
+              <section className="relative overflow-hidden rounded-[28px] border border-[#d9e8f7]/90 bg-[linear-gradient(145deg,rgba(242,248,255,0.96),rgba(250,253,255,0.88),rgba(233,243,253,0.92))] p-6 shadow-[0_22px_65px_rgba(86,125,162,0.15)] backdrop-blur-2xl lg:p-7">
                 <div className="pointer-events-none absolute -left-16 -top-20 h-52 w-52 rounded-full bg-[#d8ebfb]/70 blur-3xl" />
                 <div className="pointer-events-none absolute -bottom-24 right-[-40px] h-56 w-56 rounded-full bg-white/80 blur-3xl" />
 
                 <div className="relative flex items-start gap-4">
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#cfe1f2] bg-white/82 text-[#4f6f8f] shadow-[0_10px_28px_rgba(86,125,162,0.12)]">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#cfe1f2] bg-white/82 text-[#4f6f8f] shadow-[0_10px_28px_rgba(86,125,162,0.12)]">
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
@@ -814,17 +858,17 @@ export default async function Home() {
                       JGO Hire Recruiter Insight
                     </p>
 
-                    <h3 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.025em] text-[#243128] lg:text-4xl">
+                    <h3 className="mt-3 text-2xl font-bold leading-tight tracking-[-0.02em] text-[#243128]">
                       {recruiterTopic.title}
                     </h3>
 
-                    <p className="mt-4 max-w-3xl text-sm leading-7 text-[#647066]">
+                    <p className="mt-3 text-sm leading-6 text-[#647066]">
                       {recruiterTopic.prompt}
                     </p>
 
                     <Link
                       href="/recruiter-tips"
-                      className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#d3e2ef] bg-white/75 px-4 py-2 text-xs font-semibold text-[#567896] shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+                      className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#d3e2ef] bg-white/75 px-4 py-2 text-xs font-semibold text-[#567896] shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
                     >
                       View all recruiter insights
                       <span aria-hidden="true">→</span>
@@ -833,153 +877,117 @@ export default async function Home() {
                 </div>
               </section>
 
-              <Link
-                href="/revenue/unlock"
-                className="group block overflow-hidden rounded-[28px] border border-white/80 bg-[linear-gradient(135deg,rgba(255,252,246,0.88),rgba(255,255,255,0.66))] p-6 shadow-[0_18px_55px_rgba(112,83,42,0.10)] backdrop-blur-2xl transition duration-300 hover:-translate-y-1 hover:bg-white/88 lg:p-7"
-              >
-                <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fff4df] text-lg shadow-sm">
-                        $
-                      </span>
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9b7a46]">
-                          Needs Attention
-                        </p>
-                        <h3 className="mt-1 text-2xl font-bold text-[#243128]">
-                          Outstanding Revenue
-                        </h3>
+              <section className="relative overflow-hidden rounded-[28px] border border-white/80 bg-[linear-gradient(145deg,rgba(244,241,251,0.94),rgba(255,255,255,0.70))] p-6 shadow-[0_22px_65px_rgba(92,76,126,0.14)] backdrop-blur-2xl lg:p-7">
+                <div className="pointer-events-none absolute right-[-50px] top-[-50px] h-48 w-48 rounded-full bg-[#e3d8f0]/75 blur-3xl" />
+
+                <div className="relative">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/80 bg-white/70 text-lg shadow-sm">
+                          ★
+                        </span>
+
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7b6997]">
+                            Client Interviews
+                          </p>
+
+                          <h3 className="mt-1 text-3xl font-bold tracking-tight text-[#2f2938]">
+                            Wish Them Luck!
+                          </h3>
+                        </div>
                       </div>
-                    </div>
 
-                    <p className="mt-3 max-w-xl text-sm leading-6 text-[#708075]">
-                      Open balances and invoices that have not been marked paid.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <div className="rounded-[22px] border border-white/85 bg-white/78 px-6 py-4 text-right shadow-[0_12px_35px_rgba(112,83,42,0.10)]">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9b7a46]">
-                        Outstanding
-                      </p>
-                      <p className="mt-1 text-4xl font-bold tracking-tight text-[#5f4a2d]">
-                        {formatCurrency(outstandingRevenue)}
+                      <p className="mt-3 text-sm text-[#756c7d]">
+                        Upcoming interviews for your clients.
                       </p>
                     </div>
 
-                    <span className="text-sm font-semibold text-[#647d5b] transition group-hover:translate-x-1">
-                      View revenue →
-                    </span>
+                    <Link
+                      href="/calendar?filter=interview"
+                      className="w-fit rounded-full border border-white/85 bg-white/76 px-3 py-1.5 text-xs font-semibold text-[#65567f] shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+                    >
+                      View calendar
+                    </Link>
                   </div>
-                </div>
-              </Link>
-            </div>
 
-            <section className="relative h-full overflow-hidden rounded-[28px] border border-white/80 bg-[linear-gradient(145deg,rgba(244,241,251,0.94),rgba(255,255,255,0.70))] p-6 shadow-[0_22px_65px_rgba(92,76,126,0.14)] backdrop-blur-2xl lg:p-7">
-              <div className="pointer-events-none absolute right-[-50px] top-[-50px] h-48 w-48 rounded-full bg-[#e3d8f0]/75 blur-3xl" />
-              <div className="relative">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/80 bg-white/70 text-lg shadow-sm">
-                        ★
-                      </span>
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7b6997]">
-                          Client Interviews
-                        </p>
-                        <h3 className="mt-1 text-3xl font-bold tracking-tight text-[#2f2938]">
-                          Wish Them Luck!
-                        </h3>
-                      </div>
+                  {upcomingClientInterviews.length === 0 ? (
+                    <div className="mt-7 rounded-[24px] border border-dashed border-[#d7d0e5] bg-white/55 p-8 text-center">
+                      <p className="text-sm font-semibold text-[#4d425c]">
+                        No upcoming client interviews
+                      </p>
+
+                      <p className="mt-2 text-sm text-[#7d7386]">
+                        Interviews added from a client profile will appear here.
+                      </p>
                     </div>
+                  ) : (
+                    <div className="mt-7 grid gap-3 md:grid-cols-2">
+                      {upcomingClientInterviews.map((interview) => {
+                        const clientName = interview.client_id
+                          ? clientNameById.get(interview.client_id) || "Client"
+                          : "Client";
 
-                    <p className="mt-3 text-sm text-[#756c7d]">
-                      Upcoming interviews for your clients.
-                    </p>
-                  </div>
-
-                  <Link
-                    href="/calendar?filter=interview"
-                    className="w-fit rounded-full border border-white/85 bg-white/76 px-3 py-1.5 text-xs font-semibold text-[#65567f] shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
-                  >
-                    View calendar
-                  </Link>
-                </div>
-
-                {upcomingClientInterviews.length === 0 ? (
-                  <div className="mt-7 rounded-[24px] border border-dashed border-[#d7d0e5] bg-white/55 p-8 text-center">
-                    <p className="text-sm font-semibold text-[#4d425c]">
-                      No upcoming client interviews
-                    </p>
-                    <p className="mt-2 text-sm text-[#7d7386]">
-                      Interviews added from a client profile will appear here.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-7 grid gap-3 md:grid-cols-2">
-                    {upcomingClientInterviews.map((interview) => {
-                      const clientName = interview.client_id
-                        ? clientNameById.get(interview.client_id) || "Client"
-                        : "Client";
-
-                      return (
-                        <div
-                          key={interview.id}
-                          className="group rounded-[22px] border border-white/85 bg-white/72 p-4 shadow-[0_10px_30px_rgba(92,76,126,0.09)] transition hover:-translate-y-1 hover:bg-white"
-                        >
-                          <Link
-                            href={
-                              interview.client_id
-                                ? `/clients/${interview.client_id}`
-                                : `/calendar/${interview.id}`
-                            }
-                            className="block"
+                        return (
+                          <div
+                            key={interview.id}
+                            className="group rounded-[22px] border border-white/85 bg-white/72 p-4 shadow-[0_10px_30px_rgba(92,76,126,0.09)] transition hover:-translate-y-1 hover:bg-white"
                           >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a78ad]">
-                                  Wish them luck!
-                                </p>
-                                <p className="mt-2 text-base font-bold text-[#2f2938]">
-                                  {clientName}
-                                </p>
+                            <Link
+                              href={
+                                interview.client_id
+                                  ? `/clients/${interview.client_id}`
+                                  : `/calendar/${interview.id}`
+                              }
+                              className="block"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a78ad]">
+                                    Wish them luck!
+                                  </p>
+
+                                  <p className="mt-2 text-base font-bold text-[#2f2938]">
+                                    {clientName}
+                                  </p>
+                                </div>
+
+                                <span className="rounded-full bg-[#eee8f6] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#79659b]">
+                                  Interview
+                                </span>
                               </div>
 
-                              <span className="rounded-full bg-[#eee8f6] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#79659b]">
-                                Interview
-                              </span>
-                            </div>
-
-                            <p className="mt-3 text-sm text-[#6f6578]">
-                              {interview.start_at
-                                ? `${formatDate(interview.start_at)} · ${
-                                    formatTime(interview.start_at) || "Time not added"
-                                  }`
-                                : "Date and time not added"}
-                            </p>
-
-                            {interview.notes ? (
-                              <p className="mt-3 line-clamp-2 text-xs leading-5 text-[#81768a]">
-                                {interview.notes}
+                              <p className="mt-3 text-sm text-[#6f6578]">
+                                {interview.start_at
+                                  ? `${formatDate(interview.start_at)} · ${
+                                      formatTime(interview.start_at) ||
+                                      "Time not added"
+                                    }`
+                                  : "Date and time not added"}
                               </p>
-                            ) : null}
-                          </Link>
 
-                          <div className="mt-4 border-t border-[#e9e2f1] pt-3">
-                            <InterviewCompleteButton
-                              eventId={interview.id}
-                              compact
-                            />
+                              {interview.notes ? (
+                                <p className="mt-3 line-clamp-2 text-xs leading-5 text-[#81768a]">
+                                  {interview.notes}
+                                </p>
+                              ) : null}
+                            </Link>
+
+                            <div className="mt-4 border-t border-[#e9e2f1] pt-3">
+                              <InterviewCompleteButton
+                                eventId={interview.id}
+                                compact
+                              />
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </section>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
           </div>
         </section>
 
@@ -1186,6 +1194,51 @@ export default async function Home() {
             )}
           </div>
         </section>
+
+        <Link
+          href="/revenue/unlock"
+          className="group block overflow-hidden rounded-[28px] border border-white/80 bg-[linear-gradient(135deg,rgba(255,252,246,0.90),rgba(255,255,255,0.72))] p-6 shadow-[0_18px_55px_rgba(112,83,42,0.10)] backdrop-blur-2xl transition duration-300 hover:-translate-y-1 hover:bg-white/90 lg:p-7"
+        >
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fff4df] text-lg shadow-sm">
+                  $
+                </span>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9b7a46]">
+                    Needs Attention
+                  </p>
+
+                  <h3 className="mt-1 text-2xl font-bold text-[#243128]">
+                    Outstanding Revenue
+                  </h3>
+                </div>
+              </div>
+
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[#708075]">
+                Scheduled services and invoices that are still awaiting payment.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="rounded-[22px] border border-white/85 bg-white/80 px-7 py-4 text-left shadow-[0_12px_35px_rgba(112,83,42,0.10)] sm:text-right">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9b7a46]">
+                  Outstanding
+                </p>
+
+                <p className="mt-1 text-4xl font-bold tracking-tight text-[#5f4a2d]">
+                  {formatCurrency(outstandingRevenue)}
+                </p>
+              </div>
+
+              <span className="text-sm font-semibold text-[#647d5b] transition group-hover:translate-x-1">
+                View revenue →
+              </span>
+            </div>
+          </div>
+        </Link>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {priorityStats.map((stat) => (
