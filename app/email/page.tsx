@@ -22,14 +22,14 @@ export default async function EmailHubPage() {
   const rememberedContacts = [
     ...clientContacts,
     ...emailContacts.map((contact) => ({
-      id: contact.client_id ?? 0,
+      id: contact.client_id ?? -contact.id,
       name: contact.name,
       email: contact.email,
       status: contact.client_id ? "Client" : "Email Contact",
       company: contact.company,
     })),
     ...messages.map((message) => ({
-      id: message.client_id ?? 0,
+      id: message.client_id ?? -(1000000 + message.id),
       name: message.recipient_name,
       email: message.recipient_email,
       status: message.client_id ? "Client" : "Previously Emailed",
