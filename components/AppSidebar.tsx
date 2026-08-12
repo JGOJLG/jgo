@@ -34,6 +34,16 @@ const navigation: NavigationItem[] = [
     ),
   },
   {
+    label: "EWC",
+    href: "/ewc",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={iconClassName}>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M3 9h18M8 9v11M14 9v11M8 14h13" />
+      </svg>
+    ),
+  },
+  {
     label: "Calendar",
     href: "/calendar",
     icon: (
