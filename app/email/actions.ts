@@ -28,6 +28,33 @@ export async function createEmailTemplate(input: {
   return { ok: true, template: data };
 }
 
+export async function updateEmailTemplate(input: {
+  id: number;
+  name: string;
+  subject: string;
+  body: string;
+}) {
+  const supabase = await createClient();
+  const name = input.name.trim();
+  const subject = input.subject.trim();
+  const body = input.body.trim();
+
+  if (!input.id || !name || !subject || !body) {
+    return { ok: false, error: "Add a template name, subject, and email body first." };
+  }
+
+  const { data, error } = await supabase
+    .from("email_templates")
+    .update({ name, subject, body, updated_at: new Date().toISOString() })
+    .eq("id", input.id)
+    .select("id, name, subject, body")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/email");
+  return { ok: true, template: data };
+}
+
 export async function deleteEmailTemplate(id: number) {
   const supabase = await createClient();
   const { error } = await supabase.from("email_templates").delete().eq("id", id);
