@@ -25,68 +25,55 @@ function socialIcon(label: string, href: string, iconSlug: string) {
   </td>`;
 }
 
+function linkedInIcon() {
+  return `<td style="padding:0 8px 0 0;vertical-align:middle;">
+    <a href="https://www.linkedin.com/company/jgohire/posts/?feedView=all" target="_blank" aria-label="LinkedIn" style="display:inline-block;width:34px;height:34px;border-radius:50%;background:#e7eee3;text-decoration:none;text-align:center;line-height:34px;">
+      <span style="display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:34px;font-weight:800;color:#52684b;letter-spacing:-1px;">in</span>
+    </a>
+  </td>`;
+}
+
 function emailSignature() {
   return `
     <div style="margin-top:34px;padding-top:22px;border-top:1px solid #e7ebe4;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
-        <tr>
-          <td style="vertical-align:top;padding:0;">
-            <div style="font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:1.25;font-weight:700;color:#243128;">Jennifer Gordon</div>
-            <div style="margin-top:4px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#667268;">Certified Career Coach + Recruiter</div>
-            <div style="margin-top:2px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#667268;">JGO Hire</div>
-            <div style="margin-top:7px;">
-              <a href="https://www.jgohire.com" target="_blank" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#52684b;text-decoration:none;">jgohire.com</a>
-            </div>
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:14px;border-collapse:collapse;">
-              <tr>
-                ${socialIcon("Instagram", "https://www.instagram.com/jgohired", "instagram")}
-                ${socialIcon("TikTok", "https://www.tiktok.com/@jgohired", "tiktok")}
-                ${socialIcon("Facebook", "https://www.facebook.com/jgohired", "facebook")}
-                ${socialIcon("YouTube", "https://www.youtube.com/@jgohired", "youtube")}
-                ${socialIcon("Substack", "https://substack.com/@jgohired?utm_source=user-menu", "substack")}
-                ${socialIcon("LinkedIn", "https://www.linkedin.com/company/jgohire/posts/?feedView=all", "linkedin")}
-              </tr>
-            </table>
-          </td>
-        </tr>
+        <tr><td style="vertical-align:top;padding:0;">
+          <div style="font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:1.25;font-weight:700;color:#243128;">Jennifer Gordon</div>
+          <div style="margin-top:4px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#667268;">Certified Career Coach + Recruiter</div>
+          <div style="margin-top:2px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#667268;">JGO Hire</div>
+          <div style="margin-top:7px;"><a href="https://www.jgohire.com" target="_blank" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#52684b;text-decoration:none;">jgohire.com</a></div>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:14px;border-collapse:collapse;"><tr>
+            ${socialIcon("Instagram", "https://www.instagram.com/jgohired", "instagram")}
+            ${socialIcon("TikTok", "https://www.tiktok.com/@jgohired", "tiktok")}
+            ${socialIcon("Facebook", "https://www.facebook.com/jgohired", "facebook")}
+            ${socialIcon("YouTube", "https://www.youtube.com/@jgohired", "youtube")}
+            ${socialIcon("Substack", "https://substack.com/@jgohired?utm_source=user-menu", "substack")}
+            ${linkedInIcon()}
+          </tr></table>
+        </td></tr>
       </table>
-    </div>
-  `;
+    </div>`;
 }
 
 function wrapEmailHtml(innerHtml: string) {
-  return `<div style="margin:0;background:#f6f8f3;padding:28px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;">
-    <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e1e7dc;border-radius:22px;overflow:hidden;">
-      <div style="background:linear-gradient(145deg,#e6efe2,#f7faf5);padding:24px 30px;">
-        <div style="color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;">JGO Hire</div>
-      </div>
-      <div style="padding:30px;font-size:15px;line-height:1.7;color:#2f3b32;">
-        ${innerHtml}
-        ${emailSignature()}
-      </div>
-    </div>
-  </div>`;
+  return `<div style="margin:0;background:#f6f8f3;padding:28px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;"><div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e1e7dc;border-radius:22px;overflow:hidden;"><div style="background:linear-gradient(145deg,#e6efe2,#f7faf5);padding:24px 30px;"><div style="color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;">JGO Hire</div></div><div style="padding:30px;font-size:15px;line-height:1.7;color:#2f3b32;">${innerHtml}${emailSignature()}</div></div></div>`;
 }
 
 export async function POST(request: Request) {
   if (!resend) return NextResponse.json({ error: "Email is not configured.", detail: "Missing RESEND_API_KEY." }, { status: 500 });
   let payload: EmailRequest;
   try { payload = (await request.json()) as EmailRequest; } catch { return NextResponse.json({ error: "Invalid request body." }, { status: 400 }); }
-
   const subject = String(payload.subject || "").trim();
   const rawBody = String(payload.body || "").trim();
   const rawHtml = String(payload.bodyHtml || "").trim();
   const templateId = Number.isInteger(payload.templateId) ? Number(payload.templateId) : null;
   if (!subject || (!rawBody && !rawHtml)) return NextResponse.json({ error: "Subject and message are required." }, { status: 400 });
-
   const uniqueRecipients = Array.from(new Map((payload.recipients || []).map((recipient) => ({ clientId: Number.isInteger(recipient.clientId) ? Number(recipient.clientId) : null, name: String(recipient.name || "").trim(), email: String(recipient.email || "").trim().toLowerCase() })).filter((recipient) => isEmail(recipient.email)).map((recipient) => [recipient.email, recipient])).values());
   if (!uniqueRecipients.length) return NextResponse.json({ error: "Add at least one valid recipient." }, { status: 400 });
   if (uniqueRecipients.length > 500) return NextResponse.json({ error: "Please send to 500 recipients or fewer at a time." }, { status: 400 });
-
   const supabase = await createClient();
   const savedMessages: unknown[] = [];
   const failures: { email: string; error: string }[] = [];
-
   for (let index = 0; index < uniqueRecipients.length; index += 10) {
     const chunk = uniqueRecipients.slice(index, index + 10);
     const results = await Promise.all(chunk.map(async (recipient) => {
@@ -95,21 +82,15 @@ export async function POST(request: Request) {
       const personalizedText = rawBody ? personalize(rawBody, recipient) : stripHtml(personalizedHtml);
       const emailResult = await resend.emails.send({ from: "JGO Hire <jen@jgohire.com>", to: [recipient.email], replyTo: "jen@jgohire.com", subject: personalizedSubject, text: personalizedText, html: wrapEmailHtml(personalizedHtml) });
       if (emailResult.error) return { ok: false as const, email: recipient.email, error: emailResult.error.message };
-
       const now = new Date().toISOString();
       const { data: existingContact } = await supabase.from("email_contacts").select("id, email_count, first_contacted_at, name, client_id").eq("email", recipient.email).maybeSingle();
-      if (existingContact) {
-        await supabase.from("email_contacts").update({ name: recipient.name || existingContact.name || null, client_id: recipient.clientId ?? existingContact.client_id ?? null, first_contacted_at: existingContact.first_contacted_at || now, last_contacted_at: now, email_count: Number(existingContact.email_count || 0) + 1, updated_at: now }).eq("id", existingContact.id);
-      } else {
-        await supabase.from("email_contacts").insert({ name: recipient.name || null, email: recipient.email, client_id: recipient.clientId, source: recipient.clientId ? "jgo_os" : "email", first_contacted_at: now, last_contacted_at: now, email_count: 1 });
-      }
-
+      if (existingContact) await supabase.from("email_contacts").update({ name: recipient.name || existingContact.name || null, client_id: recipient.clientId ?? existingContact.client_id ?? null, first_contacted_at: existingContact.first_contacted_at || now, last_contacted_at: now, email_count: Number(existingContact.email_count || 0) + 1, updated_at: now }).eq("id", existingContact.id);
+      else await supabase.from("email_contacts").insert({ name: recipient.name || null, email: recipient.email, client_id: recipient.clientId, source: recipient.clientId ? "jgo_os" : "email", first_contacted_at: now, last_contacted_at: now, email_count: 1 });
       const { data: message } = await supabase.from("email_messages").insert({ client_id: recipient.clientId, recipient_name: recipient.name || null, recipient_email: recipient.email, subject: personalizedSubject, body: personalizedText, status: "sent", template_id: templateId, sent_at: now }).select("id, client_id, recipient_name, recipient_email, subject, body, template_id, sent_at").single();
       return { ok: true as const, message: message || null };
     }));
     for (const result of results) { if (!result.ok) failures.push({ email: result.email, error: result.error }); else if (result.message) savedMessages.push(result.message); }
   }
-
   const sentCount = uniqueRecipients.length - failures.length;
   if (!sentCount) return NextResponse.json({ error: "Unable to send any emails.", failures }, { status: 500 });
   return NextResponse.json({ ok: true, sentCount, failedCount: failures.length, failures, messages: savedMessages });
