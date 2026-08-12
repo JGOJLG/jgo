@@ -17,9 +17,9 @@ function firstName(value: string) { return value.trim().split(/\s+/)[0] || "ther
 function personalize(value: string, recipient: Recipient) { return value.replaceAll("{{first_name}}", firstName(String(recipient.name || "there"))).replaceAll("{{name}}", String(recipient.name || "")); }
 function stripHtml(value: string) { return value.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n\n").replace(/<\/li>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#039;/g, "'").trim(); }
 
-function socialIcon(label: string, href: string, text: string) {
-  return `<td style="padding:0 6px 0 0;">
-    <a href="${href}" target="_blank" aria-label="${label}" style="display:inline-block;width:30px;height:30px;line-height:30px;border-radius:50%;background:#e7eee3;color:#52684b;text-align:center;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;">${text}</a>
+function socialIcon(label: string, href: string, symbol: string, fontSize = 16) {
+  return `<td style="padding:0 7px 0 0;">
+    <a href="${href}" target="_blank" aria-label="${label}" style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background:#e7eee3;color:#52684b;text-align:center;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:${fontSize}px;font-weight:700;">${symbol}</a>
   </td>`;
 }
 
@@ -37,12 +37,12 @@ function emailSignature() {
             </div>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:14px;border-collapse:collapse;">
               <tr>
-                ${socialIcon("Instagram", "https://www.instagram.com/jgohired", "IG")}
-                ${socialIcon("TikTok", "https://www.tiktok.com/@jgohired", "TT")}
-                ${socialIcon("Facebook", "https://www.facebook.com/jgohired", "f")}
-                ${socialIcon("YouTube", "https://www.youtube.com/@jgohired", "▶")}
-                ${socialIcon("Substack", "https://substack.com/@jgohired?utm_source=user-menu", "S")}
-                ${socialIcon("LinkedIn", "https://www.linkedin.com/company/jgohire/posts/?feedView=all", "in")}
+                ${socialIcon("Instagram", "https://www.instagram.com/jgohired", "◎", 19)}
+                ${socialIcon("TikTok", "https://www.tiktok.com/@jgohired", "♪", 18)}
+                ${socialIcon("Facebook", "https://www.facebook.com/jgohired", "f", 17)}
+                ${socialIcon("YouTube", "https://www.youtube.com/@jgohired", "▶", 14)}
+                ${socialIcon("Substack", "https://substack.com/@jgohired?utm_source=user-menu", "▤", 16)}
+                ${socialIcon("LinkedIn", "https://www.linkedin.com/company/jgohire/posts/?feedView=all", "in", 12)}
               </tr>
             </table>
           </td>
