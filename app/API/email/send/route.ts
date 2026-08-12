@@ -16,7 +16,55 @@ function isEmail(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value
 function firstName(value: string) { return value.trim().split(/\s+/)[0] || "there"; }
 function personalize(value: string, recipient: Recipient) { return value.replaceAll("{{first_name}}", firstName(String(recipient.name || "there"))).replaceAll("{{name}}", String(recipient.name || "")); }
 function stripHtml(value: string) { return value.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n\n").replace(/<\/li>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#039;/g, "'").trim(); }
-function wrapEmailHtml(innerHtml: string) { return `<div style="margin:0;background:#f6f8f3;padding:28px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;"><div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e1e7dc;border-radius:22px;overflow:hidden;"><div style="background:linear-gradient(145deg,#e6efe2,#f7faf5);padding:24px 30px;"><div style="color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;">JGO Hire</div></div><div style="padding:30px;font-size:15px;line-height:1.7;color:#2f3b32;">${innerHtml}</div><div style="padding:18px 30px;border-top:1px solid #edf0ea;color:#7a857b;font-size:11px;line-height:1.5;">JGO Hire · Career Coach + Recruiter</div></div></div>`; }
+
+function socialIcon(label: string, href: string, text: string) {
+  return `<td style="padding:0 6px 0 0;">
+    <a href="${href}" target="_blank" aria-label="${label}" style="display:inline-block;width:30px;height:30px;line-height:30px;border-radius:50%;background:#e7eee3;color:#52684b;text-align:center;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;">${text}</a>
+  </td>`;
+}
+
+function emailSignature() {
+  return `
+    <div style="margin-top:34px;padding-top:22px;border-top:1px solid #e7ebe4;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="vertical-align:top;padding:0;">
+            <div style="font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:1.25;font-weight:700;color:#243128;">Jennifer Gordon</div>
+            <div style="margin-top:4px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#667268;">Certified Career Coach + Recruiter</div>
+            <div style="margin-top:2px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#667268;">JGO Hire</div>
+            <div style="margin-top:7px;">
+              <a href="https://www.jgohire.com" target="_blank" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#52684b;text-decoration:none;">jgohire.com</a>
+            </div>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:14px;border-collapse:collapse;">
+              <tr>
+                ${socialIcon("Instagram", "https://www.instagram.com/jgohired", "IG")}
+                ${socialIcon("TikTok", "https://www.tiktok.com/@jgohired", "TT")}
+                ${socialIcon("Facebook", "https://www.facebook.com/jgohired", "f")}
+                ${socialIcon("YouTube", "https://www.youtube.com/@jgohired", "▶")}
+                ${socialIcon("Substack", "https://substack.com/@jgohired?utm_source=user-menu", "S")}
+                ${socialIcon("LinkedIn", "https://www.linkedin.com/company/jgohire/posts/?feedView=all", "in")}
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+}
+
+function wrapEmailHtml(innerHtml: string) {
+  return `<div style="margin:0;background:#f6f8f3;padding:28px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;">
+    <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e1e7dc;border-radius:22px;overflow:hidden;">
+      <div style="background:linear-gradient(145deg,#e6efe2,#f7faf5);padding:24px 30px;">
+        <div style="color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;">JGO Hire</div>
+      </div>
+      <div style="padding:30px;font-size:15px;line-height:1.7;color:#2f3b32;">
+        ${innerHtml}
+        ${emailSignature()}
+      </div>
+    </div>
+  </div>`;
+}
 
 export async function POST(request: Request) {
   if (!resend) return NextResponse.json({ error: "Email is not configured.", detail: "Missing RESEND_API_KEY." }, { status: 500 });
