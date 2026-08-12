@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { createEmailMessage, createEmailTemplate, deleteEmailTemplate } from "./actions";
+import { createEmailTemplate, deleteEmailTemplate } from "./actions";
 
 type Contact = { id: number; name: string | null; email: string | null; status: string | null; company: string | null };
 type Template = { id: number; name: string; subject: string; body: string };
@@ -12,10 +12,11 @@ function personalize(text: string, contact: Contact | null) {
   if (!contact) return text;
   return text.replaceAll("{{first_name}}", firstName(contact.name)).replaceAll("{{name}}", contact.name || "").replaceAll("{{company}}", contact.company || "");
 }
+function isEmail(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()); }
 
 export default function EmailHubClient({ contacts, initialTemplates, initialSent }: { contacts: Contact[]; initialTemplates: Template[]; initialSent: SentEmail[] }) {
   const [tab, setTab] = useState<"compose" | "templates" | "sent">("compose");
-  const [contactSearch, setContactSearch] = useState("");
+  const [recipient, setRecipient] = useState("");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -25,16 +26,17 @@ export default function EmailHubClient({ contacts, initialTemplates, initialSent
   const [notice, setNotice] = useState("");
   const [activeTemplateId, setActiveTemplateId] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
+  const [sending, setSending] = useState(false);
 
   const matches = useMemo(() => {
-    const q = contactSearch.trim().toLowerCase();
+    const q = recipient.trim().toLowerCase();
     if (!q || selectedContact) return [];
     return contacts.filter((c) => `${c.name || ""} ${c.email || ""} ${c.company || ""}`.toLowerCase().includes(q)).slice(0, 8);
-  }, [contactSearch, contacts, selectedContact]);
+  }, [recipient, contacts, selectedContact]);
 
-  function chooseContact(contact: Contact) { setSelectedContact(contact); setContactSearch(`${contact.name} <${contact.email}>`); }
+  function chooseContact(contact: Contact) { setSelectedContact(contact); setRecipient(contact.email || ""); }
   function useTemplate(template: Template) { setSubject(personalize(template.subject, selectedContact)); setBody(personalize(template.body, selectedContact)); setActiveTemplateId(template.id); setTab("compose"); setNotice(`Loaded “${template.name}”`); }
-  function resetDraft() { setSelectedContact(null); setContactSearch(""); setSubject(""); setBody(""); setActiveTemplateId(null); setNotice(""); setTab("compose"); }
+  function resetDraft() { setSelectedContact(null); setRecipient(""); setSubject(""); setBody(""); setActiveTemplateId(null); setNotice(""); setTab("compose"); }
 
   function saveTemplate() {
     startTransition(async () => {
@@ -52,34 +54,44 @@ export default function EmailHubClient({ contacts, initialTemplates, initialSent
     });
   }
 
-  function logSent() {
-    if (!selectedContact?.email) return setNotice("Choose a recipient first.");
-    startTransition(async () => {
-      const result = await createEmailMessage({ clientId: selectedContact.id, recipientName: selectedContact.name || "", recipientEmail: selectedContact.email || "", subject, body, templateId: activeTemplateId });
-      if (!result.ok || !result.message) return setNotice(result.error || "Could not log email.");
-      setSent((current) => [result.message as SentEmail, ...current]); setNotice("Email saved to Sent History. Live sending will be connected next.");
-    });
+  async function sendEmail() {
+    const email = selectedContact?.email || recipient.trim();
+    if (!isEmail(email)) return setNotice("Enter a valid email address. You can choose a client/lead or type any email address.");
+    if (!subject.trim()) return setNotice("Add a subject before sending.");
+    if (!body.trim()) return setNotice("Add a message before sending.");
+
+    setSending(true); setNotice("");
+    try {
+      const response = await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: selectedContact?.id ?? null, recipientName: selectedContact?.name ?? "", recipientEmail: email, subject, body, templateId: activeTemplateId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || result.error || "Unable to send email.");
+      if (result.message) setSent((current) => [result.message as SentEmail, ...current]);
+      setNotice(result.warning || `Email sent successfully to ${email}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to send email.");
+    } finally { setSending(false); }
   }
 
   return (
     <section className="min-h-screen bg-[#f7f8f3] text-[#243128]">
-      <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
-        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#8aa080]">JGO OS</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Email Hub</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[#708075]">Write emails, pull recipients directly from your client and lead list, save your best messages as templates, and keep your communication history in one place.</p></div><button onClick={resetDraft} className="rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white">+ New Email</button></div>
-        <div className="mt-6 flex w-fit gap-1 rounded-full border border-[#d7e1d0] bg-white p-1">{(["compose","templates","sent"] as const).map((item)=><button key={item} onClick={()=>setTab(item)} className={`rounded-full px-4 py-2 text-sm font-semibold capitalize ${tab===item?"bg-[#647d5b] text-white":"text-[#647066]"}`}>{item}{item==="sent"&&sent.length?` (${sent.length})`:""}</button>)}</div>
-      </header>
+      <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10"><div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#8aa080]">JGO OS</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Email Hub</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[#708075]">Send emails directly from JGO OS, use anyone from your client and lead list, or type any email address.</p></div><button onClick={resetDraft} className="rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white">+ New Email</button></div><div className="mt-6 flex w-fit gap-1 rounded-full border border-[#d7e1d0] bg-white p-1">{(["compose","templates","sent"] as const).map((item)=><button key={item} onClick={()=>setTab(item)} className={`rounded-full px-4 py-2 text-sm font-semibold capitalize ${tab===item?"bg-[#647d5b] text-white":"text-[#647066]"}`}>{item}{item==="sent"&&sent.length?` (${sent.length})`:""}</button>)}</div></header>
       <div className="mx-auto max-w-7xl p-6 lg:p-10">
         {notice&&<div className="mb-5 rounded-2xl border border-[#d7e1d0] bg-[#edf3e9] px-4 py-3 text-sm font-medium text-[#4d6247]">{notice}</div>}
         {tab==="compose"&&<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="overflow-hidden rounded-3xl border border-[#dfe6db] bg-white shadow-sm"><div className="border-b border-[#edf0ea] px-6 py-5"><h2 className="text-xl font-bold">Compose Email</h2><p className="mt-1 text-sm text-[#7b887d]">Write it exactly how you want. No paid AI required.</p></div><div className="space-y-5 p-6">
-            <div className="relative"><label className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-[#708075]">To</label><input value={contactSearch} onChange={(e)=>{setContactSearch(e.target.value);setSelectedContact(null)}} placeholder="Start typing a client or lead name..." className="w-full rounded-2xl border border-[#d7e1d0] bg-[#fbfcf9] px-4 py-3.5 text-sm outline-none"/>{matches.length>0&&<div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border bg-white shadow-xl">{matches.map((c)=><button key={c.id} onClick={()=>chooseContact(c)} className="flex w-full items-center justify-between border-b px-4 py-3 text-left hover:bg-[#f7f9f5]"><span><strong className="block text-sm">{c.name}</strong><small className="text-[#7b887d]">{c.email}</small></span><span className="rounded-full bg-[#edf2e9] px-2.5 py-1 text-[10px] font-bold uppercase text-[#647d5b]">{c.status||"Lead"}</span></button>)}</div>}</div>
+          <div className="overflow-hidden rounded-3xl border border-[#dfe6db] bg-white shadow-sm"><div className="border-b border-[#edf0ea] px-6 py-5"><h2 className="text-xl font-bold">Compose Email</h2><p className="mt-1 text-sm text-[#7b887d]">Choose someone from JGO OS or type any email address.</p></div><div className="space-y-5 p-6">
+            <div className="relative"><label className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-[#708075]">To</label><input type="email" value={recipient} onChange={(e)=>{setRecipient(e.target.value);setSelectedContact(null)}} placeholder="Name from JGO OS or any email address" className="w-full rounded-2xl border border-[#d7e1d0] bg-[#fbfcf9] px-4 py-3.5 text-sm outline-none"/>{selectedContact&&<button type="button" onClick={()=>{setSelectedContact(null);setRecipient("")}} className="mt-2 text-xs font-semibold text-[#647d5b]">Selected: {selectedContact.name} · clear</button>}{matches.length>0&&<div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border bg-white shadow-xl">{matches.map((c)=><button key={c.id} type="button" onClick={()=>chooseContact(c)} className="flex w-full items-center justify-between border-b px-4 py-3 text-left hover:bg-[#f7f9f5]"><span><strong className="block text-sm">{c.name}</strong><small className="text-[#7b887d]">{c.email}</small></span><span className="rounded-full bg-[#edf2e9] px-2.5 py-1 text-[10px] font-bold uppercase text-[#647d5b]">{c.status||"Lead"}</span></button>)}</div>}</div>
             <div><label className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-[#708075]">Subject</label><input value={subject} onChange={(e)=>setSubject(e.target.value)} placeholder="Email subject" className="w-full rounded-2xl border border-[#d7e1d0] bg-[#fbfcf9] px-4 py-3.5 text-sm outline-none"/></div>
             <div><div className="mb-2 flex justify-between"><label className="text-xs font-bold uppercase tracking-[0.12em] text-[#708075]">Message</label><span className="text-xs text-[#9aa39b]">{body.length} characters</span></div><textarea value={body} onChange={(e)=>setBody(e.target.value)} placeholder="Hi..." rows={16} className="w-full resize-y rounded-2xl border border-[#d7e1d0] bg-[#fbfcf9] px-4 py-4 text-sm leading-7 outline-none"/></div>
-            <div className="flex flex-col gap-3 border-t border-[#edf0ea] pt-5 sm:flex-row sm:items-end sm:justify-between"><div className="flex-1"><label className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-[#708075]">Save this as a template</label><div className="flex gap-2"><input value={templateName} onChange={(e)=>setTemplateName(e.target.value)} placeholder="Template name" className="min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm"/><button disabled={pending} onClick={saveTemplate} className="rounded-xl border px-4 py-2.5 text-sm font-semibold text-[#4d6247]">Save</button></div></div><button disabled={pending} onClick={logSent} className="rounded-xl bg-[#647d5b] px-6 py-3 text-sm font-semibold text-white">{pending?"Saving...":"Log as Sent"}</button></div>
+            <div className="flex flex-col gap-3 border-t border-[#edf0ea] pt-5 sm:flex-row sm:items-end sm:justify-between"><div className="flex-1"><label className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-[#708075]">Save this as a template</label><div className="flex gap-2"><input value={templateName} onChange={(e)=>setTemplateName(e.target.value)} placeholder="Template name" className="min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm"/><button disabled={pending} onClick={saveTemplate} className="rounded-xl border px-4 py-2.5 text-sm font-semibold text-[#4d6247]">Save</button></div></div><button disabled={sending} onClick={sendEmail} className="rounded-xl bg-[#647d5b] px-7 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-60">{sending?"Sending...":"Send Email"}</button></div>
           </div></div>
-          <aside className="space-y-5"><div className="rounded-3xl border border-[#dfe6db] bg-[#eef2ea] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#849083]">Quick Templates</p>{templates.length===0?<p className="mt-4 text-xs leading-5 text-[#7b887d]">No saved templates yet. Write an email and save it as your first template.</p>:<div className="mt-4 space-y-2">{templates.slice(0,5).map((t)=><button key={t.id} onClick={()=>useTemplate(t)} className="w-full rounded-2xl border bg-white/75 p-4 text-left shadow-sm"><strong className="block text-sm">{t.name}</strong><span className="mt-1 block truncate text-xs text-[#7b887d]">{t.subject}</span></button>)}</div>}</div><div className="rounded-3xl border border-[#e5e2d8] bg-[#fffdf8] p-5"><p className="text-sm font-bold">No extra AI cost.</p><p className="mt-2 text-xs leading-5 text-[#7b887d]">The Email Hub works without a paid AI API. We can add optional AI later only if there is a free option worth using.</p></div></aside>
+          <aside className="space-y-5"><div className="rounded-3xl border border-[#dfe6db] bg-[#eef2ea] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#849083]">Quick Templates</p>{templates.length===0?<p className="mt-4 text-xs leading-5 text-[#7b887d]">No saved templates yet.</p>:<div className="mt-4 space-y-2">{templates.slice(0,5).map((t)=><button key={t.id} onClick={()=>useTemplate(t)} className="w-full rounded-2xl border bg-white/75 p-4 text-left shadow-sm"><strong className="block text-sm">{t.name}</strong><span className="mt-1 block truncate text-xs text-[#7b887d]">{t.subject}</span></button>)}</div>}</div><div className="rounded-3xl border border-[#e5e2d8] bg-[#fffdf8] p-5"><p className="text-sm font-bold">Sent from JGO Hire</p><p className="mt-2 text-xs leading-5 text-[#7b887d]">Messages send from jen@jgohire.com and replies go back to that address.</p></div></aside>
         </div>}
         {tab==="templates"&&<div><div className="mb-6"><h2 className="text-2xl font-bold">Email Templates</h2><p className="mt-1 text-sm text-[#708075]">Saved in JGO OS and available wherever you log in.</p></div>{templates.length===0?<div className="rounded-3xl border border-dashed bg-white/60 p-12 text-center"><p className="font-semibold">No templates yet.</p></div>:<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{templates.map((t)=><article key={t.id} className="flex min-h-[250px] flex-col rounded-3xl border border-[#dfe6db] bg-white p-5 shadow-sm"><span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#8aa080]">Template</span><h3 className="mt-3 text-lg font-bold">{t.name}</h3><p className="mt-2 text-sm font-semibold text-[#53664e]">{t.subject}</p><p className="mt-3 line-clamp-4 whitespace-pre-line text-xs leading-5 text-[#7b887d]">{t.body}</p><div className="mt-auto flex gap-2 pt-5"><button onClick={()=>useTemplate(t)} className="flex-1 rounded-xl bg-[#647d5b] px-3 py-2.5 text-xs font-semibold text-white">Use Template</button><button disabled={pending} onClick={()=>removeTemplate(t.id)} className="rounded-xl border px-3 py-2.5 text-xs font-semibold text-[#8a655f]">Delete</button></div></article>)}</div>}</div>}
-        {tab==="sent"&&<div><div className="mb-6"><h2 className="text-2xl font-bold">Sent History</h2><p className="mt-1 text-sm text-[#708075]">Your JGO OS communication log. Live sending is the next connection.</p></div>{sent.length===0?<div className="rounded-3xl border border-dashed bg-white/60 p-12 text-center"><p className="font-semibold">No emails logged yet.</p></div>:<div className="overflow-hidden rounded-3xl border bg-white shadow-sm">{sent.map((e)=><div key={e.id} className="grid gap-3 border-b p-5 last:border-0 md:grid-cols-[220px_1fr_180px]"><div><strong className="block text-sm">{e.recipient_name||e.recipient_email}</strong><span className="text-xs text-[#7b887d]">{e.recipient_email}</span></div><div><strong className="block text-sm">{e.subject}</strong><p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-[#7b887d]">{e.body}</p></div><span className="text-xs text-[#8b948c] md:text-right">{new Date(e.sent_at).toLocaleString()}</span></div>)}</div>}</div>}
+        {tab==="sent"&&<div><div className="mb-6"><h2 className="text-2xl font-bold">Sent History</h2><p className="mt-1 text-sm text-[#708075]">Emails actually sent from JGO OS.</p></div>{sent.length===0?<div className="rounded-3xl border border-dashed bg-white/60 p-12 text-center"><p className="font-semibold">No emails sent yet.</p></div>:<div className="overflow-hidden rounded-3xl border bg-white shadow-sm">{sent.map((e)=><div key={e.id} className="grid gap-3 border-b p-5 last:border-0 md:grid-cols-[220px_1fr_180px]"><div><strong className="block text-sm">{e.recipient_name||e.recipient_email}</strong><span className="text-xs text-[#7b887d]">{e.recipient_email}</span></div><div><strong className="block text-sm">{e.subject}</strong><p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-[#7b887d]">{e.body}</p></div><span className="text-xs text-[#8b948c] md:text-right">{new Date(e.sent_at).toLocaleString()}</span></div>)}</div>}</div>}
       </div>
     </section>
   );
