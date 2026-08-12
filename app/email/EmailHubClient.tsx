@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createEmailTemplate, deleteEmailTemplate } from "./actions";
 
 type Contact = { id: number; name: string | null; email: string | null; status: string | null; company: string | null };
@@ -20,7 +21,9 @@ function formatDate(value: string | null) { if (!value) return "Never"; return n
 function templatePreview(value: string) { return value.startsWith(HTML_TEMPLATE_PREFIX) ? stripHtml(value.slice(HTML_TEMPLATE_PREFIX.length)) : value; }
 
 export default function EmailHubClient({ contacts, initialEmailContacts, initialTemplates, initialSent }: { contacts: Contact[]; initialEmailContacts: EmailContact[]; initialTemplates: Template[]; initialSent: SentEmail[] }) {
+  const router = useRouter();
   const editorRef = useRef<HTMLDivElement>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tab, setTab] = useState<Tab>("compose");
   const [recipientSearch, setRecipientSearch] = useState("");
   const [recipients, setRecipients] = useState<Recipient[]>([]);
@@ -31,6 +34,7 @@ export default function EmailHubClient({ contacts, initialEmailContacts, initial
   const [sent, setSent] = useState(initialSent);
   const [templateName, setTemplateName] = useState("");
   const [notice, setNotice] = useState("");
+  const [toast, setToast] = useState("");
   const [activeTemplateId, setActiveTemplateId] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
   const [sending, setSending] = useState(false);
@@ -64,6 +68,12 @@ export default function EmailHubClient({ contacts, initialEmailContacts, initial
     }
     return groups;
   }, [sent]);
+
+  function showSuccessToast(message: string) {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(message);
+    toastTimerRef.current = setTimeout(() => setToast(""), 1000);
+  }
 
   function syncEditor() { const html = editorRef.current?.innerHTML || ""; setBodyHtml(html); setBody(stripHtml(html)); }
   function command(cmd: string, value?: string) { editorRef.current?.focus(); document.execCommand(cmd, false, value); syncEditor(); }
@@ -141,7 +151,10 @@ export default function EmailHubClient({ contacts, initialEmailContacts, initial
       const savedBody = bodyHtml ? `${HTML_TEMPLATE_PREFIX}${bodyHtml}` : body;
       const result = await createEmailTemplate({ name: templateName, subject, body: savedBody });
       if (!result.ok || !result.template) return setNotice(result.error || "Could not save template.");
-      setTemplates((current) => [...current, result.template as Template]); setTemplateName(""); setNotice("Template saved to JGO OS, including buttons and formatting.");
+      setTemplates((current) => [...current, result.template as Template]);
+      setTemplateName("");
+      setNotice("");
+      showSuccessToast("✓ Template Saved");
     });
   }
 
@@ -157,8 +170,11 @@ export default function EmailHubClient({ contacts, initialEmailContacts, initial
       const response = await fetch("/api/email/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipients, subject, body, bodyHtml, templateId: activeTemplateId }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail || result.error || "Unable to send email.");
-      const success = result.failedCount ? `Sent ${result.sentCount} email${result.sentCount === 1 ? "" : "s"}. ${result.failedCount} failed.` : `Sent successfully to ${result.sentCount} recipient${result.sentCount === 1 ? "" : "s"}.`;
-      window.location.href = `/email?sent=${encodeURIComponent(success)}`;
+      if (Array.isArray(result.messages) && result.messages.length) setSent((current) => [...result.messages, ...current]);
+      resetDraft();
+      setSending(false);
+      showSuccessToast(result.failedCount ? `✓ ${result.sentCount} Sent · ${result.failedCount} Failed` : "✓ Email Sent");
+      router.refresh();
     } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to send email."); setSending(false); }
   }
 
@@ -166,6 +182,7 @@ export default function EmailHubClient({ contacts, initialEmailContacts, initial
 
   return (
     <section className="min-h-screen bg-[#f7f8f3] text-[#243128]">
+      {toast && <div className="fixed left-1/2 top-6 z-[100] -translate-x-1/2 rounded-2xl border border-[#78916f] bg-[#52684b] px-6 py-4 text-sm font-bold text-white shadow-2xl">{toast}</div>}
       <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10"><div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#8aa080]">JGO OS</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Email Hub</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[#708075]">Create polished emails, keep every person you contact, and see the full communication history in one place.</p></div><button onClick={() => resetDraft()} className="rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white">+ New Email</button></div><div className="mt-6 flex w-fit flex-wrap gap-1 rounded-full border border-[#d7e1d0] bg-white p-1">{tabs.map((item) => <button key={item.id} onClick={() => { setTab(item.id); setNotice(""); }} className={`rounded-full px-4 py-2 text-sm font-semibold ${tab === item.id ? "bg-[#647d5b] text-white" : "text-[#647066]"}`}>{item.label}</button>)}</div></header>
       <div className="mx-auto max-w-7xl p-6 lg:p-10">
         {notice && <div className="mb-5 rounded-2xl border border-[#d7e1d0] bg-[#edf3e9] px-4 py-3 text-sm font-medium text-[#4d6247]">{notice}</div>}
