@@ -9,8 +9,14 @@ import ClientFileManager from "./ClientFileManager";
 import ClientActions from "./ClientActions";
 import ServiceCard from "./ServiceCard";
 import SendInvoiceButton from "@/components/SendInvoiceButton";
+import ClientTimerHistory from "./ClientTimerHistory";
 
-import { addClientNote, deleteClientNote, convertToActiveClient, revertToLead } from "./actions";
+import {
+  addClientNote,
+  deleteClientNote,
+  convertToActiveClient,
+  revertToLead,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -91,16 +97,18 @@ export default async function ClientPage({ params }: Props) {
 
   const calendarHistory = (calendarEvents ?? []).map((e) => ({
     date: e.event_date,
-    label: e.notes ? `${e.event_type} — ${e.notes}` : e.event_type,
+    label: e.notes ? `${e.event_type} - ${e.notes}` : e.event_type,
   }));
 
   const combinedHistory = [...timelineHistory, ...calendarHistory].sort(
     (a, b) => a.date.localeCompare(b.date)
   );
 
-  const isLead = ["lead", "free 15 scheduled", "free 15 completed"].includes(
-    (client.status || "lead").trim().toLowerCase()
-  );
+  const isLead = [
+    "lead",
+    "free 15 scheduled",
+    "free 15 completed",
+  ].includes((client.status || "lead").trim().toLowerCase());
 
   return (
     <section className="min-w-0 flex-1">
@@ -146,6 +154,7 @@ export default async function ClientPage({ params }: Props) {
           <div className="flex flex-col items-end gap-2">
             <form action={isLead ? convertToActiveClient : revertToLead}>
               <input type="hidden" name="clientId" value={clientId} />
+
               <button
                 type="submit"
                 className="inline-flex items-center gap-2 rounded-full border border-[#cbd8c4] bg-white px-5 py-2 text-sm font-semibold text-[#4d6247] shadow-sm transition hover:bg-[#f5f7f2]"
@@ -177,9 +186,10 @@ export default async function ClientPage({ params }: Props) {
         />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-          {/* LEFT: Services — big, primary */}
           <section className="rounded-2xl border border-[#dfe6db] bg-white p-6">
-            <h2 className="text-2xl font-bold text-[#243128]">Services</h2>
+            <h2 className="text-2xl font-bold text-[#243128]">
+              Services
+            </h2>
 
             <div className="mt-4 space-y-3">
               {(services ?? []).map((service) => (
@@ -198,7 +208,6 @@ export default async function ClientPage({ params }: Props) {
             </div>
           </section>
 
-          {/* MIDDLE/RIGHT: Payment Summary */}
           <section className="rounded-2xl border border-[#dfe6db] bg-white p-6">
             <h2 className="text-lg font-bold text-[#243128]">
               Payment Summary
@@ -209,6 +218,7 @@ export default async function ClientPage({ params }: Props) {
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
                   Total Owed
                 </p>
+
                 <p className="mt-1 text-2xl font-bold text-[#243128]">
                   ${totalOwed.toLocaleString()}
                 </p>
@@ -218,6 +228,7 @@ export default async function ClientPage({ params }: Props) {
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
                   Total Paid
                 </p>
+
                 <p className="mt-1 text-2xl font-bold text-[#647d5b]">
                   ${totalPaid.toLocaleString()}
                 </p>
@@ -227,9 +238,12 @@ export default async function ClientPage({ params }: Props) {
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
                   Balance Due
                 </p>
+
                 <p
                   className={`mt-1 text-2xl font-bold ${
-                    balanceDue > 0 ? "text-[#9a554d]" : "text-[#647d5b]"
+                    balanceDue > 0
+                      ? "text-[#9a554d]"
+                      : "text-[#647d5b]"
                   }`}
                 >
                   ${balanceDue.toLocaleString()}
@@ -237,24 +251,23 @@ export default async function ClientPage({ params }: Props) {
               </div>
             </div>
           </section>
-
-          {/*
-            RIGHT COLUMN REPLACEMENT — TBD
-            Options: Notes / To-Do / Recent Activity / Quick Links
-            Add a third <section> here once decided.
-          */}
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* LEFT: Notes */}
           <section className="rounded-2xl border border-[#dfe6db] bg-white p-6">
-            <h2 className="text-xl font-bold text-[#243128]">Notes</h2>
+            <h2 className="text-xl font-bold text-[#243128]">
+              Notes
+            </h2>
 
             <form
               action={addClientNote}
               className="mt-4 flex flex-col gap-3"
             >
-              <input type="hidden" name="clientId" value={clientId} />
+              <input
+                type="hidden"
+                name="clientId"
+                value={clientId}
+              />
 
               <input
                 type="date"
@@ -295,14 +308,25 @@ export default async function ClientPage({ params }: Props) {
                         year: "numeric",
                       })}
                     </p>
+
                     <p className="mt-1 text-sm text-[#243128]">
                       {note.content}
                     </p>
                   </div>
 
                   <form action={deleteClientNote}>
-                    <input type="hidden" name="clientId" value={clientId} />
-                    <input type="hidden" name="noteId" value={note.id} />
+                    <input
+                      type="hidden"
+                      name="clientId"
+                      value={clientId}
+                    />
+
+                    <input
+                      type="hidden"
+                      name="noteId"
+                      value={note.id}
+                    />
+
                     <button className="text-xs font-semibold text-[#9a554d] hover:underline">
                       Delete
                     </button>
@@ -311,12 +335,13 @@ export default async function ClientPage({ params }: Props) {
               ))}
 
               {(notes ?? []).length === 0 ? (
-                <p className="text-sm text-[#708075]">No notes yet.</p>
+                <p className="text-sm text-[#708075]">
+                  No notes yet.
+                </p>
               ) : null}
             </div>
           </section>
 
-          {/* RIGHT: History + Scheduler, stacked */}
           <div className="space-y-6">
             <ClientHistory items={combinedHistory} />
 
@@ -327,7 +352,9 @@ export default async function ClientPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Client Info — full width, sits above Client Documents */}
+        {/* TIMER HISTORY */}
+        <ClientTimerHistory clientId={clientId} />
+
         <section className="rounded-2xl border border-[#dfe6db] bg-white p-6">
           <h2 className="text-lg font-bold text-[#243128]">
             Client Info
@@ -338,7 +365,10 @@ export default async function ClientPage({ params }: Props) {
               <p className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
                 Email
               </p>
-              <p className="mt-1 text-[#243128]">{client.email}</p>
+
+              <p className="mt-1 text-[#243128]">
+                {client.email}
+              </p>
             </div>
 
             {client.phone ? (
@@ -346,7 +376,10 @@ export default async function ClientPage({ params }: Props) {
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
                   Phone
                 </p>
-                <p className="mt-1 text-[#243128]">{client.phone}</p>
+
+                <p className="mt-1 text-[#243128]">
+                  {client.phone}
+                </p>
               </div>
             ) : null}
 
@@ -355,7 +388,10 @@ export default async function ClientPage({ params }: Props) {
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
                   Address
                 </p>
-                <p className="mt-1 text-[#243128]">{client.address}</p>
+
+                <p className="mt-1 text-[#243128]">
+                  {client.address}
+                </p>
               </div>
             ) : null}
 
@@ -364,8 +400,11 @@ export default async function ClientPage({ params }: Props) {
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
                   Client Since
                 </p>
+
                 <p className="mt-1 text-[#243128]">
-                  {new Date(client.created_at).toLocaleDateString("en-US", {
+                  {new Date(
+                    client.created_at
+                  ).toLocaleDateString("en-US", {
                     month: "long",
                     day: "numeric",
                     year: "numeric",
