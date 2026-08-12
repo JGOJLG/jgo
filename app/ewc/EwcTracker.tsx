@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -23,6 +24,7 @@ export type EwcEntry = {
   service_type: string;
   amount_owed: number;
   amount_paid: number;
+  stripe_fee: number;
   date_paid: string | null;
   notes: string | null;
   sort_order: number;
@@ -30,43 +32,19 @@ export type EwcEntry = {
   updated_at: string;
 };
 
-type EditableKey =
-  | "client_name"
-  | "service_date"
-  | "service_type"
-  | "amount_owed"
-  | "amount_paid"
-  | "date_paid"
-  | "notes";
-
-const editableColumns: EditableKey[] = [
-  "client_name",
-  "service_date",
-  "service_type",
-  "amount_owed",
-  "amount_paid",
-  "date_paid",
-  "notes",
-];
-
-const fieldLabels: Record<EditableKey, string> = {
-  client_name: "Client",
-  service_date: "Date",
-  service_type: "Service",
-  amount_owed: "Owed",
-  amount_paid: "Paid",
-  date_paid: "Date Paid",
-  notes: "Notes",
-};
+type TextField = "client_name" | "service_date" | "service_type" | "date_paid" | "notes";
+type MoneyField = "amount_owed" | "amount_paid" | "stripe_fee";
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(Number.isFinite(value) ? value : 0);
 }
 
-function numberValue(value: string) {
+function parseMoney(value: string) {
   const parsed = Number(value.replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
 }
@@ -75,21 +53,56 @@ function getOutstanding(row: EwcEntry) {
   return Math.max(Number(row.amount_owed || 0) - Number(row.amount_paid || 0), 0);
 }
 
-function getPaymentStatus(row: EwcEntry) {
-  const owed = Number(row.amount_owed || 0);
-  const paid = Number(row.amount_paid || 0);
+function MoneyInput({
+  id,
+  value,
+  onCommit,
+  onMove,
+}: {
+  id: string;
+  value: number;
+  onCommit: (value: number) => void;
+  onMove: (event: KeyboardEvent<HTMLInputElement>) => void;
+}) {
+  const [draft, setDraft] = useState(Number(value || 0).toFixed(2));
 
-  if (owed <= 0 && paid <= 0) return "Not Set";
-  if (paid >= owed && owed > 0) return "Paid";
-  if (paid > 0) return "Partial";
-  return "Outstanding";
-}
+  useEffect(() => {
+    setDraft(Number(value || 0).toFixed(2));
+  }, [value]);
 
-function statusStyle(status: string) {
-  if (status === "Paid") return "bg-[#e7f0e4] text-[#4d6f46]";
-  if (status === "Partial") return "bg-[#f6ecd9] text-[#8f6d37]";
-  if (status === "Outstanding") return "bg-[#f7e7e4] text-[#9a554d]";
-  return "bg-[#eef2e9] text-[#708075]";
+  function commit() {
+    const parsed = parseMoney(draft);
+    setDraft(parsed.toFixed(2));
+    onCommit(parsed);
+  }
+
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      value={draft}
+      onFocus={(event) => event.currentTarget.select()}
+      onChange={(event) => {
+        let next = event.target.value.replace(/[^0-9.-]/g, "");
+        const firstDot = next.indexOf(".");
+        if (firstDot >= 0) {
+          next =
+            next.slice(0, firstDot + 1) +
+            next.slice(firstDot + 1).replace(/\./g, "");
+        }
+        setDraft(next);
+      }}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", "Enter"].includes(event.key)) {
+          commit();
+          onMove(event);
+        }
+      }}
+      className="h-full w-full border-0 bg-transparent px-3 py-2.5 text-right text-sm text-[#243128] outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_rgba(100,125,91,0.24)]"
+    />
+  );
 }
 
 export default function EwcTracker({
@@ -98,87 +111,62 @@ export default function EwcTracker({
   initialEntries: EwcEntry[];
 }) {
   const [entries, setEntries] = useState(initialEntries);
-  const [dragged, setDragged] = useState<{
-    section: EwcEntryType;
-    id: number;
-  } | null>(null);
+  const [dragged, setDragged] = useState<{ section: EwcEntryType; id: number } | null>(null);
   const [savedMessage, setSavedMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const sessions = useMemo(
-    () =>
-      entries
-        .filter((entry) => entry.section === "Session")
-        .sort((a, b) => a.sort_order - b.sort_order),
-    [entries],
-  );
+  const bySection = (section: EwcEntryType) =>
+    entries
+      .filter((entry) => entry.section === section)
+      .sort((a, b) => a.sort_order - b.sort_order);
 
-  const linkedin = useMemo(
-    () =>
-      entries
-        .filter((entry) => entry.section === "LinkedIn")
-        .sort((a, b) => a.sort_order - b.sort_order),
-    [entries],
-  );
+  const sessions = useMemo(() => bySection("Session"), [entries]);
+  const linkedin = useMemo(() => bySection("LinkedIn"), [entries]);
+  const other = useMemo(() => bySection("Other"), [entries]);
 
   const totals = useMemo(() => {
-    const all = entries.reduce(
-      (acc, row) => {
-        acc.owed += Number(row.amount_owed || 0);
-        acc.paid += Number(row.amount_paid || 0);
-        return acc;
-      },
-      { owed: 0, paid: 0 },
-    );
+    const paid = entries.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
+    const stripe = entries.reduce((sum, row) => sum + Number(row.stripe_fee || 0), 0);
+    const owed = entries
+      .filter((row) => row.section !== "LinkedIn")
+      .reduce((sum, row) => sum + Number(row.amount_owed || 0), 0);
 
     return {
-      owed: all.owed,
-      paid: all.paid,
-      outstanding: Math.max(all.owed - all.paid, 0),
-      clients: entries.length,
+      owed,
+      paid,
+      received: paid - stripe,
+      outstanding: entries
+        .filter((row) => row.section !== "LinkedIn")
+        .reduce((sum, row) => sum + getOutstanding(row), 0),
     };
   }, [entries]);
 
   function flashSaved(message = "Saved") {
     setSavedMessage(message);
-
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-    }
-
-    saveTimer.current = setTimeout(() => {
-      setSavedMessage("");
-    }, 1800);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => setSavedMessage(""), 1800);
   }
 
-  function updateLocal(
-    id: number,
-    field: EditableKey,
-    value: string | number,
-  ) {
+  function updateLocal(id: number, field: TextField | MoneyField, value: string | number) {
     setEntries((current) =>
-      current.map((row) =>
-        row.id === id
-          ? {
-              ...row,
-              [field]: value,
-            }
-          : row,
-      ),
+      current.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
     );
   }
 
-  function persistRow(row: EwcEntry) {
+  function persistRow(row: EwcEntry, overrides: Partial<EwcEntry> = {}) {
+    const nextRow = { ...row, ...overrides };
     const formData = new FormData();
-    formData.set("id", String(row.id));
-    formData.set("client_name", row.client_name);
-    formData.set("service_date", row.service_date ?? "");
-    formData.set("service_type", row.service_type);
-    formData.set("amount_owed", String(row.amount_owed ?? 0));
-    formData.set("amount_paid", String(row.amount_paid ?? 0));
-    formData.set("date_paid", row.date_paid ?? "");
-    formData.set("notes", row.notes ?? "");
+
+    formData.set("id", String(nextRow.id));
+    formData.set("client_name", nextRow.client_name);
+    formData.set("service_date", nextRow.service_date ?? "");
+    formData.set("service_type", nextRow.service_type);
+    formData.set("amount_owed", String(nextRow.amount_owed ?? 0));
+    formData.set("amount_paid", String(nextRow.amount_paid ?? 0));
+    formData.set("stripe_fee", String(nextRow.stripe_fee ?? 0));
+    formData.set("date_paid", nextRow.date_paid ?? "");
+    formData.set("notes", nextRow.notes ?? "");
 
     startTransition(async () => {
       try {
@@ -189,6 +177,11 @@ export default function EwcTracker({
         flashSaved("Could not save");
       }
     });
+  }
+
+  function saveMoney(row: EwcEntry, field: MoneyField, value: number) {
+    updateLocal(row.id, field, value);
+    persistRow(row, { [field]: value });
   }
 
   function addRow(section: EwcEntryType) {
@@ -217,7 +210,7 @@ export default function EwcTracker({
     });
   }
 
-  function getCellId(id: number, field: EditableKey) {
+  function getCellId(id: number, field: string) {
     return `ewc-cell-${id}-${field}`;
   }
 
@@ -225,21 +218,20 @@ export default function EwcTracker({
     event: KeyboardEvent<HTMLInputElement>,
     rows: EwcEntry[],
     rowIndex: number,
-    field: EditableKey,
+    columns: string[],
+    field: string,
   ) {
-    const columnIndex = editableColumns.indexOf(field);
-    let targetRowIndex = rowIndex;
-    let targetColumnIndex = columnIndex;
+    let row = rowIndex;
+    let column = columns.indexOf(field);
 
-    if (event.key === "ArrowRight") targetColumnIndex += 1;
-    else if (event.key === "ArrowLeft") targetColumnIndex -= 1;
-    else if (event.key === "ArrowDown" || event.key === "Enter")
-      targetRowIndex += 1;
-    else if (event.key === "ArrowUp") targetRowIndex -= 1;
+    if (event.key === "ArrowRight") column += 1;
+    else if (event.key === "ArrowLeft") column -= 1;
+    else if (event.key === "ArrowDown" || event.key === "Enter") row += 1;
+    else if (event.key === "ArrowUp") row -= 1;
     else return;
 
-    const targetRow = rows[targetRowIndex];
-    const targetField = editableColumns[targetColumnIndex];
+    const targetRow = rows[row];
+    const targetField = columns[column];
 
     if (!targetRow || !targetField) return;
 
@@ -252,31 +244,19 @@ export default function EwcTracker({
     target?.select();
   }
 
-  function reorderWithinSection(
-    section: EwcEntryType,
-    targetId: number,
-  ) {
-    if (!dragged || dragged.section !== section || dragged.id === targetId) {
-      return;
-    }
+  function reorderWithinSection(section: EwcEntryType, targetId: number) {
+    if (!dragged || dragged.section !== section || dragged.id === targetId) return;
 
-    const sectionRows = entries
-      .filter((row) => row.section === section)
-      .sort((a, b) => a.sort_order - b.sort_order);
-
-    const fromIndex = sectionRows.findIndex((row) => row.id === dragged.id);
-    const toIndex = sectionRows.findIndex((row) => row.id === targetId);
-
+    const rows = bySection(section);
+    const fromIndex = rows.findIndex((row) => row.id === dragged.id);
+    const toIndex = rows.findIndex((row) => row.id === targetId);
     if (fromIndex < 0 || toIndex < 0) return;
 
-    const reordered = [...sectionRows];
+    const reordered = [...rows];
     const [moved] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex, 0, moved);
 
-    const orderMap = new Map(
-      reordered.map((row, index) => [row.id, index + 1]),
-    );
-
+    const orderMap = new Map(reordered.map((row, index) => [row.id, index + 1]));
     setEntries((current) =>
       current.map((row) =>
         row.section === section
@@ -284,15 +264,11 @@ export default function EwcTracker({
           : row,
       ),
     );
-
     setDragged(null);
 
     startTransition(async () => {
       try {
-        await reorderEwcEntries(
-          section,
-          reordered.map((row) => row.id),
-        );
+        await reorderEwcEntries(section, reordered.map((row) => row.id));
         flashSaved("Order saved");
       } catch (error) {
         console.error(error);
@@ -301,32 +277,43 @@ export default function EwcTracker({
     });
   }
 
-  function renderTable(section: EwcEntryType, rows: EwcEntry[]) {
+  const textInputClass =
+    "h-full w-full border-0 bg-transparent px-3 py-2.5 text-sm text-[#243128] outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_rgba(100,125,91,0.24)]";
+
+  function standardTable(section: "Session" | "Other", rows: EwcEntry[]) {
+    const columns = [
+      "client_name",
+      "service_date",
+      "service_type",
+      "amount_owed",
+      "amount_paid",
+      "notes",
+    ];
+
     return (
       <section className="overflow-hidden rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[#dfe6db] bg-[#fbfaf6] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-[#243128]">{section}s</h2>
+            <h2 className="text-xl font-bold text-[#243128]">{section === "Session" ? "Sessions" : "Other"}</h2>
             <p className="mt-1 text-sm text-[#708075]">
               {section === "Session"
-                ? "Track every EWC coaching session and payment."
-                : "Track EWC LinkedIn work and payment."}
+                ? "Track EWC coaching sessions and payments."
+                : "Track any EWC work that does not fit Sessions or LinkedIn."}
             </p>
           </div>
-
           <button
             type="button"
             onClick={() => addRow(section)}
             disabled={isPending}
-            className="rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#4d6247] disabled:opacity-60"
+            className="rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#4d6247] disabled:opacity-60"
           >
-            + Add {section === "Session" ? "Session" : "LinkedIn Client"}
+            + Add {section === "Session" ? "Session" : "Other"}
           </button>
         </div>
 
         <div className="overflow-x-auto">
           <div className="min-w-[1180px]">
-            <div className="grid grid-cols-[44px_210px_125px_165px_110px_110px_110px_125px_120px_1fr_44px] border-b border-[#dfe6db] bg-[#eef2ea] text-[10px] font-bold uppercase tracking-[0.1em] text-[#647066]">
+            <div className="grid grid-cols-[44px_220px_130px_180px_120px_120px_130px_1fr_44px] border-b border-[#dfe6db] bg-[#eef2ea] text-[10px] font-bold uppercase tracking-[0.1em] text-[#647066]">
               <div className="border-r border-[#dfe6db] px-2 py-3 text-center">#</div>
               <div className="border-r border-[#dfe6db] px-3 py-3">Client</div>
               <div className="border-r border-[#dfe6db] px-3 py-3 text-center">Date</div>
@@ -334,31 +321,21 @@ export default function EwcTracker({
               <div className="border-r border-[#dfe6db] px-3 py-3 text-center">Owed</div>
               <div className="border-r border-[#dfe6db] px-3 py-3 text-center">Paid</div>
               <div className="border-r border-[#dfe6db] px-3 py-3 text-center">Outstanding</div>
-              <div className="border-r border-[#dfe6db] px-3 py-3 text-center">Date Paid</div>
-              <div className="border-r border-[#dfe6db] px-3 py-3 text-center">Status</div>
               <div className="border-r border-[#dfe6db] px-3 py-3">Notes</div>
               <div />
             </div>
 
             {rows.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-[#708075]">
-                No {section.toLowerCase()} entries yet. Add your first one above.
-              </div>
+              <div className="px-5 py-10 text-center text-sm text-[#708075]">No entries yet.</div>
             ) : null}
 
             {rows.map((row, rowIndex) => {
-              const outstanding = getOutstanding(row);
-              const status = getPaymentStatus(row);
-
-              const inputClass =
-                "h-full w-full border-0 bg-transparent px-3 py-2.5 text-sm text-[#243128] outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_rgba(100,125,91,0.24)]";
-
               return (
                 <div
                   key={row.id}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={() => reorderWithinSection(section, row.id)}
-                  className={`group grid grid-cols-[44px_210px_125px_165px_110px_110px_110px_125px_120px_1fr_44px] border-b border-[#edf0ea] ${
+                  className={`group grid grid-cols-[44px_220px_130px_180px_120px_120px_130px_1fr_44px] border-b border-[#edf0ea] ${
                     rowIndex % 2 === 0 ? "bg-white" : "bg-[#fcfdfb]"
                   } hover:bg-[#f8faf6]`}
                 >
@@ -366,196 +343,199 @@ export default function EwcTracker({
                     type="button"
                     draggable
                     onDragStart={() => setDragged({ section, id: row.id })}
-                    className="cursor-grab border-r border-[#edf0ea] text-[#a5aea6] opacity-50 transition group-hover:opacity-100"
-                    title="Drag to reorder"
-                    aria-label="Drag to reorder"
+                    className="cursor-grab border-r border-[#edf0ea] text-[#a5aea6] opacity-50 group-hover:opacity-100"
                   >
                     ⋮⋮
                   </button>
 
-                  <div className="border-r border-[#edf0ea]">
-                    <input
-                      id={getCellId(row.id, "client_name")}
-                      value={row.client_name}
-                      onChange={(event) =>
-                        updateLocal(row.id, "client_name", event.target.value)
-                      }
-                      onBlur={() => persistRow(row)}
-                      onKeyDown={(event) =>
-                        moveFocus(event, rows, rowIndex, "client_name")
-                      }
-                      placeholder="Client name"
-                      className={inputClass}
-                    />
-                  </div>
+                  {(["client_name", "service_date", "service_type"] as TextField[]).map((field) => (
+                    <div key={field} className="border-r border-[#edf0ea]">
+                      <input
+                        id={getCellId(row.id, field)}
+                        type={field === "service_date" ? "date" : "text"}
+                        value={String(row[field] ?? "")}
+                        onChange={(event) => updateLocal(row.id, field, event.target.value)}
+                        onBlur={() => persistRow(row)}
+                        onKeyDown={(event) => moveFocus(event, rows, rowIndex, columns, field)}
+                        placeholder={field === "client_name" ? "Client name" : field === "service_type" ? "Service" : ""}
+                        className={textInputClass}
+                      />
+                    </div>
+                  ))}
 
                   <div className="border-r border-[#edf0ea]">
-                    <input
-                      id={getCellId(row.id, "service_date")}
-                      type="date"
-                      value={row.service_date ?? ""}
-                      onChange={(event) =>
-                        updateLocal(row.id, "service_date", event.target.value)
-                      }
-                      onBlur={() => persistRow(row)}
-                      onKeyDown={(event) =>
-                        moveFocus(event, rows, rowIndex, "service_date")
-                      }
-                      className={inputClass}
-                    />
-                  </div>
-
-                  <div className="border-r border-[#edf0ea]">
-                    <input
-                      id={getCellId(row.id, "service_type")}
-                      value={row.service_type}
-                      onChange={(event) =>
-                        updateLocal(row.id, "service_type", event.target.value)
-                      }
-                      onBlur={() => persistRow(row)}
-                      onKeyDown={(event) =>
-                        moveFocus(event, rows, rowIndex, "service_type")
-                      }
-                      placeholder={
-                        section === "Session" ? "1 hour" : "LinkedIn Review"
-                      }
-                      className={inputClass}
-                    />
-                  </div>
-
-                  <div className="flex items-center border-r border-[#edf0ea]">
-                    <span className="pl-2 text-xs text-[#8a968d]">$</span>
-                    <input
+                    <MoneyInput
                       id={getCellId(row.id, "amount_owed")}
-                      inputMode="decimal"
-                      value={row.amount_owed || ""}
-                      onChange={(event) =>
-                        updateLocal(
-                          row.id,
-                          "amount_owed",
-                          numberValue(event.target.value),
-                        )
-                      }
-                      onBlur={() => persistRow(row)}
-                      onKeyDown={(event) =>
-                        moveFocus(event, rows, rowIndex, "amount_owed")
-                      }
-                      placeholder="0"
-                      className={`${inputClass} text-right`}
+                      value={row.amount_owed}
+                      onCommit={(value) => saveMoney(row, "amount_owed", value)}
+                      onMove={(event) => moveFocus(event, rows, rowIndex, columns, "amount_owed")}
                     />
                   </div>
 
-                  <div className="flex items-center border-r border-[#edf0ea]">
-                    <span className="pl-2 text-xs text-[#8a968d]">$</span>
-                    <input
+                  <div className="border-r border-[#edf0ea]">
+                    <MoneyInput
                       id={getCellId(row.id, "amount_paid")}
-                      inputMode="decimal"
-                      value={row.amount_paid || ""}
-                      onChange={(event) =>
-                        updateLocal(
-                          row.id,
-                          "amount_paid",
-                          numberValue(event.target.value),
-                        )
-                      }
-                      onBlur={() => persistRow(row)}
-                      onKeyDown={(event) =>
-                        moveFocus(event, rows, rowIndex, "amount_paid")
-                      }
-                      placeholder="0"
-                      className={`${inputClass} text-right`}
+                      value={row.amount_paid}
+                      onCommit={(value) => saveMoney(row, "amount_paid", value)}
+                      onMove={(event) => moveFocus(event, rows, rowIndex, columns, "amount_paid")}
                     />
                   </div>
 
                   <div className="flex items-center justify-center border-r border-[#edf0ea] bg-[#fbf6f3] px-2 text-sm font-semibold text-[#9a554d]">
-                    {money(outstanding)}
-                  </div>
-
-                  <div className="border-r border-[#edf0ea]">
-                    <input
-                      id={getCellId(row.id, "date_paid")}
-                      type="date"
-                      value={row.date_paid ?? ""}
-                      onChange={(event) =>
-                        updateLocal(row.id, "date_paid", event.target.value)
-                      }
-                      onBlur={() => persistRow(row)}
-                      onKeyDown={(event) =>
-                        moveFocus(event, rows, rowIndex, "date_paid")
-                      }
-                      className={inputClass}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-center border-r border-[#edf0ea] px-2">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyle(
-                        status,
-                      )}`}
-                    >
-                      {status}
-                    </span>
+                    {money(getOutstanding(row))}
                   </div>
 
                   <div className="border-r border-[#edf0ea]">
                     <input
                       id={getCellId(row.id, "notes")}
                       value={row.notes ?? ""}
-                      onChange={(event) =>
-                        updateLocal(row.id, "notes", event.target.value)
-                      }
+                      onChange={(event) => updateLocal(row.id, "notes", event.target.value)}
                       onBlur={() => persistRow(row)}
-                      onKeyDown={(event) =>
-                        moveFocus(event, rows, rowIndex, "notes")
-                      }
+                      onKeyDown={(event) => moveFocus(event, rows, rowIndex, columns, "notes")}
                       placeholder="Notes"
-                      className={inputClass}
+                      className={textInputClass}
                     />
                   </div>
 
                   <button
                     type="button"
                     onClick={() => removeRow(row.id)}
-                    className="text-[#a45f58] opacity-0 transition hover:bg-[#fbefed] group-hover:opacity-100"
-                    aria-label={`Delete ${row.client_name || "row"}`}
+                    className="text-[#a45f58] opacity-0 hover:bg-[#fbefed] group-hover:opacity-100"
                   >
                     ×
                   </button>
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
-            <div className="grid grid-cols-[44px_210px_125px_165px_110px_110px_110px_125px_120px_1fr_44px] bg-[#f8faf6] text-sm font-semibold text-[#4d6247]">
-              <div />
-              <div className="px-3 py-3">{section} Total</div>
-              <div />
-              <div />
-              <div className="px-3 py-3 text-right">
-                {money(
-                  rows.reduce(
-                    (sum, row) => sum + Number(row.amount_owed || 0),
-                    0,
-                  ),
-                )}
-              </div>
-              <div className="px-3 py-3 text-right">
-                {money(
-                  rows.reduce(
-                    (sum, row) => sum + Number(row.amount_paid || 0),
-                    0,
-                  ),
-                )}
-              </div>
-              <div className="px-3 py-3 text-right text-[#9a554d]">
-                {money(
-                  rows.reduce((sum, row) => sum + getOutstanding(row), 0),
-                )}
-              </div>
-              <div />
-              <div />
-              <div />
+  function linkedinTable(rows: EwcEntry[]) {
+    const columns = [
+      "client_name",
+      "service_date",
+      "service_type",
+      "amount_paid",
+      "stripe_fee",
+      "notes",
+    ];
+
+    return (
+      <section className="overflow-hidden rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-[#dfe6db] bg-[#fbfaf6] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-[#243128]">LinkedIn</h2>
+            <p className="mt-1 text-sm text-[#708075]">
+              Track LinkedIn clients, Stripe fees, and what you actually received.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => addRow("LinkedIn")}
+            disabled={isPending}
+            className="rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#4d6247] disabled:opacity-60"
+          >
+            + Add LinkedIn Client
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="min-w-[1020px]">
+            <div className="grid grid-cols-[44px_220px_130px_190px_125px_125px_145px_1fr_44px] border-b border-[#dfe6db] bg-[#eef2ea] text-[10px] font-bold uppercase tracking-[0.1em] text-[#647066]">
+              <div className="border-r border-[#dfe6db] px-2 py-3 text-center">#</div>
+              <div className="border-r border-[#dfe6db] px-3 py-3">Client</div>
+              <div className="border-r border-[#dfe6db] px-3 py-3 text-center">Date</div>
+              <div className="border-r border-[#dfe6db] px-3 py-3">Service</div>
+              <div className="border-r border-[#dfe6db] px-3 py-3 text-center">Paid</div>
+              <div className="border-r border-[#dfe6db] px-3 py-3 text-center">Stripe Fee</div>
+              <div className="border-r border-[#dfe6db] px-3 py-3 text-center">Total Received</div>
+              <div className="border-r border-[#dfe6db] px-3 py-3">Notes</div>
               <div />
             </div>
+
+            {rows.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-[#708075]">No LinkedIn entries yet.</div>
+            ) : null}
+
+            {rows.map((row, rowIndex) => (
+              <div
+                key={row.id}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => reorderWithinSection("LinkedIn", row.id)}
+                className={`group grid grid-cols-[44px_220px_130px_190px_125px_125px_145px_1fr_44px] border-b border-[#edf0ea] ${
+                  rowIndex % 2 === 0 ? "bg-white" : "bg-[#fcfdfb]"
+                } hover:bg-[#f8faf6]`}
+              >
+                <button
+                  type="button"
+                  draggable
+                  onDragStart={() => setDragged({ section: "LinkedIn", id: row.id })}
+                  className="cursor-grab border-r border-[#edf0ea] text-[#a5aea6] opacity-50 group-hover:opacity-100"
+                >
+                  ⋮⋮
+                </button>
+
+                {(["client_name", "service_date", "service_type"] as TextField[]).map((field) => (
+                  <div key={field} className="border-r border-[#edf0ea]">
+                    <input
+                      id={getCellId(row.id, field)}
+                      type={field === "service_date" ? "date" : "text"}
+                      value={String(row[field] ?? "")}
+                      onChange={(event) => updateLocal(row.id, field, event.target.value)}
+                      onBlur={() => persistRow(row)}
+                      onKeyDown={(event) => moveFocus(event, rows, rowIndex, columns, field)}
+                      placeholder={field === "client_name" ? "Client name" : field === "service_type" ? "LinkedIn service" : ""}
+                      className={textInputClass}
+                    />
+                  </div>
+                ))}
+
+                <div className="border-r border-[#edf0ea]">
+                  <MoneyInput
+                    id={getCellId(row.id, "amount_paid")}
+                    value={row.amount_paid}
+                    onCommit={(value) => saveMoney(row, "amount_paid", value)}
+                    onMove={(event) => moveFocus(event, rows, rowIndex, columns, "amount_paid")}
+                  />
+                </div>
+
+                <div className="border-r border-[#edf0ea]">
+                  <MoneyInput
+                    id={getCellId(row.id, "stripe_fee")}
+                    value={row.stripe_fee}
+                    onCommit={(value) => saveMoney(row, "stripe_fee", value)}
+                    onMove={(event) => moveFocus(event, rows, rowIndex, columns, "stripe_fee")}
+                  />
+                </div>
+
+                <div className="flex items-center justify-center border-r border-[#edf0ea] bg-[#f5f8f2] px-2 text-sm font-bold text-[#56754f]">
+                  {money(Number(row.amount_paid || 0) - Number(row.stripe_fee || 0))}
+                </div>
+
+                <div className="border-r border-[#edf0ea]">
+                  <input
+                    id={getCellId(row.id, "notes")}
+                    value={row.notes ?? ""}
+                    onChange={(event) => updateLocal(row.id, "notes", event.target.value)}
+                    onBlur={() => persistRow(row)}
+                    onKeyDown={(event) => moveFocus(event, rows, rowIndex, columns, "notes")}
+                    placeholder="Notes"
+                    className={textInputClass}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => removeRow(row.id)}
+                  className="text-[#a45f58] opacity-0 hover:bg-[#fbefed] group-hover:opacity-100"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -565,15 +545,13 @@ export default function EwcTracker({
   return (
     <section className="min-w-0 flex-1 bg-[#f7f8f3] text-[#243128]">
       <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7f9975]">
-            Emily Weiss Consulting
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight">EWC</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#708075]">
-            Track every client sent through EWC, the work completed, and the money owed and paid in one place.
-          </p>
-        </div>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7f9975]">
+          Emily Weiss Consulting
+        </p>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight">EWC</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#708075]">
+          Track Sessions, LinkedIn work, and Other EWC clients in one place.
+        </p>
       </header>
 
       <div className="space-y-7 p-6 lg:p-10">
@@ -582,38 +560,28 @@ export default function EwcTracker({
             <p className="text-sm font-medium text-[#708075]">Total Owed</p>
             <p className="mt-3 text-3xl font-bold">{money(totals.owed)}</p>
           </div>
-
           <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
             <p className="text-sm font-medium text-[#708075]">Total Paid</p>
-            <p className="mt-3 text-3xl font-bold text-[#56754f]">
-              {money(totals.paid)}
-            </p>
+            <p className="mt-3 text-3xl font-bold text-[#56754f]">{money(totals.paid)}</p>
           </div>
-
+          <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
+            <p className="text-sm font-medium text-[#708075]">Total Received</p>
+            <p className="mt-3 text-3xl font-bold text-[#56754f]">{money(totals.received)}</p>
+          </div>
           <div className="rounded-2xl border border-[#ead4d0] bg-[#fffdfc] p-5 shadow-sm">
             <p className="text-sm font-medium text-[#8b6a65]">Outstanding</p>
-            <p className="mt-3 text-3xl font-bold text-[#9a554d]">
-              {money(totals.outstanding)}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-[#708075]">Entries</p>
-            <p className="mt-3 text-3xl font-bold">{totals.clients}</p>
+            <p className="mt-3 text-3xl font-bold text-[#9a554d]">{money(totals.outstanding)}</p>
           </div>
         </section>
 
         <div className="flex items-center justify-between rounded-xl border border-[#dfe6db] bg-white px-4 py-3 text-xs text-[#708075]">
-          <span>
-            Spreadsheet mode: use arrow keys to move across cells and Enter to move down.
-          </span>
-          <span className="font-semibold text-[#647d5b]">
-            {isPending ? "Saving..." : savedMessage || "Auto-saves"}
-          </span>
+          <span>Money fields support cents. Arrow keys move across cells and Enter moves down.</span>
+          <span className="font-semibold text-[#647d5b]">{isPending ? "Saving..." : savedMessage || "Auto-saves"}</span>
         </div>
 
-        {renderTable("Session", sessions)}
-        {renderTable("LinkedIn", linkedin)}
+        {standardTable("Session", sessions)}
+        {linkedinTable(linkedin)}
+        {standardTable("Other", other)}
       </div>
 
       {savedMessage ? (

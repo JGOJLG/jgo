@@ -3,15 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
 
-export type EwcEntryType = "Session" | "LinkedIn";
+export type EwcEntryType = "Session" | "LinkedIn" | "Other";
 
 function cleanText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
 }
 
 function cleanOptional(value: FormDataEntryValue | null) {
-  const valueText = cleanText(value);
-  return valueText === "" ? null : valueText;
+  const text = cleanText(value);
+  return text === "" ? null : text;
 }
 
 function cleanNumber(value: FormDataEntryValue | null) {
@@ -30,27 +30,29 @@ export async function createEwcEntry(section: EwcEntryType) {
     .limit(1)
     .maybeSingle();
 
-  const nextSortOrder = (lastRow?.sort_order ?? 0) + 1;
-
   const { data, error } = await supabase
     .from("ewc_entries")
     .insert({
       section,
       client_name: "",
       service_date: null,
-      service_type: section === "Session" ? "Session" : "LinkedIn",
+      service_type:
+        section === "Session"
+          ? "Session"
+          : section === "LinkedIn"
+            ? "LinkedIn"
+            : "Other",
       amount_owed: 0,
       amount_paid: 0,
+      stripe_fee: 0,
       date_paid: null,
       notes: null,
-      sort_order: nextSortOrder,
+      sort_order: (lastRow?.sort_order ?? 0) + 1,
     })
     .select("*")
     .single();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   revalidatePath("/ewc");
   return data;
@@ -60,9 +62,7 @@ export async function updateEwcEntry(formData: FormData) {
   const supabase = await createClient();
   const id = Number(formData.get("id"));
 
-  if (!id) {
-    throw new Error("EWC entry ID is required.");
-  }
+  if (!id) throw new Error("EWC entry ID is required.");
 
   const { error } = await supabase
     .from("ewc_entries")
@@ -72,15 +72,14 @@ export async function updateEwcEntry(formData: FormData) {
       service_type: cleanText(formData.get("service_type")),
       amount_owed: cleanNumber(formData.get("amount_owed")),
       amount_paid: cleanNumber(formData.get("amount_paid")),
+      stripe_fee: cleanNumber(formData.get("stripe_fee")),
       date_paid: cleanOptional(formData.get("date_paid")),
       notes: cleanOptional(formData.get("notes")),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   revalidatePath("/ewc");
 }
@@ -88,14 +87,9 @@ export async function updateEwcEntry(formData: FormData) {
 export async function deleteEwcEntry(id: number) {
   const supabase = await createClient();
 
-  const { error } = await supabase
-    .from("ewc_entries")
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.from("ewc_entries").delete().eq("id", id);
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   revalidatePath("/ewc");
 }
@@ -106,23 +100,21 @@ export async function reorderEwcEntries(
 ) {
   const supabase = await createClient();
 
-  const updates = orderedIds.map((id, index) =>
-    supabase
-      .from("ewc_entries")
-      .update({
-        sort_order: index + 1,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq("section", section),
+  const results = await Promise.all(
+    orderedIds.map((id, index) =>
+      supabase
+        .from("ewc_entries")
+        .update({
+          sort_order: index + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("section", section),
+    ),
   );
 
-  const results = await Promise.all(updates);
   const failed = results.find((result) => result.error);
-
-  if (failed?.error) {
-    throw new Error(failed.error.message);
-  }
+  if (failed?.error) throw new Error(failed.error.message);
 
   revalidatePath("/ewc");
 }
