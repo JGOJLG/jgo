@@ -15,6 +15,35 @@ export default async function EmailHubPage() {
     supabase.from("email_messages").select("id, client_id, recipient_name, recipient_email, subject, body, template_id, sent_at").order("sent_at", { ascending: false }).limit(500),
   ]);
 
-  const contacts = ((contactsResult.data ?? []) as Contact[]).filter((contact) => contact.email?.trim() && contact.name?.trim());
-  return <EmailHubClient contacts={contacts} initialEmailContacts={(emailContactsResult.data ?? []) as EmailContact[]} initialTemplates={(templatesResult.data ?? []) as EmailTemplateRow[]} initialSent={(messagesResult.data ?? []) as EmailMessageRow[]} />;
+  const clientContacts = ((contactsResult.data ?? []) as Contact[]).filter((contact) => contact.email?.trim());
+  const emailContacts = (emailContactsResult.data ?? []) as EmailContact[];
+  const messages = (messagesResult.data ?? []) as EmailMessageRow[];
+
+  const rememberedContacts = [
+    ...clientContacts,
+    ...emailContacts.map((contact) => ({
+      id: contact.client_id ?? 0,
+      name: contact.name,
+      email: contact.email,
+      status: contact.client_id ? "Client" : "Email Contact",
+      company: contact.company,
+    })),
+    ...messages.map((message) => ({
+      id: message.client_id ?? 0,
+      name: message.recipient_name,
+      email: message.recipient_email,
+      status: message.client_id ? "Client" : "Previously Emailed",
+      company: null,
+    })),
+  ];
+
+  const contacts = Array.from(
+    new Map(
+      rememberedContacts
+        .filter((contact) => contact.email?.trim())
+        .map((contact) => [contact.email!.trim().toLowerCase(), { ...contact, email: contact.email!.trim().toLowerCase() }])
+    ).values()
+  ).sort((a, b) => (a.name || a.email || "").localeCompare(b.name || b.email || ""));
+
+  return <EmailHubClient contacts={contacts} initialEmailContacts={emailContacts} initialTemplates={(templatesResult.data ?? []) as EmailTemplateRow[]} initialSent={messages} />;
 }
