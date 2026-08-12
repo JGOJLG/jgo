@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase-server";
 import EmailHubClient from "./EmailHubClient";
 import TemplateDeleteGuard from "./TemplateDeleteGuard";
+import EmailSuccessBridge from "./EmailSuccessBridge";
 
 type Contact = { id: number; name: string | null; email: string | null; status: string | null; company: string | null };
 type EmailContact = { id: number; name: string | null; email: string; company: string | null; client_id: number | null; first_contacted_at: string | null; last_contacted_at: string | null; email_count: number; marketing_opt_in: boolean; notes: string | null };
@@ -49,6 +50,7 @@ export default async function EmailHubPage() {
   return (
     <>
       <TemplateDeleteGuard />
+      <EmailSuccessBridge />
       <EmailHubClient contacts={contacts} initialEmailContacts={emailContacts} initialTemplates={(templatesResult.data ?? []) as EmailTemplateRow[]} initialSent={messages} />
     </>
   );
