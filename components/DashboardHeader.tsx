@@ -1,5 +1,6 @@
 import Link from "next/link";
 import HeaderTimeClocks from "@/components/HeaderTimeClocks";
+import DashboardUpcomingMeetings from "@/components/DashboardUpcomingMeetings";
 
 type WeatherResponse = {
   current?: {
@@ -288,6 +289,8 @@ export default async function DashboardHeader() {
           + Add Client
         </Link>
       </div>
+
+      <DashboardUpcomingMeetings />
     </header>
   );
 }
