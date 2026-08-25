@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   archiveClient,
   deleteClientPermanently,
@@ -29,6 +30,13 @@ export default function ClientActions({
 
   return (
     <>
+      <Link
+        href={`/clients/${clientId}/edit`}
+        className="rounded-xl border border-[#cbd8c4] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247] hover:bg-[#f5f7f2]"
+      >
+        Edit Client Profile
+      </Link>
+
       {isArchived ? (
         <form action={restoreClient}>
           <input type="hidden" name="clientId" value={clientId} />
