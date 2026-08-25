@@ -10,7 +10,7 @@ export async function POST(req:Request){
   if(!Number.isInteger(id)) return NextResponse.json({error:"Invalid client."},{status:400});
 
   const supabase=await createClient();
-  const {data:client,error}=await supabase.from("clients").select("id,name,email,portal_user_id").eq("id",id).single();
+  const {data:client,error}=await supabase.from("clients").select("id,name,email,portal_user_id,portal_invited_at").eq("id",id).single();
   if(error||!client) return NextResponse.json({error:"Client not found."},{status:404});
   if(client.portal_user_id) return NextResponse.json({message:"This client already has portal access."});
   if(!client.email) return NextResponse.json({error:"Add an email address to the client before inviting them."},{status:400});
@@ -32,6 +32,10 @@ export async function POST(req:Request){
    })
   });
   if(!response.ok){const detail=await response.text();console.error("Portal invite email failed",detail);return NextResponse.json({error:"The invite email could not be sent."},{status:502});}
-  return NextResponse.json({message:"Portal invite sent."});
+
+  const {error:updateError}=await supabase.from("clients").update({portal_invited_at:new Date().toISOString()}).eq("id",id);
+  if(updateError) console.error("Could not record portal invite timestamp",updateError.message);
+
+  return NextResponse.json({message:client.portal_invited_at?"Portal invite resent.":"Portal invite sent."});
  }catch(e){console.error(e);return NextResponse.json({error:"Unable to send portal invite."},{status:500});}
 }
