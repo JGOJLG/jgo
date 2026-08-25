@@ -1,1 +1,1 @@
-export { POST, runtime, dynamic } from "@/app/API/invoices/send/route";
+export { POST } from "@/app/API/invoices/send/route";
