@@ -244,38 +244,39 @@ export default function CalendarScheduler({ clientId, events }: Props) {
                   </select>
                 </div>
 
-                {eventType === "Client Interview" ? (
-                  <>
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
-                        Time
-                      </label>
-                      <select
-                        name="eventTime"
-                        defaultValue=""
-                        className="mt-1 w-full rounded-xl border border-[#dfe6db] px-3 py-2 text-sm text-[#243128] outline-none focus:border-[#7f9975]"
-                      >
-                        <option value="">Select time</option>
-                        {TIME_OPTIONS.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                {["Client Interview", "Free 15", "Coaching Session"].includes(eventType) ? (
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
+                      Time
+                    </label>
+                    <select
+                      name="eventTime"
+                      required
+                      defaultValue=""
+                      className="mt-1 w-full rounded-xl border border-[#dfe6db] px-3 py-2 text-sm text-[#243128] outline-none focus:border-[#7f9975]"
+                    >
+                      <option value="">Select time</option>
+                      {TIME_OPTIONS.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
 
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
-                        Notes
-                      </label>
-                      <textarea
-                        name="notes"
-                        rows={3}
-                        placeholder="Interview details..."
-                        className="mt-1 w-full rounded-xl border border-[#dfe6db] px-3 py-2 text-sm text-[#243128] outline-none focus:border-[#7f9975]"
-                      />
-                    </div>
-                  </>
+                {eventType === "Client Interview" ? (
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[#708075]">
+                      Notes
+                    </label>
+                    <textarea
+                      name="notes"
+                      rows={3}
+                      placeholder="Interview details..."
+                      className="mt-1 w-full rounded-xl border border-[#dfe6db] px-3 py-2 text-sm text-[#243128] outline-none focus:border-[#7f9975]"
+                    />
+                  </div>
                 ) : null}
 
                 <button
