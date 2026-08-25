@@ -1,41 +1,5 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
-
-function escapeHtml(value:string){return value.replace(/[&<>"']/g,(ch)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]||ch));}
-
-export async function POST(req:Request){
- try{
-  const {clientId}=await req.json();
-  const id=Number(clientId);
-  if(!Number.isInteger(id)) return NextResponse.json({error:"Invalid client."},{status:400});
-
-  const supabase=await createClient();
-  const {data:client,error}=await supabase.from("clients").select("id,name,email,portal_user_id,portal_invited_at").eq("id",id).single();
-  if(error||!client) return NextResponse.json({error:"Client not found."},{status:404});
-  if(client.portal_user_id) return NextResponse.json({message:"This client already has portal access."});
-  if(!client.email) return NextResponse.json({error:"Add an email address to the client before inviting them."},{status:400});
-
-  const loginUrl=`https://www.jgohire.com/login?next=${encodeURIComponent("/client-portal")}&email=${encodeURIComponent(client.email)}`;
-  const resendKey=process.env.RESEND_API_KEY;
-  if(!resendKey) return NextResponse.json({error:"Email delivery is not configured."},{status:500});
-
-  const firstName=String(client.name||"").trim().split(/\s+/)[0]||"there";
-  const response=await fetch("https://api.resend.com/emails",{
-   method:"POST",
-   headers:{Authorization:`Bearer ${resendKey}`,"Content-Type":"application/json"},
-   body:JSON.stringify({
-    from:"JGO Hire <jen@jgohire.com>",
-    to:[client.email],
-    reply_to:"jen@jgohire.com",
-    subject:"Your JGO Hire Client Portal is ready",
-    html:`<div style="font-family:Arial,sans-serif;color:#223028;max-width:620px;margin:auto;padding:32px"><p style="font-size:12px;font-weight:700;letter-spacing:1.5px;color:#637a5b">JGO HIRE</p><h1 style="font-family:Georgia,serif;font-weight:500">Your client portal is ready.</h1><p>Hi ${escapeHtml(firstName)},</p><p>Your private JGO Hire portal is where you can access documents I share with you, career resources, and your personal job tracker.</p><p style="margin:28px 0"><a href="${loginUrl}" style="background:#4d6247;color:white;padding:14px 22px;border-radius:10px;text-decoration:none;font-weight:700">Open My Client Portal</a></p><p>Use <strong>${escapeHtml(client.email)}</strong>, the same JGO Hire member login used for your guides and resources.</p><hr style="border:0;border-top:1px solid #e4dfd6;margin:30px 0"><p style="line-height:1.6"><strong>Jennifer Gordon</strong><br>Career Coach + Recruiter<br>JGO Hire</p><p><a href="https://www.jgohire.com" style="color:#4d6247">JGO Hire</a> &nbsp; | &nbsp; <a href="https://www.linkedin.com/in/jennifergordon23" style="color:#4d6247">LinkedIn</a> &nbsp; | &nbsp; <a href="https://www.instagram.com/jgohired" style="color:#4d6247">Instagram</a></p></div>`
-   })
-  });
-  if(!response.ok){const detail=await response.text();console.error("Portal invite email failed",detail);return NextResponse.json({error:"The invite email could not be sent."},{status:502});}
-
-  const {error:updateError}=await supabase.from("clients").update({portal_invited_at:new Date().toISOString()}).eq("id",id);
-  if(updateError) console.error("Could not record portal invite timestamp",updateError.message);
-
-  return NextResponse.json({message:client.portal_invited_at?"Portal invite resent.":"Portal invite sent."});
- }catch(e){console.error(e);return NextResponse.json({error:"Unable to send portal invite."},{status:500});}
-}
+import{NextResponse}from"next/server";import{Resend}from"resend";import{createClient}from"@/lib/supabase-server";
+export const runtime="nodejs";export const dynamic="force-dynamic";
+const resend=process.env.RESEND_API_KEY?new Resend(process.env.RESEND_API_KEY):null;
+const esc=(v:string)=>v.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+export async function POST(req:Request){try{const{clientId}=await req.json(),id=Number(clientId);if(!Number.isInteger(id)||id<=0)return NextResponse.json({error:"Invalid client."},{status:400});if(!resend)return NextResponse.json({error:"Email delivery is not configured."},{status:500});const s=await createClient(),{data:c,error}=await s.from("clients").select("id,name,email,portal_user_id,portal_invited_at").eq("id",id).single();if(error||!c)return NextResponse.json({error:"Client not found."},{status:404});if(c.portal_user_id)return NextResponse.json({message:"This client already has portal access."});const email=String(c.email||"").trim().toLowerCase();if(!email)return NextResponse.json({error:"Add an email address before inviting them."},{status:400});const first=String(c.name||"").trim().split(/\s+/)[0]||"there",login=`https://www.jgohire.com/login?next=${encodeURIComponent("/client-portal")}&email=${encodeURIComponent(email)}`;const{data,error:sendError}=await resend.emails.send({from:"JGO Hire <jen@jgohire.com>",to:[email],replyTo:"jen@jgohire.com",subject:"Your JGO Hire Client Portal is ready",text:`Hi ${first},\n\nYour JGO Hire Client Portal is ready. Use it to access documents, resources, and your job tracker.\n\nOpen your portal: ${login}\n\nSign in with ${email}.\n\nBest,\nJennifer Gordon\nCareer Coach + Recruiter\nJGO Hire`,html:`<div style="margin:0;background:#f5f3ee;padding:28px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128"><div style="max-width:600px;margin:auto;background:#fff;border:1px solid #e1e5dc;border-radius:20px;padding:28px"><p style="margin:0;color:#637a5b;font-size:11px;font-weight:700;letter-spacing:1.5px">JGO HIRE</p><h1 style="margin:10px 0 14px;font-family:Georgia,serif;font-size:28px;font-weight:500">Your Client Portal is ready.</h1><p>Hi ${esc(first)},</p><p style="line-height:1.6;color:#5f6e62">Your private portal keeps your JGO Hire documents, resources, and job tracker together in one place.</p><a href="${login}" style="display:block;margin:24px 0;background:#53684c;color:#fff;text-align:center;text-decoration:none;border-radius:12px;padding:14px 18px;font-weight:700">Open Client Portal</a><p style="font-size:13px;color:#6d796f">Sign in with <strong>${esc(email)}</strong>.</p><hr style="border:0;border-top:1px solid #e4e7df;margin:26px 0"><p style="margin:0;line-height:1.55"><strong>Jennifer Gordon</strong><br><span style="color:#667168">Career Coach + Recruiter<br>JGO Hire</span></p><p style="margin:12px 0 0;font-size:13px"><a href="https://www.jgohire.com" style="color:#53684c">Website</a>&nbsp;&nbsp;•&nbsp;&nbsp;<a href="https://www.linkedin.com/in/jennifergordon23" style="color:#53684c">LinkedIn</a>&nbsp;&nbsp;•&nbsp;&nbsp;<a href="https://www.instagram.com/jgohired" style="color:#53684c">Instagram</a></p></div></div>`});if(sendError||!data?.id){console.error("Portal invite Resend failure",sendError);return NextResponse.json({error:"The portal invite was not accepted by the email provider. Please try again."},{status:502})}console.log("Portal invite accepted",{clientId:id,emailId:data.id,to:email});const{error:updateError}=await s.from("clients").update({portal_invited_at:new Date().toISOString()}).eq("id",id);if(updateError)console.error("Portal invite timestamp failed",updateError.message);return NextResponse.json({message:c.portal_invited_at?"Portal invite resent.":"Portal invite sent.",emailId:data.id})}catch(e){console.error("Portal invite error",e);return NextResponse.json({error:"Unable to send portal invite."},{status:500})}}
