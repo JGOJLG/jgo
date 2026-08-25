@@ -8,6 +8,23 @@ function formatDuration(totalSeconds: number) {
   return [h, m, s].map((value) => String(value).padStart(2, "0")).join(":");
 }
 
+function formatEasternDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/New_York",
+  }).format(new Date(value));
+}
+
+function formatEasternTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  }).format(new Date(value));
+}
+
 export default async function ClientTimerHistory({ clientId }: { clientId: number }) {
   const supabase = await createClient();
 
@@ -40,24 +57,10 @@ export default async function ClientTimerHistory({ clientId }: { clientId: numbe
         {sessions.slice(0, 10).map((session) => (
           <div key={session.id} className="flex items-center justify-between gap-4 rounded-xl border border-[#edf0ea] px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-[#243128]">
-                {new Date(session.started_at).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </p>
+              <p className="text-sm font-semibold text-[#243128]">{formatEasternDate(session.started_at)}</p>
               <p className="mt-0.5 text-xs text-[#708075]">
-                {new Date(session.started_at).toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-                {session.ended_at
-                  ? ` – ${new Date(session.ended_at).toLocaleTimeString("en-US", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}`
-                  : " – Running"}
+                {formatEasternTime(session.started_at)}
+                {session.ended_at ? ` – ${formatEasternTime(session.ended_at)}` : " – Running"}
               </p>
             </div>
 
@@ -66,9 +69,7 @@ export default async function ClientTimerHistory({ clientId }: { clientId: numbe
                 {session.ended_at ? formatDuration(Number(session.duration_seconds ?? 0)) : "Running"}
               </p>
               {session.ended_at ? (
-                <p className="text-[11px] text-[#8a968d]">
-                  {(Number(session.duration_seconds ?? 0) / 3600).toFixed(2)} hrs
-                </p>
+                <p className="text-[11px] text-[#8a968d]">{(Number(session.duration_seconds ?? 0) / 3600).toFixed(2)} hrs</p>
               ) : null}
             </div>
           </div>
