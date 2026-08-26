@@ -9,16 +9,19 @@ function normalize(value: string | null | undefined) {
 
 export async function GET() {
   const supabase = await createClient();
-  const now = new Date().toISOString();
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
+  const pastStart = new Date(nowDate);
+  pastStart.setDate(pastStart.getDate() - 30);
 
   const { data: events, error: eventsError } = await supabase
     .from("calendar_events")
     .select("id, title, event_type, start_at, client_id, status")
     .not("client_id", "is", null)
     .not("start_at", "is", null)
-    .gte("start_at", now)
+    .gte("start_at", pastStart.toISOString())
     .order("start_at", { ascending: true })
-    .limit(100);
+    .limit(200);
 
   if (eventsError) {
     return NextResponse.json({ error: eventsError.message }, { status: 500 });
@@ -28,10 +31,7 @@ export async function GET() {
     const eventType = normalize(event.event_type);
     const status = normalize(event.status);
 
-    if (["cancelled", "canceled", "completed", "complete"].includes(status)) {
-      return false;
-    }
-
+    if (["cancelled", "canceled"].includes(status)) return false;
     return ["free 15", "coaching session", "appointment"].includes(eventType);
   });
 
@@ -60,16 +60,21 @@ export async function GET() {
     }
   }
 
+  const formatted = meetings.map((event) => ({
+    id: event.id,
+    clientId: event.client_id,
+    clientName:
+      typeof event.client_id === "number"
+        ? clientNameById.get(event.client_id) || "Client"
+        : "Client",
+    title: event.title || event.event_type || "Meeting",
+    startAt: event.start_at,
+  }));
+
   return NextResponse.json({
-    meetings: meetings.map((event) => ({
-      id: event.id,
-      clientId: event.client_id,
-      clientName:
-        typeof event.client_id === "number"
-          ? clientNameById.get(event.client_id) || "Client"
-          : "Client",
-      title: event.title || event.event_type || "Meeting",
-      startAt: event.start_at,
-    })),
+    meetings: formatted.filter((meeting) => meeting.startAt >= now),
+    pastMeetings: formatted
+      .filter((meeting) => meeting.startAt < now)
+      .sort((a, b) => b.startAt.localeCompare(a.startAt)),
   });
 }
