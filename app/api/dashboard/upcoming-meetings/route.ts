@@ -58,13 +58,10 @@ function easternWeekStartUtc(now = new Date()) {
 export async function GET() {
   const supabase = await createClient();
   const now = new Date();
-  const nowIso = now.toISOString();
   const weekStartIso = easternWeekStartUtc(now).toISOString();
   const futureEnd = new Date(now);
   futureEnd.setDate(futureEnd.getDate() + 120);
 
-  // IMPORTANT: this intentionally mirrors DashboardScheduleNative exactly.
-  // One continuous query from Sunday through the future, then split in memory.
   const { data: events, error } = await supabase
     .from("calendar_events")
     .select("id,title,event_type,start_at,client_id,status")
@@ -91,7 +88,7 @@ export async function GET() {
     for (const client of clients ?? []) clientNameById.set(client.id, client.name || "Client");
   }
 
-  const formatted = filtered.map((event) => ({
+  const allMeetings = filtered.map((event) => ({
     id: event.id,
     clientId: event.client_id as number,
     clientName: clientNameById.get(event.client_id as number) || "Client",
@@ -99,13 +96,8 @@ export async function GET() {
     startAt: event.start_at,
   }));
 
-  const meetings = formatted.filter((meeting) => meeting.startAt >= nowIso);
-  const pastMeetings = formatted
-    .filter((meeting) => meeting.startAt >= weekStartIso && meeting.startAt < nowIso)
-    .sort((a, b) => b.startAt.localeCompare(a.startAt));
-
   return NextResponse.json(
-    { meetings, pastMeetings, serverNow: nowIso, weekStart: weekStartIso },
+    { allMeetings, serverNow: now.toISOString(), weekStart: weekStartIso },
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate", Pragma: "no-cache", Expires: "0" } }
   );
 }
