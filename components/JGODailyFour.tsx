@@ -6,7 +6,8 @@ const habits = [
   { id: "linkedin-requests", label: "LinkedIn Requests", helper: "Review and respond to requests", icon: "in" },
   { id: "linkedin-post", label: "LinkedIn Post", helper: "Publish a helpful recruiter post", icon: "✎" },
   { id: "substack", label: "Substack Article", helper: "Write or work on your article", icon: "S" },
-  { id: "social-media", label: "Social Media", helper: "Repost or share your content", icon: "↗" },
+  { id: "social-media", label: "Social Media Check", helper: "Check comments, reply, post a video, or do one social action", icon: "↗" },
+  { id: "survival-guide-followup", label: "Survival Guide Follow-Up", helper: "Check new signups and send follow-up emails", icon: "@" },
 ];
 
 function getTodayKey() {
@@ -29,7 +30,7 @@ export default function JGODailyFour() {
     async function load() {
       try {
         const response = await fetch(`/api/dashboard/daily-four?day=${encodeURIComponent(today)}`, { cache: "no-store" });
-        if (!response.ok) throw new Error("Unable to load Daily Four.");
+        if (!response.ok) throw new Error("Unable to load Daily Do It.");
         const data = (await response.json()) as { completed?: string[] };
         if (active) setCompleted(Array.isArray(data.completed) ? data.completed : []);
       } catch (error) {
@@ -57,14 +58,14 @@ export default function JGODailyFour() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ day: today, completed: nextCompleted }),
       });
-      if (!response.ok) throw new Error("Unable to save Daily Four.");
+      if (!response.ok) throw new Error("Unable to save Daily Do It.");
     } catch (error) {
       console.error(error);
       setCompleted(previous);
     }
   }
 
-  const completedCount = completed.length;
+  const completedCount = completed.filter((id) => habits.some((habit) => habit.id === id)).length;
   const progress = useMemo(() => Math.round((completedCount / habits.length) * 100), [completedCount]);
 
   if (!ready) {
@@ -81,10 +82,10 @@ export default function JGODailyFour() {
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-bold text-[#243128]">JGO Daily Four</p>
+                <p className="text-sm font-bold text-[#243128]">JGO Daily Do It</p>
                 <span className="rounded-full bg-[#eef2e9] px-2.5 py-1 text-[11px] font-semibold text-[#647d5b]">{completedCount} of {habits.length}</span>
               </div>
-              <p className="mt-1 text-xs text-[#708075]">Four small actions that keep JGO Hire growing.</p>
+              <p className="mt-1 text-xs text-[#708075]">Small daily actions that keep JGO Hire moving.</p>
             </div>
           </div>
           <div className="flex min-w-[120px] items-center gap-3">
@@ -95,7 +96,7 @@ export default function JGODailyFour() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {habits.map((habit) => {
             const isCompleted = completed.includes(habit.id);
             return (
@@ -113,7 +114,7 @@ export default function JGODailyFour() {
       </div>
 
       {completedCount === habits.length ? (
-        <div className="mt-4 rounded-2xl border border-[#c8d7c1] bg-[#e9f1e5] px-4 py-2.5 text-center text-xs font-semibold text-[#55704f]">Daily Four complete. Nice work keeping the momentum going.</div>
+        <div className="mt-4 rounded-2xl border border-[#c8d7c1] bg-[#e9f1e5] px-4 py-2.5 text-center text-xs font-semibold text-[#55704f]">Daily Do It complete. Nice work keeping the momentum going.</div>
       ) : null}
     </section>
   );
