@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Meeting = {
   id: number;
@@ -55,8 +55,9 @@ function Row({ meeting, past = false }: { meeting: Meeting; past?: boolean }) {
 
 export default function DashboardScheduleCardV2() {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
-  const [upcoming, setUpcoming] = useState<Meeting[]>([]);
-  const [past, setPast] = useState<Meeting[]>([]);
+  const [allMeetings, setAllMeetings] = useState<Meeting[]>([]);
+  const [serverNow, setServerNow] = useState<string | null>(null);
+  const [weekStart, setWeekStart] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -87,10 +88,15 @@ export default function DashboardScheduleCardV2() {
           headers: { "Cache-Control": "no-cache" },
         });
         if (!response.ok) throw new Error("Unable to load meetings");
-        const data = (await response.json()) as { meetings?: Meeting[]; pastMeetings?: Meeting[] };
+        const data = (await response.json()) as {
+          allMeetings?: Meeting[];
+          serverNow?: string;
+          weekStart?: string;
+        };
         if (active) {
-          setUpcoming(data.meetings ?? []);
-          setPast(data.pastMeetings ?? []);
+          setAllMeetings(data.allMeetings ?? []);
+          setServerNow(data.serverNow ?? new Date().toISOString());
+          setWeekStart(data.weekStart ?? null);
         }
       } catch (error) {
         console.error(error);
@@ -107,6 +113,24 @@ export default function DashboardScheduleCardV2() {
       window.removeEventListener("focus", load);
     };
   }, []);
+
+  const { upcoming, past } = useMemo(() => {
+    const nowMs = new Date(serverNow ?? Date.now()).getTime();
+    const weekStartMs = weekStart ? new Date(weekStart).getTime() : 0;
+
+    const upcomingItems = allMeetings
+      .filter((meeting) => new Date(meeting.startAt).getTime() >= nowMs)
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+
+    const pastItems = allMeetings
+      .filter((meeting) => {
+        const startMs = new Date(meeting.startAt).getTime();
+        return startMs >= weekStartMs && startMs < nowMs;
+      })
+      .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+
+    return { upcoming: upcomingItems, past: pastItems };
+  }, [allMeetings, serverNow, weekStart]);
 
   if (!root) return null;
 
