@@ -2,20 +2,194 @@
 
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-type Meeting = { id:number; clientId:number; clientName:string; title:string; startAt:string; startMs?:number; isPast?:boolean };
-function formatDate(value:string){return new Intl.DateTimeFormat("en-US",{weekday:"short",month:"short",day:"numeric",timeZone:"America/New_York"}).format(new Date(value));}
-function formatTime(value:string){return new Intl.DateTimeFormat("en-US",{hour:"numeric",minute:"2-digit",timeZone:"America/New_York",timeZoneName:"short"}).format(new Date(value));}
-function MeetingRow({meeting,past=false}:{meeting:Meeting;past?:boolean}){return <Link href={`/clients/${meeting.clientId}`} className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-4 transition hover:border-[#bdcdb7] ${past?"border-[#dfe5dc] bg-white/60":"border-[#d8e1d3] bg-white"}`}><div className="min-w-0"><p className={`truncate text-sm font-bold ${past?"text-[#566259]":"text-[#243128]"}`}>{meeting.clientName}</p><p className="mt-1 truncate text-xs text-[#708075]">{meeting.title}</p></div><div className="flex shrink-0 flex-col items-end gap-1.5"><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${past?"bg-[#f0f2ee] text-[#7a857c]":"bg-[#eef2e9] text-[#5c7454]"}`}>{formatTime(meeting.startAt)}</span><span className="text-[11px] text-[#7d897f]">{formatDate(meeting.startAt)}</span></div></Link>}
+type Meeting = {
+  id: number;
+  clientId: number;
+  clientName: string;
+  title: string;
+  startAt: string;
+  isPast?: boolean;
+};
 
-export default function DashboardUpcomingMeetings(){
- const[portalRoot,setPortalRoot]=useState<HTMLDivElement|null>(null);const[rawMeetings,setRawMeetings]=useState<Meeting[]>([]);const[loading,setLoading]=useState(true);const[nowMs,setNowMs]=useState(()=>Date.now());
- useEffect(()=>{const heading=Array.from(document.querySelectorAll("h3")).find(e=>e.textContent?.trim()==="People to Reach Out To");const originalCard=heading?.parentElement?.parentElement?.parentElement;if(!(originalCard instanceof HTMLDivElement)||!originalCard.parentElement)return;const replacement=document.createElement("div");replacement.className=originalCard.className;originalCard.parentElement.insertBefore(replacement,originalCard);originalCard.style.display="none";setPortalRoot(replacement);return()=>{originalCard.style.display="";replacement.remove();};},[]);
- useEffect(()=>{let active=true;async function loadMeetings(){try{const response=await fetch(`/api/dashboard/upcoming-meetings?t=${Date.now()}`,{cache:"no-store",headers:{"Cache-Control":"no-cache"}});if(!response.ok)throw new Error("Unable to load schedule.");const result=await response.json() as {meetings?:Meeting[];pastMeetings?:Meeting[]};if(active){const combined=[...(result.meetings??[]),...(result.pastMeetings??[])];const unique=Array.from(new Map(combined.map(m=>[m.id,m])).values());setRawMeetings(unique);setNowMs(Date.now());}}catch(error){console.error("Unable to load schedule:",error);}finally{if(active)setLoading(false);}}loadMeetings();const refresh=window.setInterval(loadMeetings,30000);const tick=window.setInterval(()=>setNowMs(Date.now()),15000);const onFocus=()=>{setNowMs(Date.now());loadMeetings();};const onVisibility=()=>{if(document.visibilityState==="visible"){setNowMs(Date.now());loadMeetings();}};window.addEventListener("focus",onFocus);document.addEventListener("visibilitychange",onVisibility);return()=>{active=false;window.clearInterval(refresh);window.clearInterval(tick);window.removeEventListener("focus",onFocus);document.removeEventListener("visibilitychange",onVisibility);};},[]);
- const {meetings,pastMeetings}=useMemo(()=>{const valid=rawMeetings.map(m=>({...m,startMs:Number.isFinite(m.startMs)?m.startMs:Date.parse(m.startAt)})).filter(m=>Number.isFinite(m.startMs));return{meetings:valid.filter(m=>(m.startMs as number)>=nowMs).sort((a,b)=>(a.startMs as number)-(b.startMs as number)),pastMeetings:valid.filter(m=>(m.startMs as number)<nowMs).sort((a,b)=>(b.startMs as number)-(a.startMs as number))};},[rawMeetings,nowMs]);
- if(!portalRoot)return null;
- return createPortal(<><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6f8966]">Schedule</p><h3 className="mt-2 text-2xl font-bold text-[#243128]">Upcoming Meetings</h3><p className="mt-1 text-sm text-[#637166]">Free 15s and coaching sessions coming up.</p></div><Link href="/calendar" className="shrink-0 text-sm font-semibold text-[#4d6247]">View calendar</Link></div>
- {loading?<div className="mt-6 rounded-2xl border border-[#d2ddcd] bg-white/70 p-6 text-center"><p className="text-sm text-[#708075]">Loading schedule...</p></div>:<><div className="mt-6 space-y-3">{meetings.length?meetings.map(m=><MeetingRow key={m.id} meeting={m}/>):<div className="rounded-2xl border border-[#d2ddcd] bg-white/70 p-5 text-center"><p className="text-sm font-semibold text-[#3d4d39]">No upcoming meetings</p></div>}</div><div className="mt-7 border-t border-[#cfd9c9] pt-6"><div className="flex items-end justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7d897f]">This Week</p><h4 className="mt-1 text-lg font-bold text-[#344239]">Past Meetings</h4></div><span className="text-xs text-[#7d897f]">Resets Sunday</span></div><div className="mt-4 max-h-[330px] space-y-3 overflow-y-auto pr-1">{pastMeetings.length?pastMeetings.map(m=><MeetingRow key={m.id} meeting={m} past/>):<p className="rounded-2xl border border-dashed border-[#d2ddcd] bg-white/45 p-4 text-center text-sm text-[#708075]">No past meetings yet this week.</p>}</div></div></>}
- </>,portalRoot);
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "America/New_York",
+  }).format(new Date(value));
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+    timeZoneName: "short",
+  }).format(new Date(value));
+}
+
+function MeetingRow({ meeting, past = false }: { meeting: Meeting; past?: boolean }) {
+  return (
+    <Link
+      href={`/clients/${meeting.clientId}`}
+      className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-4 transition hover:border-[#bdcdb7] ${
+        past
+          ? "border-[#dfe5dc] bg-white/60"
+          : "border-[#d8e1d3] bg-white"
+      }`}
+    >
+      <div className="min-w-0">
+        <p className={`truncate text-sm font-bold ${past ? "text-[#566259]" : "text-[#243128]"}`}>
+          {meeting.clientName}
+        </p>
+        <p className="mt-1 truncate text-xs text-[#708075]">{meeting.title}</p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+            past
+              ? "bg-[#f0f2ee] text-[#7a857c]"
+              : "bg-[#eef2e9] text-[#5c7454]"
+          }`}
+        >
+          {formatTime(meeting.startAt)}
+        </span>
+        <span className="text-[11px] text-[#7d897f]">{formatDate(meeting.startAt)}</span>
+      </div>
+    </Link>
+  );
+}
+
+export default function DashboardUpcomingMeetings() {
+  const [portalRoot, setPortalRoot] = useState<HTMLDivElement | null>(null);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [pastMeetings, setPastMeetings] = useState<Meeting[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const heading = Array.from(document.querySelectorAll("h3")).find(
+      (element) => element.textContent?.trim() === "People to Reach Out To"
+    );
+    const originalCard = heading?.parentElement?.parentElement?.parentElement;
+
+    if (!(originalCard instanceof HTMLDivElement) || !originalCard.parentElement) return;
+
+    const replacement = document.createElement("div");
+    replacement.className = originalCard.className;
+    originalCard.parentElement.insertBefore(replacement, originalCard);
+    originalCard.style.display = "none";
+    setPortalRoot(replacement);
+
+    return () => {
+      originalCard.style.display = "";
+      replacement.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadMeetings() {
+      try {
+        const response = await fetch(`/api/dashboard/upcoming-meetings?t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
+
+        if (!response.ok) throw new Error("Unable to load schedule.");
+
+        const result = (await response.json()) as {
+          meetings?: Meeting[];
+          pastMeetings?: Meeting[];
+        };
+
+        if (active) {
+          setMeetings(result.meetings ?? []);
+          setPastMeetings(result.pastMeetings ?? []);
+        }
+      } catch (error) {
+        console.error("Unable to load schedule:", error);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadMeetings();
+    const refresh = window.setInterval(loadMeetings, 30_000);
+    const onFocus = () => loadMeetings();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") loadMeetings();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      active = false;
+      window.clearInterval(refresh);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  if (!portalRoot) return null;
+
+  return createPortal(
+    <>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6f8966]">Schedule</p>
+          <h3 className="mt-2 text-2xl font-bold text-[#243128]">Upcoming Meetings</h3>
+          <p className="mt-1 text-sm text-[#637166]">Free 15s and coaching sessions coming up.</p>
+        </div>
+        <Link href="/calendar" className="shrink-0 text-sm font-semibold text-[#4d6247]">
+          View calendar
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="mt-6 rounded-2xl border border-[#d2ddcd] bg-white/70 p-6 text-center">
+          <p className="text-sm text-[#708075]">Loading schedule...</p>
+        </div>
+      ) : (
+        <>
+          <div className="mt-6 space-y-3">
+            {meetings.length ? (
+              meetings.map((meeting) => <MeetingRow key={meeting.id} meeting={meeting} />)
+            ) : (
+              <div className="rounded-2xl border border-[#d2ddcd] bg-white/70 p-5 text-center">
+                <p className="text-sm font-semibold text-[#3d4d39]">No upcoming meetings</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-7 border-t border-[#cfd9c9] pt-6">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7d897f]">This Week</p>
+                <h4 className="mt-1 text-lg font-bold text-[#344239]">Past Meetings</h4>
+              </div>
+              <span className="text-xs text-[#7d897f]">Resets Sunday</span>
+            </div>
+
+            <div className="mt-4 max-h-[330px] space-y-3 overflow-y-auto pr-1">
+              {pastMeetings.length ? (
+                pastMeetings.map((meeting) => (
+                  <MeetingRow key={meeting.id} meeting={meeting} past />
+                ))
+              ) : (
+                <p className="rounded-2xl border border-dashed border-[#d2ddcd] bg-white/45 p-4 text-center text-sm text-[#708075]">
+                  No past meetings yet this week.
+                </p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </>,
+    portalRoot
+  );
 }
