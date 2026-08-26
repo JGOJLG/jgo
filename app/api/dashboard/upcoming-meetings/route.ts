@@ -18,27 +18,22 @@ export async function GET() {
     .not("start_at", "is", null)
     .gte("start_at", now)
     .order("start_at", { ascending: true })
-    .limit(50);
+    .limit(100);
 
   if (eventsError) {
-    return NextResponse.json(
-      { error: eventsError.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: eventsError.message }, { status: 500 });
   }
 
-  const meetings = (events ?? [])
-    .filter((event) => {
-      const eventType = normalize(event.event_type);
-      const status = normalize(event.status);
+  const meetings = (events ?? []).filter((event) => {
+    const eventType = normalize(event.event_type);
+    const status = normalize(event.status);
 
-      if (["cancelled", "canceled", "completed", "complete"].includes(status)) {
-        return false;
-      }
+    if (["cancelled", "canceled", "completed", "complete"].includes(status)) {
+      return false;
+    }
 
-      return ["free 15", "coaching session", "appointment"].includes(eventType);
-    })
-    .slice(0, 7);
+    return ["free 15", "coaching session", "appointment"].includes(eventType);
+  });
 
   const clientIds = Array.from(
     new Set(
@@ -57,10 +52,7 @@ export async function GET() {
       .in("id", clientIds);
 
     if (clientsError) {
-      return NextResponse.json(
-        { error: clientsError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: clientsError.message }, { status: 500 });
     }
 
     for (const client of clients ?? []) {
