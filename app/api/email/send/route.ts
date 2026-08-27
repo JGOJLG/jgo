@@ -39,15 +39,16 @@ export async function POST(request: Request) {
     const results = await Promise.all(chunk.map(async (recipient) => {
       const personalizedSubject = personalize(subject, recipient);
       const personalizedHtml = rawHtml ? personalize(rawHtml, recipient) : escapeHtml(personalize(rawBody, recipient)).replaceAll("\n", "<br />");
+      const renderedHtml = wrapEmailHtml(personalizedHtml);
       const messageText = rawBody ? personalize(rawBody, recipient) : stripHtml(personalizedHtml);
       const personalizedText = `${messageText}\n\n${jgoTextSignature()}`;
-      const emailResult = await resend.emails.send({ from: "JGO Hire <jen@jgohire.com>", to: [recipient.email], replyTo: "jen@jgohire.com", subject: personalizedSubject, text: personalizedText, html: wrapEmailHtml(personalizedHtml) });
+      const emailResult = await resend.emails.send({ from: "JGO Hire <jen@jgohire.com>", to: [recipient.email], replyTo: "jen@jgohire.com", subject: personalizedSubject, text: personalizedText, html: renderedHtml });
       if (emailResult.error) return { ok: false as const, email: recipient.email, error: emailResult.error.message };
       const now = new Date().toISOString();
       const { data: existingContact } = await supabase.from("email_contacts").select("id, email_count, first_contacted_at, name, client_id").eq("email", recipient.email).maybeSingle();
       if (existingContact) await supabase.from("email_contacts").update({ name: recipient.name || existingContact.name || null, client_id: recipient.clientId ?? existingContact.client_id ?? null, first_contacted_at: existingContact.first_contacted_at || now, last_contacted_at: now, email_count: Number(existingContact.email_count || 0) + 1, updated_at: now }).eq("id", existingContact.id);
       else await supabase.from("email_contacts").insert({ name: recipient.name || null, email: recipient.email, client_id: recipient.clientId, source: recipient.clientId ? "jgo_os" : "email", first_contacted_at: now, last_contacted_at: now, email_count: 1 });
-      const { data: message } = await supabase.from("email_messages").insert({ client_id: recipient.clientId, recipient_name: recipient.name || null, recipient_email: recipient.email, subject: personalizedSubject, body: messageText, status: "sent", template_id: templateId, sent_at: now }).select("id, client_id, recipient_name, recipient_email, subject, body, template_id, sent_at").single();
+      const { data: message } = await supabase.from("email_messages").insert({ client_id: recipient.clientId, recipient_name: recipient.name || null, recipient_email: recipient.email, subject: personalizedSubject, body: messageText, body_html: renderedHtml, status: "sent", template_id: templateId, sent_at: now }).select("id, client_id, recipient_name, recipient_email, subject, body, body_html, template_id, sent_at").single();
       return { ok: true as const, message: message || null };
     }));
     for (const result of results) { if (!result.ok) failures.push({ email: result.email, error: result.error }); else if (result.message) savedMessages.push(result.message); }
