@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
+import ResumeExportEnhancer from "@/components/ResumeExportEnhancer";
 
 export const metadata: Metadata = {
   title: "JGO OS",
@@ -43,6 +44,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full font-sans">
+        <ResumeExportEnhancer />
         <AppShell>{children}</AppShell>
       </body>
     </html>
