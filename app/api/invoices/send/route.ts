@@ -2,240 +2,43 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { Resend } from "resend";
 import { createClient } from "@/lib/supabase-server";
+import { jgoEmailSignature, jgoTextSignature } from "@/lib/emailSignature";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-
 const VENMO_HANDLE = "@jengordon";
 const VENMO_HANDOFF_URL = "https://portal.jgohire.com/pay/venmo";
 const ZELLE_NUMBER = "908-477-5032";
 const ZELLE_HELP_URL = "https://portal.jgohire.com/pay/zelle";
 const CARD_FEE_RATE = 0.03;
+type InvoiceRequest = { clientId?: number; clientName?: string; clientEmail?: string; service?: string; price?: number; message?: string };
+const esc = (v:string)=>v.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+const currency=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
 
-type InvoiceRequest = {
-  clientId?: number;
-  clientName?: string;
-  clientEmail?: string;
-  service?: string;
-  price?: number;
-  message?: string;
-};
-
-const esc = (v: string) =>
-  v.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-
-const currency = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
-
-export async function POST(request: Request) {
-  if (!stripe) return NextResponse.json({ error: "Stripe is not configured.", detail: "Missing STRIPE_SECRET_KEY." }, { status: 500 });
-  if (!resend) return NextResponse.json({ error: "Email is not configured.", detail: "Missing RESEND_API_KEY." }, { status: 500 });
-
-  let body: InvoiceRequest;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
-  }
-
-  const clientId = Number(body.clientId);
-  const clientName = String(body.clientName || "").trim();
-  const clientEmail = String(body.clientEmail || "").trim().toLowerCase();
-  const service = String(body.service || "").trim();
-  const price = Number(body.price);
-  const message = String(body.message || "").trim();
-
-  if (!Number.isInteger(clientId) || clientId <= 0) return NextResponse.json({ error: "Invalid client ID." }, { status: 400 });
-  if (!clientName || !clientEmail || !service) return NextResponse.json({ error: "Client name, client email, and service are required." }, { status: 400 });
-  if (!Number.isFinite(price) || price <= 0 || price > 100000) return NextResponse.json({ error: "Enter a valid invoice price." }, { status: 400 });
-
-  const supabase = await createClient();
-  const { data: client, error: clientError } = await supabase
-    .from("clients")
-    .select("id,name,email,status")
-    .eq("id", clientId)
-    .maybeSingle();
-
-  if (clientError || !client) {
-    return NextResponse.json({ error: "Client could not be found.", detail: clientError?.message }, { status: 404 });
-  }
-
-  const base = Math.round(price * 100);
-  const cardCents = Math.round(base * (1 + CARD_FEE_RATE));
-  const fee = (cardCents - base) / 100;
-  const cardTotal = cardCents / 100;
-
-  try {
-    const checkout = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer_email: clientEmail,
-      client_reference_id: String(clientId),
-      success_url: "https://www.jgohire.com/?payment=success",
-      cancel_url: "https://www.jgohire.com/?payment=cancelled",
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: "usd",
-            unit_amount: cardCents,
-            product_data: {
-              name: `JGO Hire: ${service}`,
-              description: `${currency(price)} service + ${currency(fee)} card processing fee`,
-            },
-          },
-        },
-      ],
-      metadata: {
-        source: "jgo_os_invoice",
-        client_id: String(clientId),
-        client_name: clientName,
-        client_email: clientEmail,
-        service,
-        base_price: price.toFixed(2),
-        card_fee: fee.toFixed(2),
-      },
-    });
-
-    if (!checkout.url) throw new Error("Stripe did not return a checkout URL.");
-
-    const { data: existing, error: lookupError } = await supabase
-      .from("client_services")
-      .select("id,payment_status")
-      .eq("client_id", clientId)
-      .eq("service", service)
-      .order("date_added", { ascending: false })
-      .limit(10);
-
-    if (lookupError) throw new Error(lookupError.message);
-
-    const reusable = (existing ?? []).find(
-      (item) => String(item.payment_status || "").trim().toLowerCase() !== "paid"
-    );
-
-    let serviceId: number;
-
-    if (reusable) {
-      const { error } = await supabase
-        .from("client_services")
-        .update({
-          price,
-          payment_status: "Invoice Sent",
-          status: "Selected",
-          date_added: new Date().toISOString().slice(0, 10),
-          notes: message || null,
-        })
-        .eq("id", reusable.id)
-        .eq("client_id", clientId);
-      if (error) throw new Error(error.message);
-      serviceId = reusable.id;
-    } else {
-      const { data, error } = await supabase
-        .from("client_services")
-        .insert({
-          client_id: clientId,
-          service,
-          price,
-          status: "Selected",
-          payment_status: "Invoice Sent",
-          date_added: new Date().toISOString().slice(0, 10),
-          scheduled_date: null,
-          notes: message || null,
-        })
-        .select("id")
-        .single();
-      if (error || !data) throw new Error(error?.message || "Unable to save invoice service.");
-      serviceId = data.id;
-    }
-
-    if (["lead", "free 15 scheduled", "free 15 completed"].includes(String(client.status || "lead").trim().toLowerCase())) {
-      await supabase.from("clients").update({ status: "Active" }).eq("id", clientId);
-    }
-
-    const first = clientName.split(/\s+/)[0] || clientName;
-    const paymentText = [
-      `Venmo (no fee): ${VENMO_HANDLE}`,
-      VENMO_HANDOFF_URL,
-      "",
-      `Zelle (preferred, no fee): ${ZELLE_NUMBER}`,
-      `How to pay with Zelle: ${ZELLE_HELP_URL}`,
-      "",
-      `Card: ${currency(cardTotal)} including ${currency(fee)} processing fee`,
-      checkout.url,
-    ].join("\n");
-
-    const email = await resend.emails.send({
-      from: "JGO Hire <jen@jgohire.com>",
-      to: [clientEmail],
-      replyTo: "jen@jgohire.com",
-      subject: `Invoice from JGO Hire: ${service}`,
-      text: `Hi ${first},\n\n${message || "Thank you for choosing JGO Hire. Your invoice and payment options are below."}\n\nService: ${service}\nAmount due: ${currency(price)}\n\n${paymentText}\n\nBest,\nJen\nJGO Hire`,
-      html: `
-        <div style="margin:0;background:#f4f7f1;padding:32px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;">
-          <div style="max-width:640px;margin:0 auto;">
-            <div style="background:#e6eee1;padding:28px;border-radius:24px;text-align:center;">
-              <p style="margin:0;color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;">JGO HIRE</p>
-              <h1 style="margin:8px 0 0;font-size:32px;">Invoice</h1>
-              <p style="margin:12px 0 0;color:#5f6e62;">Hi ${esc(first)},</p>
-            </div>
-
-            <div style="margin-top:16px;background:#ffffff;border:1px solid #dfe6db;border-radius:22px;padding:24px;">
-              <p style="margin:0 0 18px;color:#5f6e62;line-height:1.6;">${esc(message || "Thank you for choosing JGO Hire. Your invoice and payment options are below.")}</p>
-              <p style="margin:8px 0;"><strong>Service:</strong> ${esc(service)}</p>
-              <p style="margin:8px 0;"><strong>Amount due:</strong> ${esc(currency(price))}</p>
-            </div>
-
-            <p style="margin:22px 0 10px;text-align:center;color:#6d796f;font-size:13px;">Choose the payment option that works best for you.</p>
-
-            <div style="background:#ffffff;border:1px solid #dfe6db;border-radius:20px;padding:22px;margin-top:10px;">
-              <div style="display:inline-block;background:#e7eee3;color:#53684c;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;">No processing fee</div>
-              <h2 style="margin:12px 0 6px;font-size:21px;">Venmo</h2>
-              <p style="margin:0 0 16px;color:#66705f;font-size:14px;line-height:1.5;">Pay <strong>${esc(VENMO_HANDLE)}</strong>. Please include your name in the memo.</p>
-              <a href="${esc(VENMO_HANDOFF_URL)}" style="display:block;background:#53684c;color:#ffffff;text-decoration:none;text-align:center;border-radius:14px;padding:14px 18px;font-size:14px;font-weight:700;">Open Venmo App</a>
-            </div>
-
-            <div style="background:#ffffff;border:1px solid #dfe6db;border-radius:20px;padding:22px;margin-top:10px;">
-              <div style="display:inline-block;background:#e7eee3;color:#53684c;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;">Preferred · No fee</div>
-              <h2 style="margin:12px 0 6px;font-size:21px;">Zelle</h2>
-              <p style="margin:0;color:#66705f;font-size:14px;line-height:1.5;">Send payment from your bank or credit union app to:</p>
-              <div style="margin:12px 0 16px;background:#eef3ea;border-radius:14px;padding:14px;text-align:center;font-size:22px;font-weight:800;color:#243128;">${esc(ZELLE_NUMBER)}</div>
-              <a href="${esc(ZELLE_HELP_URL)}" style="display:block;border:1px solid #cdd9c7;background:#f8faf6;color:#4d6247;text-decoration:none;text-align:center;border-radius:14px;padding:13px 18px;font-size:14px;font-weight:700;">How to Pay with Zelle</a>
-            </div>
-
-            <div style="background:#ffffff;border:1px solid #dfe6db;border-radius:20px;padding:22px;margin-top:10px;">
-              <div style="display:inline-block;background:#e7eee3;color:#53684c;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;">3% card fee included</div>
-              <h2 style="margin:12px 0 6px;font-size:21px;">Pay by Card</h2>
-              <p style="margin:0 0 16px;color:#66705f;font-size:14px;line-height:1.5;">Secure Stripe checkout. Card total: <strong>${esc(currency(cardTotal))}</strong>.</p>
-              <a href="${esc(checkout.url)}" style="display:block;background:#53684c;color:#ffffff;text-decoration:none;text-align:center;border-radius:14px;padding:14px 18px;font-size:14px;font-weight:700;">Pay Securely by Card</a>
-            </div>
-
-            <p style="margin:24px 0 0;text-align:center;color:#6d796f;font-size:13px;line-height:1.6;">Best,<br/><strong style="color:#53684c;">Jen</strong><br/>JGO Hire</p>
-          </div>
-        </div>
-      `,
-    });
-
-    if (email.error) {
-      await supabase.from("client_services").update({ payment_status: "Open" }).eq("id", serviceId).eq("client_id", clientId);
-      throw new Error(`Resend error: ${JSON.stringify(email.error)}`);
-    }
-
-    console.info("JGO invoice accepted by Resend", { emailId: email.data?.id, recipient: clientEmail, serviceId });
-
-    return NextResponse.json({
-      sent: true,
-      accepted: true,
-      serviceId,
-      checkoutUrl: checkout.url,
-      emailId: email.data?.id ?? null,
-      recipient: clientEmail,
-      message: "Invoice accepted by email provider.",
-    });
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : "Unknown error";
-    console.error("Unable to send JGO Hire invoice:", error);
-    return NextResponse.json({ error: "Unable to send the invoice.", detail }, { status: 500 });
-  }
+export async function POST(request:Request){
+ if(!stripe)return NextResponse.json({error:"Stripe is not configured.",detail:"Missing STRIPE_SECRET_KEY."},{status:500});
+ if(!resend)return NextResponse.json({error:"Email is not configured.",detail:"Missing RESEND_API_KEY."},{status:500});
+ let body:InvoiceRequest;try{body=await request.json()}catch{return NextResponse.json({error:"Invalid request body."},{status:400})}
+ const clientId=Number(body.clientId),clientName=String(body.clientName||"").trim(),clientEmail=String(body.clientEmail||"").trim().toLowerCase(),service=String(body.service||"").trim(),price=Number(body.price),message=String(body.message||"").trim();
+ if(!Number.isInteger(clientId)||clientId<=0)return NextResponse.json({error:"Invalid client ID."},{status:400});
+ if(!clientName||!clientEmail||!service)return NextResponse.json({error:"Client name, client email, and service are required."},{status:400});
+ if(!Number.isFinite(price)||price<=0||price>100000)return NextResponse.json({error:"Enter a valid invoice price."},{status:400});
+ const supabase=await createClient();const{data:client,error:clientError}=await supabase.from("clients").select("id,name,email,status").eq("id",clientId).maybeSingle();
+ if(clientError||!client)return NextResponse.json({error:"Client could not be found.",detail:clientError?.message},{status:404});
+ const base=Math.round(price*100),cardCents=Math.round(base*(1+CARD_FEE_RATE)),fee=(cardCents-base)/100,cardTotal=cardCents/100;
+ try{
+  const checkout=await stripe.checkout.sessions.create({mode:"payment",customer_email:clientEmail,client_reference_id:String(clientId),success_url:"https://www.jgohire.com/?payment=success",cancel_url:"https://www.jgohire.com/?payment=cancelled",line_items:[{quantity:1,price_data:{currency:"usd",unit_amount:cardCents,product_data:{name:`JGO Hire: ${service}`,description:`${currency(price)} service + ${currency(fee)} card processing fee`}}}],metadata:{source:"jgo_os_invoice",client_id:String(clientId),client_name:clientName,client_email:clientEmail,service,base_price:price.toFixed(2),card_fee:fee.toFixed(2)}});
+  if(!checkout.url)throw new Error("Stripe did not return a checkout URL.");
+  const{data:existing,error:lookupError}=await supabase.from("client_services").select("id,payment_status").eq("client_id",clientId).eq("service",service).order("date_added",{ascending:false}).limit(10);if(lookupError)throw new Error(lookupError.message);
+  const reusable=(existing??[]).find(item=>String(item.payment_status||"").trim().toLowerCase()!=="paid");let serviceId:number;
+  if(reusable){const{error}=await supabase.from("client_services").update({price,payment_status:"Invoice Sent",status:"Selected",date_added:new Date().toISOString().slice(0,10),notes:message||null}).eq("id",reusable.id).eq("client_id",clientId);if(error)throw new Error(error.message);serviceId=reusable.id}else{const{data,error}=await supabase.from("client_services").insert({client_id:clientId,service,price,status:"Selected",payment_status:"Invoice Sent",date_added:new Date().toISOString().slice(0,10),scheduled_date:null,notes:message||null}).select("id").single();if(error||!data)throw new Error(error?.message||"Unable to save invoice service.");serviceId=data.id}
+  if(["lead","free 15 scheduled","free 15 completed"].includes(String(client.status||"lead").trim().toLowerCase()))await supabase.from("clients").update({status:"Active"}).eq("id",clientId);
+  const first=clientName.split(/\s+/)[0]||clientName;const paymentText=[`Venmo (no fee): ${VENMO_HANDLE}`,VENMO_HANDOFF_URL,"",`Zelle (preferred, no fee): ${ZELLE_NUMBER}`,`How to pay with Zelle: ${ZELLE_HELP_URL}`,"",`Card: ${currency(cardTotal)} including ${currency(fee)} processing fee`,checkout.url].join("\n");
+  const email=await resend.emails.send({from:"JGO Hire <jen@jgohire.com>",to:[clientEmail],replyTo:"jen@jgohire.com",subject:`Invoice from JGO Hire: ${service}`,text:`Hi ${first},\n\n${message||"Thank you for choosing JGO Hire. Your invoice and payment options are below."}\n\nService: ${service}\nAmount due: ${currency(price)}\n\n${paymentText}\n\nBest,\n\n${jgoTextSignature()}`,html:`<div style="margin:0;background:#f4f7f1;padding:32px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;"><div style="max-width:640px;margin:0 auto;"><div style="background:#e6eee1;padding:28px;border-radius:24px;text-align:center;"><p style="margin:0;color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;">JGO HIRE</p><h1 style="margin:8px 0 0;font-size:32px;">Invoice</h1><p style="margin:12px 0 0;color:#5f6e62;">Hi ${esc(first)},</p></div><div style="margin-top:16px;background:#ffffff;border:1px solid #dfe6db;border-radius:22px;padding:24px;"><p style="margin:0 0 18px;color:#5f6e62;line-height:1.6;">${esc(message||"Thank you for choosing JGO Hire. Your invoice and payment options are below.")}</p><p style="margin:8px 0;"><strong>Service:</strong> ${esc(service)}</p><p style="margin:8px 0;"><strong>Amount due:</strong> ${esc(currency(price))}</p></div><p style="margin:22px 0 10px;text-align:center;color:#6d796f;font-size:13px;">Choose the payment option that works best for you.</p><div style="background:#ffffff;border:1px solid #dfe6db;border-radius:20px;padding:22px;margin-top:10px;"><h2 style="margin:0 0 6px;font-size:21px;">Venmo</h2><p style="margin:0 0 16px;color:#66705f;font-size:14px;line-height:1.5;">Pay <strong>${esc(VENMO_HANDLE)}</strong>. No processing fee.</p><a href="${esc(VENMO_HANDOFF_URL)}" style="display:block;background:#53684c;color:#ffffff;text-decoration:none;text-align:center;border-radius:14px;padding:14px 18px;font-size:14px;font-weight:700;">Open Venmo App</a></div><div style="background:#ffffff;border:1px solid #dfe6db;border-radius:20px;padding:22px;margin-top:10px;"><h2 style="margin:0 0 6px;font-size:21px;">Zelle</h2><p style="margin:0;color:#66705f;font-size:14px;line-height:1.5;">Preferred, no fee. Send to:</p><div style="margin:12px 0 16px;background:#eef3ea;border-radius:14px;padding:14px;text-align:center;font-size:22px;font-weight:800;color:#243128;">${esc(ZELLE_NUMBER)}</div><a href="${esc(ZELLE_HELP_URL)}" style="display:block;border:1px solid #cdd9c7;background:#f8faf6;color:#4d6247;text-decoration:none;text-align:center;border-radius:14px;padding:13px 18px;font-size:14px;font-weight:700;">How to Pay with Zelle</a></div><div style="background:#ffffff;border:1px solid #dfe6db;border-radius:20px;padding:22px;margin-top:10px;"><h2 style="margin:0 0 6px;font-size:21px;">Pay by Card</h2><p style="margin:0 0 16px;color:#66705f;font-size:14px;line-height:1.5;">Secure Stripe checkout. Card total: <strong>${esc(currency(cardTotal))}</strong>, including the ${esc(currency(fee))} processing fee.</p><a href="${esc(checkout.url)}" style="display:block;background:#53684c;color:#ffffff;text-decoration:none;text-align:center;border-radius:14px;padding:14px 18px;font-size:14px;font-weight:700;">Pay Securely by Card</a></div><p style="margin:24px 0 0;">Best,</p>${jgoEmailSignature()}</div></div>`});
+  if(email.error){await supabase.from("client_services").update({payment_status:"Open"}).eq("id",serviceId).eq("client_id",clientId);throw new Error(`Resend error: ${JSON.stringify(email.error)}`)}
+  console.info("JGO invoice accepted by Resend",{emailId:email.data?.id,recipient:clientEmail,serviceId});return NextResponse.json({sent:true,accepted:true,serviceId,checkoutUrl:checkout.url,emailId:email.data?.id??null,recipient:clientEmail,message:"Invoice accepted by email provider."});
+ }catch(error){const detail=error instanceof Error?error.message:"Unknown error";console.error("Unable to send JGO Hire invoice:",error);return NextResponse.json({error:"Unable to send the invoice.",detail},{status:500})}
 }
