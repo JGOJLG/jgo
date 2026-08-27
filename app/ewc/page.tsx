@@ -1,4 +1,5 @@
 import EwcTracker, { type EwcEntry } from "./EwcTracker";
+import EwcSafetyShell from "./EwcSafetyShell";
 import { createClient } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
@@ -30,5 +31,9 @@ export default async function EwcPage() {
     );
   }
 
-  return <EwcTracker initialEntries={(data ?? []) as EwcEntry[]} />;
+  return (
+    <EwcSafetyShell>
+      <EwcTracker initialEntries={(data ?? []) as EwcEntry[]} />
+    </EwcSafetyShell>
+  );
 }
