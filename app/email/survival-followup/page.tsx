@@ -5,9 +5,14 @@ import SurvivalFollowupClient from "./SurvivalFollowupClient";
 
 export const dynamic = "force-dynamic";
 
+function storedHtml(value: string) {
+  return value.startsWith("__JGO_HTML__") ? value.slice("__JGO_HTML__".length) : "";
+}
+
 function stripStoredTemplate(value: string) {
   const raw = value.startsWith("__JGO_HTML__") ? value.slice("__JGO_HTML__".length) : value;
   return raw
+    .replace(/<div[^>]*>\s*<a[^>]*>Grab the Guide Again<\/a>\s*<\/div>/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n\n")
     .replace(/<\/li>/gi, "\n")
@@ -59,7 +64,8 @@ export default async function SurvivalFollowupPage({ searchParams }: { searchPar
         templateId={template?.id ?? null}
         templateName={template?.name ?? "Survival Guide Follow-Up"}
         initialSubject={template?.subject ?? "How’s the Survival Guide going?"}
-        initialBody={template?.body ? stripStoredTemplate(template.body) : ""}
+        initialBody={template?.body ? stripStoredTemplate(template.body) : `Hi {{first_name}},\n\nI saw you downloaded my Job Seeker Survival Guide and wanted to check in!\n\nHave you had a chance to look through it yet?\n\nHope it helps make the job search feel a little less overwhelming.\n\nBest,`}
+        initialBodyHtml={template?.body ? storedHtml(template.body) : ""}
       />
     </main>
   );
