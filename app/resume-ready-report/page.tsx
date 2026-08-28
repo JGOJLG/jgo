@@ -35,10 +35,10 @@ const STANDARD_RECOMMENDATIONS = [
 ];
 
 const DEFAULT_FUTURE_UPDATES = [
-  "Keep adding measurable results such as growth, savings, efficiency, reach, adoption, or revenue.",
-  "Track the scale of your work, including team size, budget, customers, users, markets, or programs supported.",
-  "Capture examples of leadership, executive partnership, cross-functional influence, and ownership.",
-  "Add promotions, expanded scope, major launches, awards, certifications, speaking engagements, or recognition.",
+  "Keep adding measurable results as your work evolves.",
+  "Track changes in team size, budget, scope, customers, markets, or programs supported.",
+  "Add promotions, expanded responsibilities, major launches, certifications, or recognition.",
+  "Keep the top of the resume aligned to the specific role you are targeting.",
 ];
 
 const CHATGPT_PROMPT = `I am creating a JGO Hire Resume Ready Report for a client. I will give you TWO resumes below: the ORIGINAL resume and the NEW revised resume.
@@ -53,11 +53,16 @@ IMPORTANT WRITING RULES:
 - Focus on what changed, why it matters to a recruiter, and how the revised resume improves the candidate's positioning.
 - Do not overpraise. If something could still be improved, say so constructively.
 - Do not use em dashes.
-- Keep the report detailed enough to explain the work clearly, but concise enough for a polished 2-page client report.
-- WHAT I CHANGED is the most important section. Include 5 to 6 meaningful changes when the resumes support them.
-- For every change, explain what was different in the original resume, what changed in the revised resume, and why that matters to a recruiter.
+- This MUST fit comfortably into a polished 2-page client report. Be selective. Do not repeat the same point in multiple sections.
+- WHAT I CHANGED is the most important section, but it must be easy to scan. Give 5 meaningful changes. Use a 6th only when it adds a truly different point.
+- Keep EACH What I Changed explanation to about 45 to 65 words maximum. Use 2 to 3 sentences. Do not write long paragraphs.
+- For each change, briefly cover: what was different before, what changed, and why it matters to a recruiter.
 - Preserve important metrics, numbers, scope, leadership details, or achievements exactly when they appear in the resumes.
-- If the revised resume removed something valuable from the original, call it out.
+- If the revised resume removed something valuable from the original, call it out in one of the changes or future suggestions.
+- Overall Feedback should be ONE concise paragraph of about 90 to 120 words.
+- Recruiter's Perspective should be ONE concise paragraph of about 90 to 120 words.
+- Future Resume Updates should be exactly 4 short bullets, each no more than about 25 words.
+- Final Recommendation should be about 50 to 75 words.
 - DO NOT include JGO Hire Recommendations or a JGO Hire Pro Tip. Those are automatically added by my report generator.
 
 RETURN ONLY THE PLAIN TEXT FORMAT BELOW. Do not add markdown, code fences, commentary, or sections that are not listed.
@@ -66,37 +71,37 @@ JGO Hire Resume Ready Report
 Client: [CLIENT NAME]
 
 Overall Feedback
-[Write 1 to 2 concise paragraphs explaining the biggest difference between the original and revised resume and the overall improvement.]
+[ONE concise paragraph, about 90 to 120 words.]
 
 What I Changed
 1. [SHORT CHANGE TITLE]
-- [Explain what was different before, what changed, and why it matters.]
+- [45 to 65 words maximum. Explain what was different before, what changed, and why it matters.]
 
 2. [SHORT CHANGE TITLE]
-- [Explanation]
+- [45 to 65 words maximum.]
 
 3. [SHORT CHANGE TITLE]
-- [Explanation]
+- [45 to 65 words maximum.]
 
 4. [SHORT CHANGE TITLE]
-- [Explanation]
+- [45 to 65 words maximum.]
 
 5. [SHORT CHANGE TITLE]
-- [Explanation]
+- [45 to 65 words maximum.]
 
-6. [SHORT CHANGE TITLE, only if there is a real sixth change]
-- [Explanation]
+6. [ONLY if there is a truly different sixth change]
+- [45 to 65 words maximum.]
 
 Recruiter's Perspective
-[Write 1 to 2 concise paragraphs explaining how the revised resume now reads to a recruiter, what is easier to understand, and what makes the candidate stronger or better positioned.]
+[ONE concise paragraph, about 90 to 120 words.]
 
 Suggestions for Future Resume Updates
-- [Specific future suggestion based on this candidate's resume]
-- [Specific future suggestion]
-- [Specific future suggestion]
-- [Specific future suggestion]
+- [Short, specific suggestion. Maximum about 25 words.]
+- [Short, specific suggestion. Maximum about 25 words.]
+- [Short, specific suggestion. Maximum about 25 words.]
+- [Short, specific suggestion. Maximum about 25 words.]
 
-Final Recommendation: [Write a concise final recommendation. Include any remaining change you would still make before applying, if there is one. If the revised resume is ready, say that clearly without generic filler.]
+Final Recommendation: [About 50 to 75 words. Include any remaining change you would still make before applying. If ready, say so clearly.]
 
 ORIGINAL RESUME:
 [PASTE ORIGINAL RESUME HERE]
@@ -256,7 +261,7 @@ async function makePdf(data: ReportData) {
   if (!jsPDF) throw new Error("PDF generator did not load.");
 
   const d = new jsPDF({ unit: "pt", format: "letter" });
-  const W = 612, H = 792, M = 48, CW = W - M * 2;
+  const W = 612, M = 46, CW = W - M * 2;
   const ink: [number, number, number] = [38, 43, 37];
   const sage: [number, number, number] = [76, 96, 72];
   const muted: [number, number, number] = [105, 112, 102];
@@ -264,90 +269,91 @@ async function makePdf(data: ReportData) {
   const soft: [number, number, number] = [247, 249, 245];
 
   const font = (s: number, b = false, c = ink) => { d.setFont("helvetica", b ? "bold" : "normal"); d.setFontSize(s); d.setTextColor(...c); };
-  const wrap = (t: string, w: number, s = 9, b = false) => { font(s, b); return d.splitTextToSize(t, w) as string[]; };
-  const drawText = (t: string, x: number, y: number, w: number, s = 9, b = false, c = ink, leading = 1.4) => {
-    const paras = t.split(/\n\n+/).filter(Boolean);
+  const wrap = (t: string, w: number, s = 8.6, b = false) => { font(s, b); return d.splitTextToSize(t || "", w) as string[]; };
+  const drawText = (t: string, x: number, y: number, w: number, s = 8.6, b = false, c = ink, leading = 1.28) => {
+    const paras = (t || "").split(/\n\n+/).filter(Boolean);
     let yy = y;
     paras.forEach((p, idx) => {
       const lines = wrap(p, w, s, b); font(s, b, c); d.text(lines, x, yy); yy += lines.length * s * leading;
-      if (idx < paras.length - 1) yy += s * .7;
+      if (idx < paras.length - 1) yy += s * .45;
     });
     return yy;
   };
   const heading = (label: string, y: number) => {
-    font(9, true, sage); d.text(label.toUpperCase(), M, y);
-    d.setDrawColor(...rule); d.setLineWidth(.7); d.line(M, y + 7, W - M, y + 7);
-    return y + 25;
+    font(8.3, true, sage); d.text(label.toUpperCase(), M, y);
+    d.setDrawColor(...rule); d.setLineWidth(.65); d.line(M, y + 6, W - M, y + 6);
+    return y + 20;
   };
   const footer = (page: number) => {
     d.setDrawColor(...rule); d.line(M, 748, W - M, 748);
-    font(7, false, muted); d.text("JGO HIRE", M, 766); d.text(`Resume Ready Report  |  ${page}`, W - M, 766, { align: "right" });
+    font(6.8, false, muted); d.text("JGO HIRE", M, 765); d.text(`Resume Ready Report  |  ${page}`, W - M, 765, { align: "right" });
   };
-  const header = async (page: number) => {
-    if (page > 1) {
-      try { const logo = await imageData("/jgo-hire-logo.png"); d.addImage(logo, "PNG", M, 28, 58, 22); }
-      catch { font(13, true); d.text("JGO Hire", M, 45); }
-      font(7, true, muted); d.text("RESUME READY REPORT™", W - M, 36, { align: "right" });
-      font(12, true, ink); d.text(data.client || "Client", W - M, 52, { align: "right" });
-      d.setDrawColor(...rule); d.line(M, 68, W - M, 68);
-    }
+  const continuationHeader = async () => {
+    try { const logo = await imageData("/jgo-hire-logo.png"); d.addImage(logo, "PNG", M, 25, 56, 21); }
+    catch { font(12.5, true); d.text("JGO Hire", M, 42); }
+    font(6.8, true, muted); d.text("RESUME READY REPORT™", W - M, 33, { align: "right" });
+    font(11.5, true, ink); d.text(data.client || "Client", W - M, 49, { align: "right" });
+    d.setDrawColor(...rule); d.line(M, 64, W - M, 64);
   };
 
-  try { const logo = await imageData("/jgo-hire-logo.png"); d.addImage(logo, "PNG", M, 26, 70, 27); }
-  catch { font(15, true); d.text("JGO Hire", M, 47); }
-  font(7, true, muted); d.text("RESUME READY REPORT™", W - M, 31, { align: "right" });
-  font(20, true, ink); d.text(data.client || "Client", W - M, 53, { align: "right" });
-  font(8, false, muted); d.text("Prepared by Jen Gordon | Certified Career Coach & Recruiter", W - M, 69, { align: "right" });
-  d.setDrawColor(...rule); d.line(M, 82, W - M, 82);
+  try { const logo = await imageData("/jgo-hire-logo.png"); d.addImage(logo, "PNG", M, 24, 66, 25); }
+  catch { font(14.5, true); d.text("JGO Hire", M, 45); }
+  font(6.8, true, muted); d.text("RESUME READY REPORT™", W - M, 29, { align: "right" });
+  font(19, true, ink); d.text(data.client || "Client", W - M, 50, { align: "right" });
+  font(7.5, false, muted); d.text("Prepared by Jen Gordon | Certified Career Coach & Recruiter", W - M, 65, { align: "right" });
+  d.setDrawColor(...rule); d.line(M, 78, W - M, 78);
 
-  let y = 108;
+  let y = 101;
   y = heading("Overall Feedback", y);
-  y = drawText(data.overallFeedback, M, y, CW, 9.2, false, ink, 1.42) + 18;
+  y = drawText(data.overallFeedback, M, y, CW, 8.7, false, ink, 1.27) + 11;
 
   y = heading("What I Changed", y);
   data.changes.slice(0, 6).forEach((c, i) => {
-    font(9.2, true, ink); d.text(`${i + 1}. ${c.title}`, M, y); y += 16;
-    y = drawText(c.body, M + 16, y, CW - 16, 8.8, false, ink, 1.38) + 13;
+    const titleLines = wrap(`${i + 1}. ${c.title}`, CW, 8.6, true);
+    font(8.6, true, ink); d.text(titleLines, M, y);
+    y += titleLines.length * 10.4 + 3;
+    y = drawText(c.body, M + 14, y, CW - 14, 8.15, false, ink, 1.24) + 7;
+    if (i < Math.min(data.changes.length, 6) - 1) {
+      d.setDrawColor(235, 238, 232); d.line(M + 14, y - 2, W - M, y - 2); y += 5;
+    }
   });
 
-  if (y > 660) {
-    footer(1);
-    d.addPage(); await header(2); y = 94;
-  }
-
+  y += 3;
   y = heading("Recruiter's Perspective", y);
-  y = drawText(data.recruiterPerspective, M, y, CW, 9.1, false, ink, 1.42) + 18;
+  drawText(data.recruiterPerspective, M, y, CW, 8.55, false, ink, 1.27);
   footer(1);
 
-  d.addPage(); await header(2); y = 94;
+  d.addPage();
+  await continuationHeader();
+  y = 88;
 
   y = heading("Suggestions for Future Resume Updates", y);
   data.futureUpdates.slice(0, 4).forEach(item => {
-    d.setFillColor(...sage); d.circle(M + 2, y - 3, 1.4, "F");
-    y = drawText(item, M + 14, y, CW - 14, 8.8, false, ink, 1.38) + 9;
+    d.setFillColor(...sage); d.circle(M + 2, y - 2.5, 1.25, "F");
+    y = drawText(item, M + 13, y, CW - 13, 8.25, false, ink, 1.24) + 5;
   });
-  y += 8;
+  y += 4;
 
   y = heading("Final Recommendation", y);
-  const recLines = wrap(data.finalRecommendation, CW - 24, 9, true);
-  const boxH = Math.max(56, recLines.length * 13 + 26);
-  d.setFillColor(...soft); d.roundedRect(M, y - 8, CW, boxH, 7, 7, "F");
-  font(9, true, ink); d.text(recLines, M + 12, y + 10); y += boxH + 16;
+  const recLines = wrap(data.finalRecommendation, CW - 24, 8.45, true);
+  const boxH = Math.max(48, recLines.length * 10.9 + 22);
+  d.setFillColor(...soft); d.roundedRect(M, y - 6, CW, boxH, 6, 6, "F");
+  font(8.45, true, ink); d.text(recLines, M + 12, y + 8); y += boxH + 10;
 
   y = heading("JGO Hire Recommendations", y);
   STANDARD_RECOMMENDATIONS.forEach(f => {
-    d.setFillColor(...sage); d.circle(M + 2, y - 3, 1.4, "F");
-    y = drawText(f(data.client), M + 14, y, CW - 14, 8.4, false, ink, 1.34) + 7;
+    d.setFillColor(...sage); d.circle(M + 2, y - 2.4, 1.2, "F");
+    y = drawText(f(data.client), M + 13, y, CW - 13, 7.95, false, ink, 1.22) + 4;
   });
-  y += 8;
+  y += 5;
 
   y = heading("JGO Hire Pro Tip", y);
-  y = drawText("A great resume should answer three questions within the first 30 to 60 seconds:", M, y, CW, 8.8, false, ink, 1.36) + 10;
+  y = drawText("A great resume should answer three questions within the first 30 to 60 seconds:", M, y, CW, 8.2, false, ink, 1.24) + 6;
   ["Can you do the job?", "Why are you a strong fit for this position?", "Why should the employer interview you?"].forEach((q, i) => {
-    font(8.8, true, ink); d.text(`${i + 1}. ${q}`, M + 8, y); y += 15;
+    font(8.2, true, ink); d.text(`${i + 1}. ${q}`, M + 7, y); y += 12;
   });
-  y += 4;
-  drawText("Your updated resume is designed to make those answers easier to see without making the reader search for them.", M, y, CW, 8.6, false, muted, 1.35);
+  y += 2;
+  drawText("Your updated resume is designed to make those answers easier to see without making the reader search for them.", M, y, CW, 8.05, false, muted, 1.23);
 
   footer(2);
   d.save(`${fileBaseName(data.client)}.pdf`);
@@ -379,7 +385,7 @@ export default function ResumeReadyReportPage() {
     } catch (e: any) { setStatus(e?.message || "Could not format this report."); }
   };
   const download = async () => {
-    try { setStatus("Building two-page JGO Hire report..."); await makePdf(report); setStatus("Report downloaded."); }
+    try { setStatus("Building polished two-page JGO Hire report..."); await makePdf(report); setStatus("Report downloaded."); }
     catch (e: any) { setStatus(e?.message || "Could not create PDF."); }
   };
 
@@ -389,7 +395,7 @@ export default function ResumeReadyReportPage() {
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#7e8a7b]">JGO Hire</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-[#2e352d]">Resume Ready Report</h1>
-          <p className="mt-2 max-w-2xl text-sm text-[#7a8378]">Use the JGO prompt with the original and revised resume, then paste ChatGPT's full plain-text report back here. The PDF preserves the substance in a readable two-page format.</p>
+          <p className="mt-2 max-w-2xl text-sm text-[#7a8378]">Use the JGO prompt with the original and revised resume, then paste ChatGPT's plain-text report back here. The generator is designed for a clean two-page client report.</p>
         </div>
         <div className="flex items-center gap-3 rounded-full border border-[#e1e5dd] bg-white px-4 py-2 shadow-sm">
           <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#edf0eb]"><div className="h-full rounded-full bg-[#758a70]" style={{ width: `${completion}%` }} /></div>
@@ -404,14 +410,14 @@ export default function ResumeReadyReportPage() {
               <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71806d]">Step 1</p><h2 className="mt-1 text-base font-semibold">Get the ChatGPT Prompt</h2></div>
               <button type="button" onClick={copyPrompt} className="shrink-0 rounded-lg bg-[#4f614b] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#445441]">{promptCopied ? "Copied!" : "Copy Prompt"}</button>
             </div>
-            <p className="mt-2 text-xs leading-5 text-[#697465]">The prompt now asks for 5 to 6 meaningful changes and tells ChatGPT to explain what changed, why it changed, and why it matters to a recruiter.</p>
+            <p className="mt-2 text-xs leading-5 text-[#697465]">The prompt now controls section length so the report stays strong without turning What I Changed into long blocks of text.</p>
             <textarea readOnly value={CHATGPT_PROMPT} rows={12} onFocus={e => e.currentTarget.select()} className="mt-4 w-full resize-y rounded-xl border border-[#d8e0d4] bg-white px-4 py-3 text-xs leading-5 text-[#465044] outline-none" />
           </section>
 
           <section className="rounded-2xl border border-[#e1e5dd] bg-white p-5 shadow-[0_8px_30px_rgba(51,61,48,.04)]">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">Step 2</p>
             <h2 className="mt-1 text-base font-semibold">Paste ChatGPT's Report</h2>
-            <p className="mt-1 text-xs leading-5 text-[#7d867b]">Paste the full plain-text response. The OS no longer condenses the important personalized content down to a one-page summary.</p>
+            <p className="mt-1 text-xs leading-5 text-[#7d867b]">Paste the plain-text response exactly as ChatGPT gives it to you. The OS will place each section into the correct field.</p>
             <textarea value={importText} onChange={e => setImportText(e.target.value)} rows={18} className="mt-4 w-full resize-y rounded-xl border border-[#e0e5dc] bg-[#fafbf9] px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" placeholder="Paste ChatGPT report here..." />
             <button type="button" onClick={doImport} disabled={!importText.trim()} className="mt-3 w-full rounded-xl bg-[#4f614b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Format Report</button>
             {status && <p className="mt-3 rounded-lg bg-[#f3f6f1] px-3 py-2 text-xs leading-5 text-[#566452]">{status}</p>}
@@ -419,33 +425,33 @@ export default function ResumeReadyReportPage() {
 
           <section className="rounded-2xl border border-[#e1e5dd] bg-white p-5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#7b8779]">Two-Page Standard</p>
-            <p className="mt-2 text-sm font-semibold">Full explanation first</p>
-            <p className="mt-1 text-xs leading-5 text-[#7d867b]">Page 1 prioritizes Overall Feedback, What I Changed, and Recruiter's Perspective. Page 2 holds future updates, final recommendation, JGO recommendations, and the Pro Tip.</p>
+            <p className="mt-2 text-sm font-semibold">Strong, but easy to scan</p>
+            <p className="mt-1 text-xs leading-5 text-[#7d867b]">Page 1 covers Overall Feedback, concise What I Changed points, and Recruiter's Perspective. Page 2 holds future updates, final recommendation, JGO recommendations, and the Pro Tip.</p>
           </section>
         </aside>
 
         <section className="rounded-2xl border border-[#e1e5dd] bg-white p-6 shadow-[0_8px_30px_rgba(51,61,48,.04)] md:p-7">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">Step 3</p><h2 className="mt-1 text-base font-semibold">Review, Edit & Download</h2><p className="mt-1 text-xs text-[#7d867b]">Keep the detail. Edit only what you actually want to change before generating the client report.</p></div>
+            <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">Step 3</p><h2 className="mt-1 text-base font-semibold">Review, Edit & Download</h2><p className="mt-1 text-xs text-[#7d867b]">Make any final edits before generating the client report.</p></div>
             <button type="button" onClick={download} disabled={!report.client} className="rounded-xl bg-[#4f614b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Download PDF</button>
           </div>
 
           <Input label="Client" value={report.client} onChange={v => update("client", v)} />
-          <div className="mt-6"><Field label="Overall Feedback" value={report.overallFeedback} onChange={v => update("overallFeedback", v)} rows={8} /></div>
+          <div className="mt-6"><Field label="Overall Feedback" value={report.overallFeedback} onChange={v => update("overallFeedback", v)} rows={6} /></div>
 
           <div className="mt-7 border-t border-[#edf0ea] pt-6">
-            <div className="mb-4 flex items-center justify-between"><div><h3 className="text-sm font-semibold">What I Changed</h3><p className="mt-1 text-xs text-[#8a9287]">This is the centerpiece of the report. Aim for 5 to 6 strong, specific changes.</p></div><button type="button" onClick={() => update("changes", [...report.changes, { title: "", body: "" }])} className="text-xs font-semibold text-[#60705d]">+ Add Change</button></div>
+            <div className="mb-4 flex items-center justify-between"><div><h3 className="text-sm font-semibold">What I Changed</h3><p className="mt-1 text-xs text-[#8a9287]">Aim for 5 strong changes with short explanations, not long paragraphs.</p></div><button type="button" onClick={() => update("changes", [...report.changes, { title: "", body: "" }])} className="text-xs font-semibold text-[#60705d]">+ Add Change</button></div>
             <div className="space-y-3">
               {report.changes.map((c, i) => <div key={i} className="rounded-xl bg-[#fafbf9] p-4">
                 <Input label={`Change ${i + 1} Title`} value={c.title} onChange={v => { const n = [...report.changes]; n[i] = { ...n[i], title: v }; update("changes", n); }} />
-                <div className="mt-3"><Field label="Full Explanation" value={c.body} onChange={v => { const n = [...report.changes]; n[i] = { ...n[i], body: v }; update("changes", n); }} rows={5} /></div>
+                <div className="mt-3"><Field label="Explanation" value={c.body} onChange={v => { const n = [...report.changes]; n[i] = { ...n[i], body: v }; update("changes", n); }} rows={3} /></div>
               </div>)}
             </div>
           </div>
 
-          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Recruiter's Perspective" value={report.recruiterPerspective} onChange={v => update("recruiterPerspective", v)} rows={8} /></div>
-          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Suggestions for Future Resume Updates - one per line" value={report.futureUpdates.join("\n")} onChange={v => update("futureUpdates", splitLines(v))} rows={7} /></div>
-          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Final Recommendation" value={report.finalRecommendation} onChange={v => update("finalRecommendation", v)} rows={6} /></div>
+          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Recruiter's Perspective" value={report.recruiterPerspective} onChange={v => update("recruiterPerspective", v)} rows={6} /></div>
+          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Suggestions for Future Resume Updates - one per line" value={report.futureUpdates.join("\n")} onChange={v => update("futureUpdates", splitLines(v))} rows={5} /></div>
+          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Final Recommendation" value={report.finalRecommendation} onChange={v => update("finalRecommendation", v)} rows={4} /></div>
         </section>
       </div>
     </div>
