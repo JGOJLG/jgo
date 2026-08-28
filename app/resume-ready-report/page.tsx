@@ -14,14 +14,9 @@ type ReportData = {
   finalRecommendation: string;
 };
 
-const emptyReport: ReportData = {
-  client: "",
-  overallFeedback: "",
-  changes: [],
-  recruiterPerspective: "",
-  futureUpdates: [],
-  finalRecommendation: "",
-};
+type SectionName = "overall" | "changes" | "perspective" | "future" | "final" | "none";
+
+const emptyReport: ReportData = { client: "", overallFeedback: "", changes: [], recruiterPerspective: "", futureUpdates: [], finalRecommendation: "" };
 
 const STANDARD_RECOMMENDATIONS = [
   (client: string) => `Save as “${client || "First Last"} Resume.pdf” and submit the PDF unless Word is specifically requested.`,
@@ -118,20 +113,8 @@ function normalize(raw: string) { return raw.replace(/\r/g, "").replace(/[’]/g
 function key(v: string) { return clean(v).replace(/:$/, "").replace(/\s+/g, " ").toUpperCase(); }
 function splitLines(v: string) { return v.split(/\n+/).map(cleanBullet).filter(Boolean); }
 function isBullet(v: string) { return /^[•●▪◦\-*]\s*/.test(v.trim()); }
-function fileBaseName(name: string) {
-  const x = name.replace(/[^a-zA-Z0-9 .'-]/g, "").replace(/\s+/g, " ").trim();
-  return `${x || "JGO Hire"} Resume Ready Report`;
-}
-function section(lines: string[], starts: string[], ends: string[]) {
-  const start = lines.findIndex(l => starts.includes(key(l)));
-  if (start < 0) return [];
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    const k = key(lines[i]);
-    if (ends.includes(k) || /^FINAL RECOMMENDATION\s*:/i.test(clean(lines[i]))) { end = i; break; }
-  }
-  return lines.slice(start + 1, end);
-}
+function fileBaseName(name: string) { const x = name.replace(/[^a-zA-Z0-9 .'-]/g, "").replace(/\s+/g, " ").trim(); return `${x || "JGO Hire"} Resume Ready Report`; }
+
 function paragraphs(lines: string[]) {
   const out: string[] = [];
   let buf: string[] = [];
@@ -149,133 +132,85 @@ function paragraphs(lines: string[]) {
 function parseChangeChunk(chunk: string): Change | null {
   const noNumber = chunk.replace(/^\s*[1-6][.)]\s*/, "").trim();
   if (!noNumber) return null;
-
-  const detailMatch = noNumber.match(/^([\s\S]*?)\s+DETAIL\s*:\s*([\s\S]+)$/i);
-  if (detailMatch) {
-    const title = clean(detailMatch[1]).replace(/\s+/g, " ").trim();
-    const body = cleanBullet(detailMatch[2]).replace(/\s+/g, " ").trim();
+  const detail = noNumber.match(/^([\s\S]*?)\s+DETAIL\s*:\s*([\s\S]+)$/i);
+  if (detail) {
+    const title = clean(detail[1]).replace(/\s+/g, " ").trim();
+    const body = cleanBullet(detail[2]).replace(/\s+/g, " ").trim();
     return title && body ? { title, body } : null;
   }
-
-  const lineParts = noNumber.split(/\n+/).map(v => v.trim()).filter(Boolean);
-  if (lineParts.length >= 2) {
-    const title = clean(lineParts[0]);
-    const body = lineParts.slice(1).map(cleanBullet).join(" ").replace(/\s+/g, " ").trim();
-    return title && body ? { title, body } : null;
-  }
-
-  const inline = noNumber.match(/^(.{1,120}?)\s+-\s+(.+)$/);
-  if (inline) {
-    const title = clean(inline[1]);
-    const body = cleanBullet(inline[2]).replace(/\s+/g, " ").trim();
-    return title && body ? { title, body } : null;
-  }
-
+  const parts = noNumber.split(/\n+/).map(v => v.trim()).filter(Boolean);
+  if (parts.length >= 2) return { title: clean(parts[0]), body: parts.slice(1).map(cleanBullet).join(" ").replace(/\s+/g, " ").trim() };
   return null;
 }
 
 function parseChangeBlock(lines: string[]) {
   const raw = lines.join("\n").trim();
   if (!raw) return [];
-
-  // First, split by every numbered marker no matter whether clipboard copying
-  // preserved line breaks. This prevents 1-5 from ever becoming one change.
   const marker = /(?:^|\s)([1-6])[.)]\s+/g;
   const starts: number[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = marker.exec(raw)) !== null) {
-    const offset = match[0].search(/[1-6][.)]/);
-    starts.push(match.index + Math.max(offset, 0));
+  let m: RegExpExecArray | null;
+  while ((m = marker.exec(raw)) !== null) {
+    const offset = m[0].search(/[1-6][.)]/);
+    starts.push(m.index + Math.max(offset, 0));
   }
-
-  if (starts.length >= 2) {
+  if (starts.length) {
     const out: Change[] = [];
     for (let i = 0; i < starts.length; i++) {
       const chunk = raw.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : raw.length).trim();
       const parsed = parseChangeChunk(chunk);
-      if (parsed) out.push(parsed);
+      if (parsed?.title && parsed?.body) out.push(parsed);
     }
-    if (out.length >= 2) return out;
+    if (out.length) return out;
   }
-
-  // Backward-compatible parser for the older numbered-title + hyphen-body format.
-  const out: Change[] = [];
-  let title = "";
-  let body: string[] = [];
-  const flush = () => {
-    const text = body.map(cleanBullet).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-    if (title && text) out.push({ title: title.replace(/^\d+[.)]\s*/, "").trim(), body: text });
-    title = ""; body = [];
-  };
-  for (const rawLine of lines) {
-    const l = clean(rawLine);
-    if (!l) continue;
-    if (/^\d+[.)]\s+/.test(l)) { flush(); title = l; continue; }
-    if (/^DETAIL\s*:/i.test(l)) { body.push(l.replace(/^DETAIL\s*:\s*/i, "")); continue; }
-    if (isBullet(rawLine)) { body.push(rawLine); continue; }
-    if (!title) { title = l; continue; }
-    body.push(rawLine);
-  }
-  flush();
-  return out;
+  return [];
 }
 
 function parseFuture(lines: string[]) {
-  const out: string[] = [];
-  let current = "";
-  for (const raw of lines) {
-    const l = clean(raw);
-    if (!l) continue;
-    if (isBullet(raw)) {
-      if (current) out.push(current.trim());
-      current = cleanBullet(raw);
-    } else if (current) current += ` ${l}`;
-    else current = l;
-  }
-  if (current) out.push(current.trim());
-  return out.filter(Boolean);
+  const bullets = lines.filter(l => isBullet(l)).map(cleanBullet).filter(Boolean);
+  if (bullets.length) return bullets;
+  return lines.map(cleanBullet).filter(Boolean);
 }
+
 function detectClient(lines: string[]) {
-  const cleaned = lines.map(clean).filter(Boolean);
-  const explicit = cleaned.find(l => /^CLIENT\s*:/i.test(l) || /^PREPARED FOR\s+/i.test(l));
-  if (explicit) return explicit.replace(/^CLIENT\s*:/i, "").replace(/^PREPARED FOR\s+/i, "").trim();
-  return "";
+  const explicit = lines.map(clean).find(l => /^CLIENT\s*:/i.test(l) || /^PREPARED FOR\s+/i.test(l));
+  return explicit ? explicit.replace(/^CLIENT\s*:/i, "").replace(/^PREPARED FOR\s+/i, "").trim() : "";
 }
+
+function classifyHeading(rawLine: string): { section: SectionName; remainder: string } | null {
+  const l = clean(rawLine).replace(/\s+/g, " ");
+  const k = key(l);
+  if (k === "OVERALL FEEDBACK" || k === "OVERALL ASSESSMENT") return { section: "overall", remainder: "" };
+  if (k === "WHAT I CHANGED" || k === "WHAT CHANGED" || k === "KEY IMPROVEMENTS") return { section: "changes", remainder: "" };
+  if (["RECRUITER'S PERSPECTIVE", "RECRUITER PERSPECTIVE", "RECRUITERS PERSPECTIVE"].includes(k)) return { section: "perspective", remainder: "" };
+  if (k === "SUGGESTIONS FOR FUTURE RESUME UPDATES") return { section: "future", remainder: "" };
+  const finalMatch = l.match(/^FINAL RECOMMENDATION\s*:\s*(.*)$/i);
+  if (finalMatch) return { section: "final", remainder: finalMatch[1].trim() };
+  if (k === "FINAL RECOMMENDATION") return { section: "final", remainder: "" };
+  return null;
+}
+
 function parseReport(raw: string): ReportData {
   const lines = normalize(raw).split("\n");
+  const buckets: Record<Exclude<SectionName, "none">, string[]> = { overall: [], changes: [], perspective: [], future: [], final: [] };
+  let active: SectionName = "none";
+
+  for (const rawLine of lines) {
+    const heading = classifyHeading(rawLine);
+    if (heading) {
+      active = heading.section;
+      if (heading.remainder && active !== "none") buckets[active].push(heading.remainder);
+      continue;
+    }
+    if (active !== "none") buckets[active].push(rawLine);
+  }
+
   const out: ReportData = { ...emptyReport, changes: [], futureUpdates: [] };
   out.client = detectClient(lines);
-
-  const overall = section(lines,
-    ["OVERALL FEEDBACK", "OVERALL ASSESSMENT"],
-    ["WHAT I CHANGED", "WHAT CHANGED", "KEY IMPROVEMENTS", "RECRUITER'S PERSPECTIVE", "RECRUITER PERSPECTIVE", "SUGGESTIONS FOR FUTURE RESUME UPDATES"]
-  );
-  if (overall.length) out.overallFeedback = paragraphs(overall);
-
-  const changes = section(lines,
-    ["WHAT I CHANGED", "WHAT CHANGED", "KEY IMPROVEMENTS"],
-    ["RECRUITER'S PERSPECTIVE", "RECRUITER PERSPECTIVE", "RECRUITERS PERSPECTIVE", "SUGGESTIONS FOR FUTURE RESUME UPDATES", "FINAL RECOMMENDATION"]
-  );
-  out.changes = parseChangeBlock(changes);
-
-  const perspective = section(lines,
-    ["RECRUITER'S PERSPECTIVE", "RECRUITER PERSPECTIVE", "RECRUITERS PERSPECTIVE"],
-    ["SUGGESTIONS FOR FUTURE RESUME UPDATES", "FINAL RECOMMENDATION"]
-  );
-  if (perspective.length) out.recruiterPerspective = paragraphs(perspective);
-
-  const future = section(lines,
-    ["SUGGESTIONS FOR FUTURE RESUME UPDATES"],
-    ["FINAL RECOMMENDATION"]
-  );
-  if (future.length) out.futureUpdates = parseFuture(future);
-
-  const finalIndex = lines.findIndex(l => /^FINAL RECOMMENDATION\s*:/i.test(clean(l)) || key(l) === "FINAL RECOMMENDATION");
-  if (finalIndex >= 0) {
-    const first = clean(lines[finalIndex]).replace(/^FINAL RECOMMENDATION\s*:\s*/i, "").replace(/^FINAL RECOMMENDATION$/i, "").trim();
-    const tail = lines.slice(finalIndex + 1).map(clean).filter(Boolean);
-    out.finalRecommendation = [first, ...tail].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-  }
+  out.overallFeedback = paragraphs(buckets.overall);
+  out.changes = parseChangeBlock(buckets.changes);
+  out.recruiterPerspective = paragraphs(buckets.perspective);
+  out.futureUpdates = parseFuture(buckets.future).slice(0, 4);
+  out.finalRecommendation = paragraphs(buckets.final).replace(/\s+/g, " ").trim();
 
   if (!out.futureUpdates.length) out.futureUpdates = DEFAULT_FUTURE_UPDATES;
   return out;
@@ -287,131 +222,45 @@ function Field({ label, value, onChange, rows = 5 }: { label: string; value: str
 function Input({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return <label className="block"><span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">{label}</span><input value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-xl border border-[#e0e5dc] bg-white px-4 py-3 text-sm text-[#343b33] outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" /></label>;
 }
+
 function loadScript(src: string, id: string) {
   return new Promise<void>((resolve, reject) => {
     const existing = document.getElementById(id) as HTMLScriptElement | null;
-    if (existing) {
-      if (existing.dataset.loaded === "true") return resolve();
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Could not load PDF tools.")), { once: true });
-      return;
-    }
-    const script = document.createElement("script");
-    script.id = id; script.src = src; script.async = true;
-    script.onload = () => { script.dataset.loaded = "true"; resolve(); };
-    script.onerror = () => reject(new Error("Could not load PDF tools."));
-    document.head.appendChild(script);
+    if (existing) { if (existing.dataset.loaded === "true") return resolve(); existing.addEventListener("load", () => resolve(), { once: true }); existing.addEventListener("error", () => reject(new Error("Could not load PDF tools.")), { once: true }); return; }
+    const script = document.createElement("script"); script.id = id; script.src = src; script.async = true;
+    script.onload = () => { script.dataset.loaded = "true"; resolve(); }; script.onerror = () => reject(new Error("Could not load PDF tools.")); document.head.appendChild(script);
   });
 }
 async function imageData(url: string) {
   const blob = await fetch(url).then(r => { if (!r.ok) throw new Error("Logo not found"); return r.blob(); });
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(blob);
-  });
+  return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(blob); });
 }
 
 async function makePdf(data: ReportData) {
   await loadScript("https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js", "jgo-report-jspdf");
   const jsPDF = window.jspdf?.jsPDF;
   if (!jsPDF) throw new Error("PDF generator did not load.");
-
   const d = new jsPDF({ unit: "pt", format: "letter" });
   const W = 612, M = 46, CW = W - M * 2;
-  const ink: [number, number, number] = [38, 43, 37];
-  const sage: [number, number, number] = [76, 96, 72];
-  const muted: [number, number, number] = [105, 112, 102];
-  const rule: [number, number, number] = [222, 227, 219];
-  const soft: [number, number, number] = [247, 249, 245];
-
+  const ink: [number, number, number] = [38, 43, 37], sage: [number, number, number] = [76, 96, 72], muted: [number, number, number] = [105, 112, 102], rule: [number, number, number] = [222, 227, 219], soft: [number, number, number] = [247, 249, 245];
   const font = (s: number, b = false, c = ink) => { d.setFont("helvetica", b ? "bold" : "normal"); d.setFontSize(s); d.setTextColor(...c); };
   const wrap = (t: string, w: number, s = 8.6, b = false) => { font(s, b); return d.splitTextToSize(t || "", w) as string[]; };
-  const drawText = (t: string, x: number, y: number, w: number, s = 8.6, b = false, c = ink, leading = 1.28) => {
-    const paras = (t || "").split(/\n\n+/).filter(Boolean);
-    let yy = y;
-    paras.forEach((p, idx) => {
-      const lines = wrap(p, w, s, b); font(s, b, c); d.text(lines, x, yy); yy += lines.length * s * leading;
-      if (idx < paras.length - 1) yy += s * .45;
-    });
-    return yy;
-  };
-  const heading = (label: string, y: number) => {
-    font(8.3, true, sage); d.text(label.toUpperCase(), M, y);
-    d.setDrawColor(...rule); d.setLineWidth(.65); d.line(M, y + 6, W - M, y + 6);
-    return y + 20;
-  };
-  const footer = (page: number) => {
-    d.setDrawColor(...rule); d.line(M, 748, W - M, 748);
-    font(6.8, false, muted); d.text("JGO HIRE", M, 765); d.text(`Resume Ready Report  |  ${page}`, W - M, 765, { align: "right" });
-  };
-  const continuationHeader = async () => {
-    try { const logo = await imageData("/jgo-hire-logo.png"); d.addImage(logo, "PNG", M, 25, 56, 21); }
-    catch { font(12.5, true); d.text("JGO Hire", M, 42); }
-    font(6.8, true, muted); d.text("RESUME READY REPORT™", W - M, 33, { align: "right" });
-    font(11.5, true, ink); d.text(data.client || "Client", W - M, 49, { align: "right" });
-    d.setDrawColor(...rule); d.line(M, 64, W - M, 64);
-  };
-
-  try { const logo = await imageData("/jgo-hire-logo.png"); d.addImage(logo, "PNG", M, 24, 66, 25); }
-  catch { font(14.5, true); d.text("JGO Hire", M, 45); }
-  font(6.8, true, muted); d.text("RESUME READY REPORT™", W - M, 29, { align: "right" });
-  font(19, true, ink); d.text(data.client || "Client", W - M, 50, { align: "right" });
-  font(7.5, false, muted); d.text("Prepared by Jen Gordon | Certified Career Coach & Recruiter", W - M, 65, { align: "right" });
-  d.setDrawColor(...rule); d.line(M, 78, W - M, 78);
-
+  const drawText = (t: string, x: number, y: number, w: number, s = 8.6, b = false, c = ink, leading = 1.28) => { const paras = (t || "").split(/\n\n+/).filter(Boolean); let yy = y; paras.forEach((p, idx) => { const lines = wrap(p, w, s, b); font(s, b, c); d.text(lines, x, yy); yy += lines.length * s * leading; if (idx < paras.length - 1) yy += s * .45; }); return yy; };
+  const heading = (label: string, y: number) => { font(8.3, true, sage); d.text(label.toUpperCase(), M, y); d.setDrawColor(...rule); d.setLineWidth(.65); d.line(M, y + 6, W - M, y + 6); return y + 20; };
+  const footer = (page: number) => { d.setDrawColor(...rule); d.line(M, 748, W - M, 748); font(6.8, false, muted); d.text("JGO HIRE", M, 765); d.text(`Resume Ready Report  |  ${page}`, W - M, 765, { align: "right" }); };
+  const continuationHeader = async () => { try { const logo = await imageData("/jgo-hire-logo.png"); d.addImage(logo, "PNG", M, 25, 56, 21); } catch { font(12.5, true); d.text("JGO Hire", M, 42); } font(6.8, true, muted); d.text("RESUME READY REPORT™", W - M, 33, { align: "right" }); font(11.5, true, ink); d.text(data.client || "Client", W - M, 49, { align: "right" }); d.setDrawColor(...rule); d.line(M, 64, W - M, 64); };
+  try { const logo = await imageData("/jgo-hire-logo.png"); d.addImage(logo, "PNG", M, 24, 66, 25); } catch { font(14.5, true); d.text("JGO Hire", M, 45); }
+  font(6.8, true, muted); d.text("RESUME READY REPORT™", W - M, 29, { align: "right" }); font(19, true, ink); d.text(data.client || "Client", W - M, 50, { align: "right" }); font(7.5, false, muted); d.text("Prepared by Jen Gordon | Certified Career Coach & Recruiter", W - M, 65, { align: "right" }); d.setDrawColor(...rule); d.line(M, 78, W - M, 78);
   let y = 101;
-  y = heading("Overall Feedback", y);
-  y = drawText(data.overallFeedback, M, y, CW, 8.7, false, ink, 1.27) + 11;
-
+  y = heading("Overall Feedback", y); y = drawText(data.overallFeedback, M, y, CW, 8.7, false, ink, 1.27) + 11;
   y = heading("What I Changed", y);
-  data.changes.slice(0, 6).forEach((c, i) => {
-    const titleLines = wrap(`${i + 1}. ${c.title}`, CW, 8.6, true);
-    font(8.6, true, ink); d.text(titleLines, M, y);
-    y += titleLines.length * 10.4 + 3;
-    y = drawText(c.body, M + 14, y, CW - 14, 8.15, false, ink, 1.24) + 9;
-    if (i < Math.min(data.changes.length, 6) - 1) {
-      d.setDrawColor(235, 238, 232); d.line(M + 14, y - 2, W - M, y - 2); y += 7;
-    }
-  });
-
-  y += 3;
-  y = heading("Recruiter's Perspective", y);
-  drawText(data.recruiterPerspective, M, y, CW, 8.55, false, ink, 1.27);
-  footer(1);
-
-  d.addPage();
-  await continuationHeader();
-  y = 88;
-
-  y = heading("Suggestions for Future Resume Updates", y);
-  data.futureUpdates.slice(0, 4).forEach(item => {
-    d.setFillColor(...sage); d.circle(M + 2, y - 2.5, 1.25, "F");
-    y = drawText(item, M + 13, y, CW - 13, 8.25, false, ink, 1.24) + 5;
-  });
-  y += 4;
-
-  y = heading("Final Recommendation", y);
-  const recLines = wrap(data.finalRecommendation, CW - 24, 8.45, true);
-  const boxH = Math.max(48, recLines.length * 10.9 + 22);
-  d.setFillColor(...soft); d.roundedRect(M, y - 6, CW, boxH, 6, 6, "F");
-  font(8.45, true, ink); d.text(recLines, M + 12, y + 8); y += boxH + 10;
-
-  y = heading("JGO Hire Recommendations", y);
-  STANDARD_RECOMMENDATIONS.forEach(f => {
-    d.setFillColor(...sage); d.circle(M + 2, y - 2.4, 1.2, "F");
-    y = drawText(f(data.client), M + 13, y, CW - 13, 7.95, false, ink, 1.22) + 4;
-  });
-  y += 5;
-
-  y = heading("JGO Hire Pro Tip", y);
-  y = drawText("A great resume should answer three questions within the first 30 to 60 seconds:", M, y, CW, 8.2, false, ink, 1.24) + 6;
-  ["Can you do the job?", "Why are you a strong fit for this position?", "Why should the employer interview you?"].forEach((q, i) => {
-    font(8.2, true, ink); d.text(`${i + 1}. ${q}`, M + 7, y); y += 12;
-  });
-  y += 2;
-  drawText("Your updated resume is designed to make those answers easier to see without making the reader search for them.", M, y, CW, 8.05, false, muted, 1.23);
-
-  footer(2);
+  data.changes.slice(0, 6).forEach((c, i) => { const titleLines = wrap(`${i + 1}. ${c.title}`, CW, 8.6, true); font(8.6, true, ink); d.text(titleLines, M, y); y += titleLines.length * 10.4 + 3; y = drawText(c.body, M + 14, y, CW - 14, 8.15, false, ink, 1.24) + 9; if (i < Math.min(data.changes.length, 6) - 1) { d.setDrawColor(235, 238, 232); d.line(M + 14, y - 2, W - M, y - 2); y += 7; } });
+  y += 3; y = heading("Recruiter's Perspective", y); drawText(data.recruiterPerspective, M, y, CW, 8.55, false, ink, 1.27); footer(1);
+  d.addPage(); await continuationHeader(); y = 88;
+  y = heading("Suggestions for Future Resume Updates", y); data.futureUpdates.slice(0, 4).forEach(item => { d.setFillColor(...sage); d.circle(M + 2, y - 2.5, 1.25, "F"); y = drawText(item, M + 13, y, CW - 13, 8.25, false, ink, 1.24) + 5; }); y += 4;
+  y = heading("Final Recommendation", y); const recLines = wrap(data.finalRecommendation, CW - 24, 8.45, true); const boxH = Math.max(48, recLines.length * 10.9 + 22); d.setFillColor(...soft); d.roundedRect(M, y - 6, CW, boxH, 6, 6, "F"); font(8.45, true, ink); d.text(recLines, M + 12, y + 8); y += boxH + 10;
+  y = heading("JGO Hire Recommendations", y); STANDARD_RECOMMENDATIONS.forEach(f => { d.setFillColor(...sage); d.circle(M + 2, y - 2.4, 1.2, "F"); y = drawText(f(data.client), M + 13, y, CW - 13, 7.95, false, ink, 1.22) + 4; }); y += 5;
+  y = heading("JGO Hire Pro Tip", y); y = drawText("A great resume should answer three questions within the first 30 to 60 seconds:", M, y, CW, 8.2, false, ink, 1.24) + 6; ["Can you do the job?", "Why are you a strong fit for this position?", "Why should the employer interview you?"].forEach((q, i) => { font(8.2, true, ink); d.text(`${i + 1}. ${q}`, M + 7, y); y += 12; }); y += 2; drawText("Your updated resume is designed to make those answers easier to see without making the reader search for them.", M, y, CW, 8.05, false, muted, 1.23); footer(2);
   d.save(`${fileBaseName(data.client)}.pdf`);
 }
 
@@ -420,96 +269,28 @@ export default function ResumeReadyReportPage() {
   const [importText, setImportText] = useState("");
   const [status, setStatus] = useState("");
   const [promptCopied, setPromptCopied] = useState(false);
-
-  const completion = useMemo(() => {
-    const checks = [report.client, report.overallFeedback, report.changes.length, report.recruiterPerspective, report.futureUpdates.length, report.finalRecommendation];
-    return Math.round(checks.filter(Boolean).length / checks.length * 100);
-  }, [report]);
-
+  const completion = useMemo(() => { const checks = [report.client, report.overallFeedback, report.changes.length, report.recruiterPerspective, report.futureUpdates.length, report.finalRecommendation]; return Math.round(checks.filter(Boolean).length / checks.length * 100); }, [report]);
   const update = (k: keyof ReportData, v: any) => setReport(r => ({ ...r, [k]: v }));
-  const copyPrompt = async () => {
-    try {
-      await navigator.clipboard.writeText(CHATGPT_PROMPT); setPromptCopied(true); window.setTimeout(() => setPromptCopied(false), 1800);
-    } catch { setStatus("Could not copy automatically. Select the prompt text and copy it manually."); }
-  };
-  const doImport = () => {
-    try {
-      const parsed = parseReport(importText);
-      const found = [parsed.client, parsed.overallFeedback, parsed.changes.length, parsed.recruiterPerspective, parsed.futureUpdates.length, parsed.finalRecommendation].filter(Boolean).length;
-      setReport(parsed);
-      setStatus(found >= 4 ? `Formatted successfully${parsed.client ? ` for ${parsed.client}` : ""}. ${parsed.changes.length} separate changes detected.` : `I filled ${found} sections. Review the fields on the right and add anything missing.`);
-    } catch (e: any) { setStatus(e?.message || "Could not format this report."); }
-  };
-  const download = async () => {
-    try { setStatus("Building polished two-page JGO Hire report..."); await makePdf(report); setStatus("Report downloaded."); }
-    catch (e: any) { setStatus(e?.message || "Could not create PDF."); }
-  };
+  const copyPrompt = async () => { try { await navigator.clipboard.writeText(CHATGPT_PROMPT); setPromptCopied(true); window.setTimeout(() => setPromptCopied(false), 1800); } catch { setStatus("Could not copy automatically. Select the prompt text and copy it manually."); } };
+  const doImport = () => { try { const parsed = parseReport(importText); const found = [parsed.client, parsed.overallFeedback, parsed.changes.length, parsed.recruiterPerspective, parsed.futureUpdates.length, parsed.finalRecommendation].filter(Boolean).length; setReport(parsed); setStatus(found >= 4 ? `Formatted successfully${parsed.client ? ` for ${parsed.client}` : ""}. ${parsed.changes.length} separate changes detected.` : `I filled ${found} sections. Review the fields on the right and add anything missing.`); } catch (e: any) { setStatus(e?.message || "Could not format this report."); } };
+  const download = async () => { try { setStatus("Building polished two-page JGO Hire report..."); await makePdf(report); setStatus("Report downloaded."); } catch (e: any) { setStatus(e?.message || "Could not create PDF."); } };
 
-  return <main className="min-h-screen bg-[#f6f7f4] px-4 py-8 text-[#30372f] md:px-8 md:py-10">
-    <div className="mx-auto max-w-[1320px]">
-      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#7e8a7b]">JGO Hire</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-[#2e352d]">Resume Ready Report</h1>
-          <p className="mt-2 max-w-2xl text-sm text-[#7a8378]">Use the JGO prompt with the original and revised resume, then paste ChatGPT's plain-text report back here. The generator is designed for a clean two-page client report.</p>
-        </div>
-        <div className="flex items-center gap-3 rounded-full border border-[#e1e5dd] bg-white px-4 py-2 shadow-sm">
-          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#edf0eb]"><div className="h-full rounded-full bg-[#758a70]" style={{ width: `${completion}%` }} /></div>
-          <span className="text-xs font-semibold text-[#596656]">{completion}% ready</span>
-        </div>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
-        <aside className="space-y-4">
-          <section className="rounded-2xl border border-[#dce3d8] bg-[#eef3eb] p-5 shadow-[0_8px_30px_rgba(51,61,48,.04)]">
-            <div className="flex items-start justify-between gap-4">
-              <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71806d]">Step 1</p><h2 className="mt-1 text-base font-semibold">Get the ChatGPT Prompt</h2></div>
-              <button type="button" onClick={copyPrompt} className="shrink-0 rounded-lg bg-[#4f614b] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#445441]">{promptCopied ? "Copied!" : "Copy Prompt"}</button>
-            </div>
-            <p className="mt-2 text-xs leading-5 text-[#697465]">The prompt uses fixed change markers so all 5 What I Changed items stay separate when pasted back into the OS.</p>
-            <textarea readOnly value={CHATGPT_PROMPT} rows={12} onFocus={e => e.currentTarget.select()} className="mt-4 w-full resize-y rounded-xl border border-[#d8e0d4] bg-white px-4 py-3 text-xs leading-5 text-[#465044] outline-none" />
-          </section>
-
-          <section className="rounded-2xl border border-[#e1e5dd] bg-white p-5 shadow-[0_8px_30px_rgba(51,61,48,.04)]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">Step 2</p>
-            <h2 className="mt-1 text-base font-semibold">Paste ChatGPT's Report</h2>
-            <p className="mt-1 text-xs leading-5 text-[#7d867b]">Paste the plain-text response exactly as ChatGPT gives it to you. The OS will place each section into the correct field.</p>
-            <textarea value={importText} onChange={e => setImportText(e.target.value)} rows={18} className="mt-4 w-full resize-y rounded-xl border border-[#e0e5dc] bg-[#fafbf9] px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" placeholder="Paste ChatGPT report here..." />
-            <button type="button" onClick={doImport} disabled={!importText.trim()} className="mt-3 w-full rounded-xl bg-[#4f614b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Format Report</button>
-            {status && <p className="mt-3 rounded-lg bg-[#f3f6f1] px-3 py-2 text-xs leading-5 text-[#566452]">{status}</p>}
-          </section>
-
-          <section className="rounded-2xl border border-[#e1e5dd] bg-white p-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#7b8779]">Two-Page Standard</p>
-            <p className="mt-2 text-sm font-semibold">Strong, but easy to scan</p>
-            <p className="mt-1 text-xs leading-5 text-[#7d867b]">Page 1 covers Overall Feedback, concise What I Changed points, and Recruiter's Perspective. Page 2 holds future updates, final recommendation, JGO recommendations, and the Pro Tip.</p>
-          </section>
-        </aside>
-
-        <section className="rounded-2xl border border-[#e1e5dd] bg-white p-6 shadow-[0_8px_30px_rgba(51,61,48,.04)] md:p-7">
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">Step 3</p><h2 className="mt-1 text-base font-semibold">Review, Edit & Download</h2><p className="mt-1 text-xs text-[#7d867b]">Make any final edits before generating the client report.</p></div>
-            <button type="button" onClick={download} disabled={!report.client} className="rounded-xl bg-[#4f614b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Download PDF</button>
-          </div>
-
-          <Input label="Client" value={report.client} onChange={v => update("client", v)} />
-          <div className="mt-6"><Field label="Overall Feedback" value={report.overallFeedback} onChange={v => update("overallFeedback", v)} rows={6} /></div>
-
-          <div className="mt-7 border-t border-[#edf0ea] pt-6">
-            <div className="mb-4 flex items-center justify-between"><div><h3 className="text-sm font-semibold">What I Changed</h3><p className="mt-1 text-xs text-[#8a9287]">Each numbered change is stored and rendered as its own separate block.</p></div><button type="button" onClick={() => update("changes", [...report.changes, { title: "", body: "" }])} className="text-xs font-semibold text-[#60705d]">+ Add Change</button></div>
-            <div className="space-y-3">
-              {report.changes.map((c, i) => <div key={i} className="rounded-xl bg-[#fafbf9] p-4">
-                <Input label={`Change ${i + 1} Title`} value={c.title} onChange={v => { const n = [...report.changes]; n[i] = { ...n[i], title: v }; update("changes", n); }} />
-                <div className="mt-3"><Field label="Explanation" value={c.body} onChange={v => { const n = [...report.changes]; n[i] = { ...n[i], body: v }; update("changes", n); }} rows={3} /></div>
-              </div>)}
-            </div>
-          </div>
-
-          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Recruiter's Perspective" value={report.recruiterPerspective} onChange={v => update("recruiterPerspective", v)} rows={6} /></div>
-          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Suggestions for Future Resume Updates - one per line" value={report.futureUpdates.join("\n")} onChange={v => update("futureUpdates", splitLines(v))} rows={5} /></div>
-          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Final Recommendation" value={report.finalRecommendation} onChange={v => update("finalRecommendation", v)} rows={4} /></div>
-        </section>
-      </div>
+  return <main className="min-h-screen bg-[#f6f7f4] px-4 py-8 text-[#30372f] md:px-8 md:py-10"><div className="mx-auto max-w-[1320px]">
+    <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#7e8a7b]">JGO Hire</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-[#2e352d]">Resume Ready Report</h1><p className="mt-2 max-w-2xl text-sm text-[#7a8378]">Use the JGO prompt with the original and revised resume, then paste ChatGPT's plain-text report back here. The generator is designed for a clean two-page client report.</p></div><div className="flex items-center gap-3 rounded-full border border-[#e1e5dd] bg-white px-4 py-2 shadow-sm"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#edf0eb]"><div className="h-full rounded-full bg-[#758a70]" style={{ width: `${completion}%` }} /></div><span className="text-xs font-semibold text-[#596656]">{completion}% ready</span></div></div>
+    <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+      <aside className="space-y-4">
+        <section className="rounded-2xl border border-[#dce3d8] bg-[#eef3eb] p-5 shadow-[0_8px_30px_rgba(51,61,48,.04)]"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71806d]">Step 1</p><h2 className="mt-1 text-base font-semibold">Get the ChatGPT Prompt</h2></div><button type="button" onClick={copyPrompt} className="shrink-0 rounded-lg bg-[#4f614b] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#445441]">{promptCopied ? "Copied!" : "Copy Prompt"}</button></div><p className="mt-2 text-xs leading-5 text-[#697465]">The prompt uses fixed change markers so all 5 What I Changed items stay separate when pasted back into the OS.</p><textarea readOnly value={CHATGPT_PROMPT} rows={12} onFocus={e => e.currentTarget.select()} className="mt-4 w-full resize-y rounded-xl border border-[#d8e0d4] bg-white px-4 py-3 text-xs leading-5 text-[#465044] outline-none" /></section>
+        <section className="rounded-2xl border border-[#e1e5dd] bg-white p-5 shadow-[0_8px_30px_rgba(51,61,48,.04)]"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">Step 2</p><h2 className="mt-1 text-base font-semibold">Paste ChatGPT's Report</h2><p className="mt-1 text-xs leading-5 text-[#7d867b]">Paste the plain-text response exactly as ChatGPT gives it to you. The OS will place each section into the correct field.</p><textarea value={importText} onChange={e => setImportText(e.target.value)} rows={18} className="mt-4 w-full resize-y rounded-xl border border-[#e0e5dc] bg-[#fafbf9] px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" placeholder="Paste ChatGPT report here..." /><button type="button" onClick={doImport} disabled={!importText.trim()} className="mt-3 w-full rounded-xl bg-[#4f614b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Format Report</button>{status && <p className="mt-3 rounded-lg bg-[#f3f6f1] px-3 py-2 text-xs leading-5 text-[#566452]">{status}</p>}</section>
+        <section className="rounded-2xl border border-[#e1e5dd] bg-white p-5"><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#7b8779]">Two-Page Standard</p><p className="mt-2 text-sm font-semibold">Strong, but easy to scan</p><p className="mt-1 text-xs leading-5 text-[#7d867b]">Page 1 covers Overall Feedback, concise What I Changed points, and Recruiter's Perspective. Page 2 holds future updates, final recommendation, JGO recommendations, and the Pro Tip.</p></section>
+      </aside>
+      <section className="rounded-2xl border border-[#e1e5dd] bg-white p-6 shadow-[0_8px_30px_rgba(51,61,48,.04)] md:p-7"><div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">Step 3</p><h2 className="mt-1 text-base font-semibold">Review, Edit & Download</h2><p className="mt-1 text-xs text-[#7d867b]">Make any final edits before generating the client report.</p></div><button type="button" onClick={download} disabled={!report.client} className="rounded-xl bg-[#4f614b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Download PDF</button></div>
+        <Input label="Client" value={report.client} onChange={v => update("client", v)} />
+        <div className="mt-6"><Field label="Overall Feedback" value={report.overallFeedback} onChange={v => update("overallFeedback", v)} rows={6} /></div>
+        <div className="mt-7 border-t border-[#edf0ea] pt-6"><div className="mb-4 flex items-center justify-between"><div><h3 className="text-sm font-semibold">What I Changed</h3><p className="mt-1 text-xs text-[#8a9287]">Each numbered change is stored and rendered as its own separate block.</p></div><button type="button" onClick={() => update("changes", [...report.changes, { title: "", body: "" }])} className="text-xs font-semibold text-[#60705d]">+ Add Change</button></div><div className="space-y-3">{report.changes.map((c, i) => <div key={i} className="rounded-xl bg-[#fafbf9] p-4"><Input label={`Change ${i + 1} Title`} value={c.title} onChange={v => { const n = [...report.changes]; n[i] = { ...n[i], title: v }; update("changes", n); }} /><div className="mt-3"><Field label="Explanation" value={c.body} onChange={v => { const n = [...report.changes]; n[i] = { ...n[i], body: v }; update("changes", n); }} rows={3} /></div></div>)}</div></div>
+        <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Recruiter's Perspective" value={report.recruiterPerspective} onChange={v => update("recruiterPerspective", v)} rows={6} /></div>
+        <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Suggestions for Future Resume Updates - one per line" value={report.futureUpdates.join("\n")} onChange={v => update("futureUpdates", splitLines(v))} rows={5} /></div>
+        <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Final Recommendation" value={report.finalRecommendation} onChange={v => update("finalRecommendation", v)} rows={4} /></div>
+      </section>
     </div>
-  </main>;
+  </div></main>;
 }
