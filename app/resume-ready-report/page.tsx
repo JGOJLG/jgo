@@ -4,46 +4,521 @@ import { useMemo, useState } from "react";
 
 declare global { interface Window { jspdf?: any } }
 
-type Change={title:string;body:string}; type TargetRole={company:string;role:string;alignment:string};
-type ReportData={client:string;transformationBefore:string;transformationAfter:string;changes:Change[];targetRoles:TargetRole[];sellingPoints:string[];biggestDifferenceBefore:string;biggestDifferenceNow:string;positioning:string;targetLevel:string;primaryAlignment:string;industries:string;differentiators:string;status:string};
-const emptyReport:ReportData={client:"",transformationBefore:"",transformationAfter:"",changes:[],targetRoles:[],sellingPoints:[],biggestDifferenceBefore:"",biggestDifferenceNow:"",positioning:"",targetLevel:"",primaryAlignment:"",industries:"",differentiators:"",status:"READY"};
-function clean(v:string){return v.replace(/^#{1,6}\s*/,"").replace(/^\*\*(.*?)\*\*$/,"$1").replace(/\*\*/g,"").trim()}
-function cleanBullet(v:string){return clean(v).replace(/^[•●▪◦\-*]\s*/,"").trim()}
-function splitLines(v:string){return v.split(/\n+/).map(cleanBullet).filter(Boolean)}
-function sentences(v:string){return v.replace(/\s+/g," ").trim().split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map(cleanBullet).filter(Boolean)}
-function shortText(v:string,max=155){const s=cleanBullet(v);if(s.length<=max)return s;const cut=s.slice(0,max);const at=Math.max(cut.lastIndexOf(";"),cut.lastIndexOf(","),cut.lastIndexOf(" "));return cut.slice(0,at>90?at:max).trim()+"…"}
-function fileBaseName(n:string){const x=n.replace(/[^a-zA-Z0-9 .'-]/g,"").replace(/\s+/g," ").trim();return `${x||"JGO Hire"} Resume Ready Report`}
-function normalizeTag(line:string){const m=line.trim().match(/^\[\/?([A-Z0-9_ &-]+)\]$/i);return m?m[1].toUpperCase().replace(/[ &-]+/g,"_"):null}
-function getTaggedBlocks(raw:string){const blocks:{tag:string;value:string}[]=[];let tag="",buf:string[]=[];const flush=()=>{if(tag)blocks.push({tag,value:buf.join("\n").trim()});buf=[]};for(const line of raw.replace(/\r/g,"").split("\n")){const t=normalizeTag(line);if(t){if(t==="JGO_REPORT")continue;flush();tag=t}else if(tag)buf.push(line)}flush();return blocks}
-function parseStructured(raw:string):ReportData|null{if(!/\[JGO_REPORT\]/i.test(raw)&&!/\[TRANSFORMATION_BEFORE\]/i.test(raw))return null;const out={...emptyReport,changes:[],targetRoles:[],sellingPoints:[]} as ReportData;let c:Partial<Change>|null=null,r:Partial<TargetRole>|null=null;const pc=()=>{if(c&&(c.title||c.body))out.changes.push({title:c.title||"Resume Improvement",body:c.body||""});c=null};const pr=()=>{if(r&&(r.company||r.role||r.alignment))out.targetRoles.push({company:r.company||"",role:r.role||"",alignment:r.alignment||""});r=null};for(const b of getTaggedBlocks(raw)){const v=b.value.trim();switch(b.tag){case"CLIENT":out.client=v;break;case"TRANSFORMATION_BEFORE":out.transformationBefore=v;break;case"TRANSFORMATION_AFTER":out.transformationAfter=v;break;case"CHANGE":pc();c={};break;case"TITLE":if(c)c.title=v;break;case"BODY":if(c)c.body=v;break;case"TARGET_ROLE":pr();r={};break;case"COMPANY":if(r)r.company=v;break;case"ROLE":if(r)r.role=v;break;case"ALIGNMENT":if(r)r.alignment=v;break;case"SELLING_POINTS":out.sellingPoints=splitLines(v);break;case"BIGGEST_DIFFERENCE_BEFORE":out.biggestDifferenceBefore=v;break;case"BIGGEST_DIFFERENCE_NOW":out.biggestDifferenceNow=v;break;case"POSITIONING":out.positioning=v;break;case"TARGET_LEVEL":out.targetLevel=v;break;case"PRIMARY_ALIGNMENT":out.primaryAlignment=v;break;case"INDUSTRIES":out.industries=v;break;case"DIFFERENTIATORS":out.differentiators=v;break;case"STATUS":out.status=v||"READY"}}pc();pr();return out}
-function parseLegacy(raw:string):ReportData{const out={...emptyReport,changes:[],targetRoles:[],sellingPoints:[]} as ReportData;const lines=raw.replace(/\r/g,"").split("\n");let sec="",sub="",buf:string[]=[];const flush=()=>{const t=buf.map(clean).filter(Boolean).join("\n").trim();if(!t){buf=[];return}if(sec==="BEFORE")out.transformationBefore=t;else if(sec==="AFTER")out.transformationAfter=t;else if(sec==="SELLING")out.sellingPoints=splitLines(t);else if(sec==="CHANGE"&&sub)out.changes.push({title:sub,body:t});else if(sec==="TARGET"&&sub){const [company,...rr]=sub.split("|").map(x=>x.trim());out.targetRoles.push({company,role:rr.join(" | "),alignment:t})}buf=[]};for(const rawLine of lines){const line=clean(rawLine);if(!line)continue;const up=line.toUpperCase().replace(/:$/,"");if(/^PREPARED FOR\s+/i.test(line)){out.client=line.replace(/^PREPARED FOR\s+/i,"").trim();continue}if(/^CLIENT\s*:/i.test(line)){out.client=line.replace(/^CLIENT\s*:/i,"").trim();continue}if(up==="BEFORE"){flush();sec="BEFORE";continue}if(up==="AFTER"){flush();sec="AFTER";continue}if(up==="TARGET ROLE ALIGNMENT"){flush();sec="TARGET";continue}if(up==="YOUR STRONGEST SELLING POINTS"){flush();sec="SELLING";continue}if(up==="THE BIGGEST DIFFERENCE"){flush();sec="DIFFERENCE";continue}if(up==="JGO HIRE FINAL ASSESSMENT"){flush();sec="FINAL";continue}if(/^\d+\.\s+/.test(line)){flush();sec="CHANGE";sub=line.replace(/^\d+\.\s+/,"");continue}if(sec==="TARGET"&&/\|/.test(line)&&!line.endsWith(".")){flush();sub=line;continue}if(sec==="DIFFERENCE"){if(/^BEFORE\s*:/i.test(line))out.biggestDifferenceBefore=line.replace(/^BEFORE\s*:/i,"");else if(/^(NOW|AFTER)\s*:/i.test(line))out.biggestDifferenceNow=line.replace(/^(NOW|AFTER)\s*:/i,"");continue}if(sec==="FINAL"){if(/^RESUME POSITIONING\s*:/i.test(line))out.positioning=line.replace(/^RESUME POSITIONING\s*:/i,"");else if(/^TARGET LEVEL\s*:/i.test(line))out.targetLevel=line.replace(/^TARGET LEVEL\s*:/i,"");else if(/^PRIMARY AREAS OF ALIGNMENT\s*:/i.test(line))out.primaryAlignment=line.replace(/^PRIMARY AREAS OF ALIGNMENT\s*:/i,"");else if(/^INDUSTRY STRENGTHS\s*:/i.test(line))out.industries=line.replace(/^INDUSTRY STRENGTHS\s*:/i,"");else if(/^KEY DIFFERENTIATORS\s*:/i.test(line))out.differentiators=line.replace(/^KEY DIFFERENTIATORS\s*:/i,"");else if(/^RESUME STATUS\s*:/i.test(line))out.status=line.replace(/^RESUME STATUS\s*:/i,"");continue}if(!["YOUR RESUME TRANSFORMATION","WHAT CHANGED"].includes(up))buf.push(line)}flush();return out}
-function parseImport(raw:string){return parseStructured(raw)||parseLegacy(raw)}
-function Field({label,value,onChange,rows=4}:{label:string;value:string;onChange:(v:string)=>void;rows?:number}){return <label className="block"><span className="mb-2 block text-[11px] font-bold uppercase tracking-[.14em] text-[#71806f]">{label}</span><textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows} className="w-full resize-y rounded-2xl border border-[#dce4d8] bg-white px-4 py-3 text-sm leading-6 text-[#364234] outline-none focus:border-[#aebda8]"/></label>}
-function Input({label,value,onChange}:{label:string;value:string;onChange:(v:string)=>void}){return <label className="block"><span className="mb-2 block text-[11px] font-bold uppercase tracking-[.14em] text-[#71806f]">{label}</span><input value={value} onChange={e=>onChange(e.target.value)} className="w-full rounded-2xl border border-[#dce4d8] bg-white px-4 py-3 text-sm text-[#364234] outline-none"/></label>}
-function loadScript(src:string,id:string){return new Promise<void>((resolve,reject)=>{const ex=document.getElementById(id) as HTMLScriptElement|null;if(ex){if(ex.dataset.loaded==="true")return resolve();ex.addEventListener("load",()=>resolve(),{once:true});ex.addEventListener("error",()=>reject(new Error("Could not load PDF tools.")),{once:true});return}const s=document.createElement("script");s.id=id;s.src=src;s.async=true;s.onload=()=>{s.dataset.loaded="true";resolve()};s.onerror=()=>reject(new Error("Could not load PDF tools."));document.head.appendChild(s)})}
-async function imageData(url:string){const blob=await fetch(url).then(r=>{if(!r.ok)throw new Error("Logo not found");return r.blob()});return await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;reader.readAsDataURL(blob)})}
+type Change = { title: string; body: string };
+type TargetRole = { company: string; role: string; alignment: string };
+type ReportData = {
+  client: string;
+  transformationBefore: string;
+  transformationAfter: string;
+  changes: Change[];
+  targetRoles: TargetRole[];
+  sellingPoints: string[];
+  biggestDifferenceBefore: string;
+  biggestDifferenceNow: string;
+  positioning: string;
+  targetLevel: string;
+  primaryAlignment: string;
+  industries: string;
+  differentiators: string;
+  status: string;
+};
 
-async function makePdf(data:ReportData){
- await loadScript("https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js","jgo-report-jspdf");const jsPDF=window.jspdf?.jsPDF;if(!jsPDF)throw new Error("PDF generator did not load.");const d=new jsPDF({unit:"pt",format:"letter"});
- const W=612,H=792,M=42,CW=W-M*2,sage:[number,number,number]=[77,98,72],ink:[number,number,number]=[43,48,42],muted:[number,number,number]=[105,113,103],pale:[number,number,number]=[244,247,242],rule:[number,number,number]=[218,224,214];let y=0;
- const font=(s:number,b=false,c=ink)=>{d.setFont("helvetica",b?"bold":"normal");d.setFontSize(s);d.setTextColor(...c)};
- const footer=(p:number)=>{d.setDrawColor(...rule);d.line(M,758,W-M,758);font(6.5,true,muted);d.text("JGO HIRE  |  RESUME READY REPORT",M,774);d.text(`${p} / 2`,W-M,774,{align:"right"})};
- const header=async(p:number)=>{if(p===1){try{const logo=await imageData("/jgo-hire-logo.png");d.addImage(logo,"PNG",M,30,72,28)}catch{font(17,true);d.text("JGO Hire",M,50)}font(7,true,sage);d.text("RESUME READY REPORT",W-M,38,{align:"right"});font(20,true);d.text(data.client||"Client",W-M,58,{align:"right"});d.setFillColor(...sage);d.rect(M,72,CW,2,"F")}else{font(8,true,sage);d.text("JGO HIRE",M,38);font(14,true);d.text(data.client||"Client",W-M,40,{align:"right"});d.setDrawColor(...rule);d.line(M,55,W-M,55)}};
- const section=(t:string)=>{y+=13;font(9,true,sage);d.text(t,M,y);y+=8;d.setDrawColor(...rule);d.line(M,y,W-M,y);y+=15};
- const wrap=(t:string,w:number,s=8,b=false)=>{font(s,b);return d.splitTextToSize(t,w) as string[]};
- const bullet=(t:string,x=M,w=CW,s=8)=>{const lines=wrap(shortText(t,170),w-16,s);font(s);d.setFillColor(...sage);d.circle(x+2,y-2,1.35,"F");d.text(lines,x+12,y);y+=lines.length*s*1.3+6};
- const labelLine=(label:string,value:string)=>{font(7,true,sage);d.text(label.toUpperCase(),M,y);font(8.2,true);const lines=wrap(shortText(value,180),CW-155,8.2,true);d.text(lines,M+150,y);y+=Math.max(18,lines.length*10+5)};
- await header(1);y=100;
- font(11,true);d.text("What changed",M,y);y+=18;font(8.5,false,muted);const intro="A simpler, stronger resume built to make your experience easier to understand and your value easier to see.";d.text(wrap(intro,CW,8.5),M,y);y+=28;
- d.setFillColor(...pale);d.roundedRect(M,y,CW,102,8,8,"F");const half=(CW-36)/2;font(7,true,sage);d.text("BEFORE",M+14,y+18);d.text("NOW",M+half+28,y+18);let by=y+38;const oldY=y;y=by;sentences(data.transformationBefore).slice(0,3).forEach(t=>bullet(t,M+14,half,7.5));const endBefore=y;y=by;sentences(data.transformationAfter).slice(0,3).forEach(t=>bullet(t,M+half+28,half,7.5));y=Math.max(endBefore,y,oldY+102)+10;
- section("KEY IMPROVEMENTS");data.changes.slice(0,5).forEach((c,i)=>{font(8.3,true);d.text(`${i+1}. ${shortText(c.title,55)}`,M,y);y+=13;const point=sentences(c.body)[0]||c.body;bullet(point,M+10,CW-10,7.8)});
- section("WHY THIS VERSION IS STRONGER");const wins=[...data.sellingPoints].slice(0,6);wins.forEach(t=>bullet(t,M,CW,8));footer(1);
- d.addPage();await header(2);y=80;
- section("TARGET ROLE ALIGNMENT");data.targetRoles.slice(0,3).forEach(r=>{font(8.5,true);d.text(shortText([r.company,r.role].filter(Boolean).join(" | "),85),M,y);y+=14;sentences(r.alignment).slice(0,2).forEach(t=>bullet(t,M+10,CW-10,7.8));y+=4});
- section("THE BIGGEST DIFFERENCE");font(7,true,sage);d.text("BEFORE",M,y);y+=14;font(8);let lines=wrap(shortText(data.biggestDifferenceBefore,190),CW,8);d.text(lines,M,y);y+=lines.length*10+14;font(7,true,sage);d.text("NOW",M,y);y+=14;font(8.2,true);lines=wrap(shortText(data.biggestDifferenceNow,190),CW,8.2,true);d.text(lines,M,y);y+=lines.length*10+8;
- section("JGO HIRE FINAL ASSESSMENT");labelLine("Positioning",data.positioning);labelLine("Target Level",data.targetLevel);labelLine("Best Fit",data.primaryAlignment);labelLine("Industries",data.industries);labelLine("Differentiators",data.differentiators);
- y+=8;d.setFillColor(...pale);d.roundedRect(M,y,CW,52,8,8,"F");font(7,true,sage);d.text("RESUME STATUS",M+14,y+18);font(14,true);d.text((data.status||"READY").toUpperCase(),M+14,y+38);font(8,false,muted);d.text("Clear. Focused. Ready to use.",W-M-14,y+32,{align:"right"});
- footer(2);d.save(`${fileBaseName(data.client)}.pdf`)
+const emptyReport: ReportData = {
+  client: "",
+  transformationBefore: "",
+  transformationAfter: "",
+  changes: [],
+  targetRoles: [],
+  sellingPoints: [],
+  biggestDifferenceBefore: "",
+  biggestDifferenceNow: "",
+  positioning: "",
+  targetLevel: "",
+  primaryAlignment: "",
+  industries: "",
+  differentiators: "",
+  status: "READY",
+};
+
+function clean(v: string) {
+  return v.replace(/^#{1,6}\s*/, "").replace(/^\*\*(.*?)\*\*$/, "$1").replace(/\*\*/g, "").trim();
+}
+function cleanBullet(v: string) { return clean(v).replace(/^[•●▪◦\-*]\s*/, "").trim(); }
+function splitLines(v: string) { return v.split(/\n+/).map(cleanBullet).filter(Boolean); }
+function sentences(v: string) {
+  return v.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map(cleanBullet).filter(Boolean);
+}
+function shortText(v: string, max = 150) {
+  const s = cleanBullet(v);
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const at = Math.max(cut.lastIndexOf(";"), cut.lastIndexOf(","), cut.lastIndexOf(" "));
+  return cut.slice(0, at > 90 ? at : max).trim() + "…";
+}
+function fileBaseName(name: string) {
+  const cleaned = name.replace(/[^a-zA-Z0-9 .'-]/g, "").replace(/\s+/g, " ").trim();
+  return `${cleaned || "JGO Hire"} Resume Ready Report`;
+}
+function normalizeTag(line: string) {
+  const m = line.trim().match(/^\[\/?([A-Z0-9_ &-]+)\]$/i);
+  return m ? m[1].toUpperCase().replace(/[ &-]+/g, "_") : null;
+}
+function getTaggedBlocks(raw: string) {
+  const blocks: { tag: string; value: string }[] = [];
+  let tag = "";
+  let buffer: string[] = [];
+  const flush = () => {
+    if (tag) blocks.push({ tag, value: buffer.join("\n").trim() });
+    buffer = [];
+  };
+  for (const line of raw.replace(/\r/g, "").split("\n")) {
+    const nextTag = normalizeTag(line);
+    if (nextTag) {
+      if (nextTag === "JGO_REPORT") continue;
+      flush();
+      tag = nextTag;
+    } else if (tag) buffer.push(line);
+  }
+  flush();
+  return blocks;
 }
 
-export default function ResumeReadyReportPage(){const[report,setReport]=useState<ReportData>(emptyReport),[importText,setImportText]=useState(""),[status,setStatus]=useState("");const completion=useMemo(()=>{const c=[report.client,report.transformationBefore,report.transformationAfter,report.changes.length,report.targetRoles.length,report.sellingPoints.length,report.positioning,report.targetLevel];return Math.round(c.filter(Boolean).length/c.length*100)},[report]);const update=(k:keyof ReportData,v:any)=>setReport(r=>({...r,[k]:v}));const doImport=()=>{const p=parseImport(importText);setReport(p);setStatus(p.client?`Report ready for ${p.client}. Review below, then download.`:"Report parsed. Add the client name.")};const download=async()=>{try{setStatus("Building simple two-page report...");await makePdf(report);setStatus("Report downloaded.")}catch(e:any){setStatus(e?.message||"Could not create PDF.")}};return <main className="min-h-screen bg-[#f8faf6] px-4 py-7 text-[#344132] md:px-8"><div className="mx-auto max-w-[1320px]"><div className="mb-7 flex items-end justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#80907e]">JGO Hire</p><h1 className="mt-1 text-3xl font-bold">Resume Ready Report Builder</h1><p className="mt-2 text-sm text-[#738071]">Simple, sharp, two-page client report. No walls of text.</p></div><span className="rounded-full bg-white px-4 py-2 text-sm font-bold text-[#53664f]">{completion}% ready</span></div><div className="grid gap-6 xl:grid-cols-[400px_1fr]"><aside><section className="rounded-3xl border border-[#dde5d9] bg-white p-5"><h2 className="text-lg font-bold">Quick Paste</h2><p className="mt-1 text-xs leading-5 text-[#7a8778]">Paste the full JGO OS-ready report. The PDF automatically pulls only the strongest points so the final report stays simple and human.</p><textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={22} className="mt-4 w-full rounded-2xl border border-[#dce4d8] bg-[#fbfcfa] px-4 py-3 text-sm leading-6" placeholder="Paste report here..."/><button onClick={doImport} disabled={!importText.trim()} className="mt-3 w-full rounded-2xl bg-[#53684f] px-4 py-3 text-sm font-bold text-white disabled:opacity-40">Format Report</button>{status&&<p className="mt-3 text-xs text-[#61705d]">{status}</p>}</section></aside><section><div className="rounded-3xl border border-[#dde5d9] bg-white p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-bold">Review & Edit</h2><p className="mt-1 text-xs text-[#7a8778]">Keep the full detail here. The PDF intentionally shows less.</p></div><button onClick={download} disabled={!report.client} className="rounded-2xl bg-[#53684f] px-5 py-3 text-sm font-bold text-white disabled:opacity-40">Download PDF</button></div><div className="grid gap-4 md:grid-cols-2"><Input label="Client" value={report.client} onChange={v=>update("client",v)}/><Input label="Status" value={report.status} onChange={v=>update("status",v)}/><Field label="Before" value={report.transformationBefore} onChange={v=>update("transformationBefore",v)} rows={5}/><Field label="After" value={report.transformationAfter} onChange={v=>update("transformationAfter",v)} rows={5}/></div><div className="mt-6"><h3 className="mb-3 text-sm font-bold">Key Improvements</h3>{report.changes.map((c,i)=><div key={i} className="mb-3 rounded-2xl bg-[#fbfcfa] p-4"><Input label={`Improvement ${i+1}`} value={c.title} onChange={v=>{const n=[...report.changes];n[i]={...n[i],title:v};update("changes",n)}}/><div className="mt-3"><Field label="Detail" value={c.body} onChange={v=>{const n=[...report.changes];n[i]={...n[i],body:v};update("changes",n)}} rows={3}/></div></div>)}</div><div className="mt-6"><Field label="Strongest Selling Points" value={report.sellingPoints.join("\n")} onChange={v=>update("sellingPoints",splitLines(v))} rows={6}/></div><div className="mt-6 grid gap-4 md:grid-cols-2"><Input label="Positioning" value={report.positioning} onChange={v=>update("positioning",v)}/><Input label="Target Level" value={report.targetLevel} onChange={v=>update("targetLevel",v)}/><Field label="Primary Alignment" value={report.primaryAlignment} onChange={v=>update("primaryAlignment",v)}/><Field label="Industries" value={report.industries} onChange={v=>update("industries",v)}/><div className="md:col-span-2"><Field label="Differentiators" value={report.differentiators} onChange={v=>update("differentiators",v)}/></div></div></div></section></div></div></main>}
+function parseStructured(raw: string): ReportData | null {
+  if (!/\[JGO_REPORT\]/i.test(raw) && !/\[TRANSFORMATION_BEFORE\]/i.test(raw)) return null;
+  const out: ReportData = { ...emptyReport, changes: [], targetRoles: [], sellingPoints: [] };
+  let currentChange: Partial<Change> | null = null;
+  let currentRole: Partial<TargetRole> | null = null;
+  const pushChange = () => {
+    if (currentChange && (currentChange.title || currentChange.body)) {
+      out.changes.push({ title: currentChange.title || "Resume Improvement", body: currentChange.body || "" });
+    }
+    currentChange = null;
+  };
+  const pushRole = () => {
+    if (currentRole && (currentRole.company || currentRole.role || currentRole.alignment)) {
+      out.targetRoles.push({ company: currentRole.company || "", role: currentRole.role || "", alignment: currentRole.alignment || "" });
+    }
+    currentRole = null;
+  };
+  for (const block of getTaggedBlocks(raw)) {
+    const value = block.value.trim();
+    switch (block.tag) {
+      case "CLIENT": out.client = value; break;
+      case "TRANSFORMATION_BEFORE": out.transformationBefore = value; break;
+      case "TRANSFORMATION_AFTER": out.transformationAfter = value; break;
+      case "CHANGE": pushChange(); currentChange = {}; break;
+      case "TITLE": if (currentChange) currentChange.title = value; break;
+      case "BODY": if (currentChange) currentChange.body = value; break;
+      case "TARGET_ROLE": pushRole(); currentRole = {}; break;
+      case "COMPANY": if (currentRole) currentRole.company = value; break;
+      case "ROLE": if (currentRole) currentRole.role = value; break;
+      case "ALIGNMENT": if (currentRole) currentRole.alignment = value; break;
+      case "SELLING_POINTS": out.sellingPoints = splitLines(value); break;
+      case "BIGGEST_DIFFERENCE_BEFORE": out.biggestDifferenceBefore = value; break;
+      case "BIGGEST_DIFFERENCE_NOW": out.biggestDifferenceNow = value; break;
+      case "POSITIONING": out.positioning = value; break;
+      case "TARGET_LEVEL": out.targetLevel = value; break;
+      case "PRIMARY_ALIGNMENT": out.primaryAlignment = value; break;
+      case "INDUSTRIES": out.industries = value; break;
+      case "DIFFERENTIATORS": out.differentiators = value; break;
+      case "STATUS": out.status = value || "READY"; break;
+    }
+  }
+  pushChange();
+  pushRole();
+  return out;
+}
+
+function parseLegacy(raw: string): ReportData {
+  const out: ReportData = { ...emptyReport, changes: [], targetRoles: [], sellingPoints: [] };
+  const lines = raw.replace(/\r/g, "").split("\n");
+  let section = "";
+  let subsection = "";
+  let buffer: string[] = [];
+  const flush = () => {
+    const text = buffer.map(clean).filter(Boolean).join("\n").trim();
+    if (!text) { buffer = []; return; }
+    if (section === "BEFORE") out.transformationBefore = text;
+    else if (section === "AFTER") out.transformationAfter = text;
+    else if (section === "SELLING") out.sellingPoints = splitLines(text);
+    else if (section === "CHANGE" && subsection) out.changes.push({ title: subsection, body: text });
+    else if (section === "TARGET" && subsection) {
+      const [company, ...role] = subsection.split("|").map(x => x.trim());
+      out.targetRoles.push({ company, role: role.join(" | "), alignment: text });
+    }
+    buffer = [];
+  };
+  for (const rawLine of lines) {
+    const line = clean(rawLine);
+    if (!line) continue;
+    const upper = line.toUpperCase().replace(/:$/, "");
+    if (/^PREPARED FOR\s+/i.test(line)) { out.client = line.replace(/^PREPARED FOR\s+/i, "").trim(); continue; }
+    if (/^CLIENT\s*:/i.test(line)) { out.client = line.replace(/^CLIENT\s*:/i, "").trim(); continue; }
+    if (upper === "BEFORE") { flush(); section = "BEFORE"; continue; }
+    if (upper === "AFTER") { flush(); section = "AFTER"; continue; }
+    if (upper === "TARGET ROLE ALIGNMENT") { flush(); section = "TARGET"; continue; }
+    if (upper === "YOUR STRONGEST SELLING POINTS") { flush(); section = "SELLING"; continue; }
+    if (upper === "THE BIGGEST DIFFERENCE") { flush(); section = "DIFFERENCE"; continue; }
+    if (upper === "JGO HIRE FINAL ASSESSMENT") { flush(); section = "FINAL"; continue; }
+    if (/^\d+\.\s+/.test(line)) { flush(); section = "CHANGE"; subsection = line.replace(/^\d+\.\s+/, ""); continue; }
+    if (section === "TARGET" && /\|/.test(line) && !line.endsWith(".")) { flush(); subsection = line; continue; }
+    if (section === "DIFFERENCE") {
+      if (/^BEFORE\s*:/i.test(line)) out.biggestDifferenceBefore = line.replace(/^BEFORE\s*:/i, "");
+      else if (/^(NOW|AFTER)\s*:/i.test(line)) out.biggestDifferenceNow = line.replace(/^(NOW|AFTER)\s*:/i, "");
+      continue;
+    }
+    if (section === "FINAL") {
+      if (/^RESUME POSITIONING\s*:/i.test(line)) out.positioning = line.replace(/^RESUME POSITIONING\s*:/i, "");
+      else if (/^TARGET LEVEL\s*:/i.test(line)) out.targetLevel = line.replace(/^TARGET LEVEL\s*:/i, "");
+      else if (/^PRIMARY AREAS OF ALIGNMENT\s*:/i.test(line)) out.primaryAlignment = line.replace(/^PRIMARY AREAS OF ALIGNMENT\s*:/i, "");
+      else if (/^INDUSTRY STRENGTHS\s*:/i.test(line)) out.industries = line.replace(/^INDUSTRY STRENGTHS\s*:/i, "");
+      else if (/^KEY DIFFERENTIATORS\s*:/i.test(line)) out.differentiators = line.replace(/^KEY DIFFERENTIATORS\s*:/i, "");
+      else if (/^RESUME STATUS\s*:/i.test(line)) out.status = line.replace(/^RESUME STATUS\s*:/i, "");
+      continue;
+    }
+    if (!["YOUR RESUME TRANSFORMATION", "WHAT CHANGED"].includes(upper)) buffer.push(line);
+  }
+  flush();
+  return out;
+}
+
+function parseImport(raw: string) { return parseStructured(raw) || parseLegacy(raw); }
+
+function Field({ label, value, onChange, rows = 4 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
+  return <label className="block"><span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">{label}</span><textarea value={value} onChange={e => onChange(e.target.value)} rows={rows} className="w-full resize-y rounded-xl border border-[#e0e5dc] bg-white px-4 py-3 text-sm leading-6 text-[#343b33] outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" /></label>;
+}
+function Input({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return <label className="block"><span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">{label}</span><input value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-xl border border-[#e0e5dc] bg-white px-4 py-3 text-sm text-[#343b33] outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" /></label>;
+}
+function loadScript(src: string, id: string) {
+  return new Promise<void>((resolve, reject) => {
+    const existing = document.getElementById(id) as HTMLScriptElement | null;
+    if (existing) {
+      if (existing.dataset.loaded === "true") return resolve();
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Could not load PDF tools.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = id;
+    script.src = src;
+    script.async = true;
+    script.onload = () => { script.dataset.loaded = "true"; resolve(); };
+    script.onerror = () => reject(new Error("Could not load PDF tools."));
+    document.head.appendChild(script);
+  });
+}
+async function imageData(url: string) {
+  const blob = await fetch(url).then(r => { if (!r.ok) throw new Error("Logo not found"); return r.blob(); });
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function makePdf(data: ReportData) {
+  await loadScript("https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js", "jgo-report-jspdf");
+  const jsPDF = window.jspdf?.jsPDF;
+  if (!jsPDF) throw new Error("PDF generator did not load.");
+
+  const d = new jsPDF({ unit: "pt", format: "letter" });
+  const W = 612, H = 792, M = 46, CW = W - M * 2;
+  const ink: [number, number, number] = [37, 42, 37];
+  const sage: [number, number, number] = [79, 98, 75];
+  const muted: [number, number, number] = [116, 124, 113];
+  const soft: [number, number, number] = [246, 248, 244];
+  const rule: [number, number, number] = [224, 228, 220];
+  let y = 0;
+
+  const font = (size: number, bold = false, color = ink) => {
+    d.setFont("helvetica", bold ? "bold" : "normal");
+    d.setFontSize(size);
+    d.setTextColor(...color);
+  };
+  const wrap = (text: string, width: number, size = 8, bold = false) => {
+    font(size, bold);
+    return d.splitTextToSize(text, width) as string[];
+  };
+  const divider = (atY: number) => {
+    d.setDrawColor(...rule);
+    d.setLineWidth(0.6);
+    d.line(M, atY, W - M, atY);
+  };
+  const footer = (page: number) => {
+    divider(758);
+    font(6.4, false, muted);
+    d.text("JGO HIRE", M, 774);
+    d.text(`RESUME READY REPORT  ·  ${page} OF 2`, W - M, 774, { align: "right" });
+  };
+  const header = async (page: number) => {
+    if (page === 1) {
+      try {
+        const logo = await imageData("/jgo-hire-logo.png");
+        d.addImage(logo, "PNG", M, 29, 70, 27);
+      } catch {
+        font(16, true);
+        d.text("JGO Hire", M, 49);
+      }
+      font(6.8, true, muted);
+      d.text("RESUME READY REPORT", W - M, 34, { align: "right" });
+      font(21, true, ink);
+      d.text(data.client || "Client", W - M, 57, { align: "right" });
+      divider(74);
+    } else {
+      font(7.2, true, sage);
+      d.text("JGO HIRE", M, 36);
+      font(13, true, ink);
+      d.text(data.client || "Client", W - M, 38, { align: "right" });
+      divider(55);
+    }
+  };
+  const section = (title: string, subtitle?: string) => {
+    y += 18;
+    font(7, true, muted);
+    d.text(title.toUpperCase(), M, y);
+    if (subtitle) {
+      font(7, false, muted);
+      d.text(subtitle, W - M, y, { align: "right" });
+    }
+    y += 10;
+    divider(y);
+    y += 18;
+  };
+  const bullet = (text: string, x = M, width = CW, size = 8.1) => {
+    const lines = wrap(shortText(text, 155), width - 18, size, false);
+    font(size, false, ink);
+    d.setFillColor(...sage);
+    d.circle(x + 2, y - 2.5, 1.15, "F");
+    d.text(lines, x + 13, y);
+    y += lines.length * size * 1.34 + 7;
+  };
+  const assessmentRow = (label: string, value: string) => {
+    if (!value) return;
+    font(6.5, true, muted);
+    d.text(label.toUpperCase(), M, y);
+    const valueLines = wrap(shortText(value, 175), CW - 148, 8.2, true);
+    font(8.2, true, ink);
+    d.text(valueLines, M + 148, y);
+    y += Math.max(23, valueLines.length * 10 + 7);
+  };
+
+  await header(1);
+  y = 105;
+  font(18, true, ink);
+  d.text("Your resume, refined.", M, y);
+  y += 20;
+  font(8.7, false, muted);
+  d.text("A quick look at what changed, why it matters, and where your resume is strongest now.", M, y);
+  y += 34;
+
+  const gap = 24;
+  const half = (CW - gap) / 2;
+  const beforeX = M;
+  const nowX = M + half + gap;
+  font(6.6, true, muted);
+  d.text("BEFORE", beforeX, y);
+  d.text("NOW", nowX, y);
+  y += 17;
+  const startY = y;
+  let leftY = startY;
+  for (const item of sentences(data.transformationBefore).slice(0, 3)) {
+    y = leftY;
+    bullet(item, beforeX, half, 7.7);
+    leftY = y;
+  }
+  let rightY = startY;
+  for (const item of sentences(data.transformationAfter).slice(0, 3)) {
+    y = rightY;
+    bullet(item, nowX, half, 7.7);
+    rightY = y;
+  }
+  y = Math.max(leftY, rightY) + 10;
+
+  section("Key Improvements", "Top 5 changes");
+  data.changes.slice(0, 5).forEach((change, index) => {
+    const number = String(index + 1).padStart(2, "0");
+    font(6.5, true, sage);
+    d.text(number, M, y);
+    font(9.2, true, ink);
+    d.text(shortText(change.title, 58), M + 28, y);
+    y += 15;
+    const point = sentences(change.body)[0] || change.body;
+    const lines = wrap(shortText(point, 160), CW - 28, 7.9, false);
+    font(7.9, false, muted);
+    d.text(lines, M + 28, y);
+    y += lines.length * 10.2 + 13;
+  });
+
+  section("What Stands Out Now");
+  data.sellingPoints.slice(0, 6).forEach(item => bullet(item, M, CW, 8));
+  footer(1);
+
+  d.addPage();
+  await header(2);
+  y = 88;
+  font(17, true, ink);
+  d.text("Where this resume fits.", M, y);
+  y += 28;
+
+  section("Target Role Alignment");
+  data.targetRoles.slice(0, 3).forEach((role, index) => {
+    font(6.4, true, muted);
+    d.text(`0${index + 1}`, M, y);
+    font(9, true, ink);
+    const title = shortText([role.company, role.role].filter(Boolean).join("  /  "), 88);
+    d.text(title, M + 28, y);
+    y += 15;
+    const points = sentences(role.alignment).slice(0, 2);
+    points.forEach(point => {
+      const lines = wrap(shortText(point, 145), CW - 28, 7.8, false);
+      font(7.8, false, muted);
+      d.text(lines, M + 28, y);
+      y += lines.length * 10 + 7;
+    });
+    y += 10;
+  });
+
+  section("The Biggest Difference");
+  const comparisonGap = 30;
+  const comparisonHalf = (CW - comparisonGap) / 2;
+  font(6.5, true, muted);
+  d.text("BEFORE", M, y);
+  d.text("NOW", M + comparisonHalf + comparisonGap, y);
+  y += 17;
+  const beforeLines = wrap(shortText(data.biggestDifferenceBefore, 175), comparisonHalf, 8, false);
+  font(8, false, muted);
+  d.text(beforeLines, M, y);
+  const nowLines = wrap(shortText(data.biggestDifferenceNow, 175), comparisonHalf, 8.2, true);
+  font(8.2, true, ink);
+  d.text(nowLines, M + comparisonHalf + comparisonGap, y);
+  y += Math.max(beforeLines.length * 10.4, nowLines.length * 10.5) + 15;
+
+  section("Final Snapshot");
+  assessmentRow("Positioning", data.positioning);
+  assessmentRow("Target Level", data.targetLevel);
+  assessmentRow("Best Fit", data.primaryAlignment);
+  assessmentRow("Industries", data.industries);
+  assessmentRow("Differentiators", data.differentiators);
+
+  y += 12;
+  d.setFillColor(...soft);
+  d.roundedRect(M, y, CW, 54, 4, 4, "F");
+  font(6.3, true, muted);
+  d.text("RESUME STATUS", M + 16, y + 18);
+  font(15, true, ink);
+  d.text((data.status || "READY").toUpperCase(), M + 16, y + 39);
+  font(7.8, false, muted);
+  d.text("Clear. Focused. Ready to use.", W - M - 16, y + 32, { align: "right" });
+
+  footer(2);
+  d.save(`${fileBaseName(data.client)}.pdf`);
+}
+
+export default function ResumeReadyReportPage() {
+  const [report, setReport] = useState<ReportData>(emptyReport);
+  const [importText, setImportText] = useState("");
+  const [status, setStatus] = useState("");
+  const completion = useMemo(() => {
+    const checks = [report.client, report.transformationBefore, report.transformationAfter, report.changes.length, report.targetRoles.length, report.sellingPoints.length, report.positioning, report.targetLevel];
+    return Math.round(checks.filter(Boolean).length / checks.length * 100);
+  }, [report]);
+  const update = (key: keyof ReportData, value: any) => setReport(r => ({ ...r, [key]: value }));
+  const doImport = () => {
+    const parsed = parseImport(importText);
+    setReport(parsed);
+    setStatus(parsed.client ? `Report ready for ${parsed.client}. Review below, then download.` : "Report parsed. Add the client name.");
+  };
+  const download = async () => {
+    try {
+      setStatus("Building polished two-page report...");
+      await makePdf(report);
+      setStatus("Report downloaded.");
+    } catch (e: any) {
+      setStatus(e?.message || "Could not create PDF.");
+    }
+  };
+
+  return <main className="min-h-screen bg-[#f6f7f4] px-4 py-8 text-[#30372f] md:px-8 md:py-10">
+    <div className="mx-auto max-w-[1320px]">
+      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#7e8a7b]">JGO Hire</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-[#2e352d]">Resume Ready Report</h1>
+          <p className="mt-2 text-sm text-[#7a8378]">A simple, polished two-page client summary.</p>
+        </div>
+        <div className="flex items-center gap-3 rounded-full border border-[#e1e5dd] bg-white px-4 py-2 shadow-sm">
+          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#edf0eb]"><div className="h-full rounded-full bg-[#758a70]" style={{ width: `${completion}%` }} /></div>
+          <span className="text-xs font-semibold text-[#596656]">{completion}% ready</span>
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[390px_1fr]">
+        <aside>
+          <section className="rounded-2xl border border-[#e1e5dd] bg-white p-5 shadow-[0_8px_30px_rgba(51,61,48,.04)]">
+            <h2 className="text-base font-semibold">Quick Paste</h2>
+            <p className="mt-1 text-xs leading-5 text-[#7d867b]">Paste the full JGO OS-ready report. The final PDF automatically keeps only the strongest, most useful points.</p>
+            <textarea value={importText} onChange={e => setImportText(e.target.value)} rows={22} className="mt-4 w-full resize-y rounded-xl border border-[#e0e5dc] bg-[#fafbf9] px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" placeholder="Paste report here..." />
+            <button onClick={doImport} disabled={!importText.trim()} className="mt-3 w-full rounded-xl bg-[#4f614b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Format Report</button>
+            {status && <p className="mt-3 text-xs leading-5 text-[#667163]">{status}</p>}
+          </section>
+        </aside>
+
+        <section className="rounded-2xl border border-[#e1e5dd] bg-white p-6 shadow-[0_8px_30px_rgba(51,61,48,.04)] md:p-7">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold">Review & Edit</h2>
+              <p className="mt-1 text-xs text-[#7d867b]">Full detail stays here. The downloaded report stays intentionally concise.</p>
+            </div>
+            <button onClick={download} disabled={!report.client} className="rounded-xl bg-[#4f614b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Download PDF</button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <Input label="Client" value={report.client} onChange={v => update("client", v)} />
+            <Input label="Status" value={report.status} onChange={v => update("status", v)} />
+            <Field label="Before" value={report.transformationBefore} onChange={v => update("transformationBefore", v)} rows={5} />
+            <Field label="After" value={report.transformationAfter} onChange={v => update("transformationAfter", v)} rows={5} />
+          </div>
+
+          <div className="mt-7 border-t border-[#edf0ea] pt-6">
+            <h3 className="mb-4 text-sm font-semibold">Key Improvements</h3>
+            <div className="space-y-3">
+              {report.changes.map((change, i) => <div key={i} className="rounded-xl bg-[#fafbf9] p-4">
+                <Input label={`Improvement ${i + 1}`} value={change.title} onChange={v => { const next = [...report.changes]; next[i] = { ...next[i], title: v }; update("changes", next); }} />
+                <div className="mt-3"><Field label="Detail" value={change.body} onChange={v => { const next = [...report.changes]; next[i] = { ...next[i], body: v }; update("changes", next); }} rows={3} /></div>
+              </div>)}
+            </div>
+          </div>
+
+          <div className="mt-7 border-t border-[#edf0ea] pt-6">
+            <h3 className="mb-4 text-sm font-semibold">Target Roles</h3>
+            <div className="space-y-3">
+              {report.targetRoles.map((role, i) => <div key={i} className="rounded-xl bg-[#fafbf9] p-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Input label="Company" value={role.company} onChange={v => { const next = [...report.targetRoles]; next[i] = { ...next[i], company: v }; update("targetRoles", next); }} />
+                  <Input label="Role" value={role.role} onChange={v => { const next = [...report.targetRoles]; next[i] = { ...next[i], role: v }; update("targetRoles", next); }} />
+                </div>
+                <div className="mt-3"><Field label="Alignment" value={role.alignment} onChange={v => { const next = [...report.targetRoles]; next[i] = { ...next[i], alignment: v }; update("targetRoles", next); }} rows={3} /></div>
+              </div>)}
+            </div>
+          </div>
+
+          <div className="mt-7 border-t border-[#edf0ea] pt-6">
+            <Field label="Strongest Selling Points" value={report.sellingPoints.join("\n")} onChange={v => update("sellingPoints", splitLines(v))} rows={6} />
+          </div>
+
+          <div className="mt-7 grid gap-4 border-t border-[#edf0ea] pt-6 md:grid-cols-2">
+            <Field label="Biggest Difference - Before" value={report.biggestDifferenceBefore} onChange={v => update("biggestDifferenceBefore", v)} rows={3} />
+            <Field label="Biggest Difference - Now" value={report.biggestDifferenceNow} onChange={v => update("biggestDifferenceNow", v)} rows={3} />
+            <Input label="Positioning" value={report.positioning} onChange={v => update("positioning", v)} />
+            <Input label="Target Level" value={report.targetLevel} onChange={v => update("targetLevel", v)} />
+            <Field label="Primary Alignment" value={report.primaryAlignment} onChange={v => update("primaryAlignment", v)} rows={3} />
+            <Field label="Industries" value={report.industries} onChange={v => update("industries", v)} rows={3} />
+            <div className="md:col-span-2"><Field label="Differentiators" value={report.differentiators} onChange={v => update("differentiators", v)} rows={3} /></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>;
+}
