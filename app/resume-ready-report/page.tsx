@@ -5,80 +5,497 @@ import { useMemo, useState } from "react";
 declare global { interface Window { jspdf?: any } }
 
 type Change = { title: string; body: string };
-type ReportData = { client:string; overallFeedback:string; changes:Change[]; recruiterPerspective:string; futureUpdates:string[]; finalRecommendation:string };
+type ReportData = {
+  client: string;
+  overallFeedback: string;
+  changes: Change[];
+  recruiterPerspective: string;
+  futureUpdates: string[];
+  finalRecommendation: string;
+};
 
-const emptyReport:ReportData={client:"",overallFeedback:"",changes:[],recruiterPerspective:"",futureUpdates:[],finalRecommendation:""};
+const emptyReport: ReportData = {
+  client: "",
+  overallFeedback: "",
+  changes: [],
+  recruiterPerspective: "",
+  futureUpdates: [],
+  finalRecommendation: "",
+};
 
-const STANDARD_RECOMMENDATIONS=[
- (client:string)=>`Save as “${client||"First Last"} Resume.pdf” and submit the PDF unless Word is specifically requested.`,
- ()=>"Add your updated LinkedIn URL to the resume.",
- ()=>"Make sure LinkedIn matches the new resume. More at jgohire.com/guide.",
- ()=>"Tailor your summary and keywords to each role before applying.",
- ()=>"Use a tailored cover letter when it adds context or strengthens your story.",
- ()=>"Review the final PDF for spacing, links, and page breaks before submitting.",
- ()=>"Apply early and reach out directly to the recruiter or hiring manager when possible.",
+const STANDARD_RECOMMENDATIONS = [
+  (client: string) => `Save as “${client || "First Last"} Resume.pdf” and submit the PDF unless Word is specifically requested.`,
+  () => "Add your updated LinkedIn URL to the resume.",
+  () => "Make sure LinkedIn matches the new resume. More at jgohire.com/guide.",
+  () => "Tailor your summary and keywords to each role before applying.",
+  () => "Use a tailored cover letter when it adds context or strengthens your story.",
+  () => "Review the final PDF for spacing, links, and page breaks before submitting.",
+  () => "Apply early and reach out directly to the recruiter or hiring manager when possible.",
 ];
-const DEFAULT_FUTURE_UPDATES=[
- "Keep adding measurable results such as growth, savings, efficiency, reach, adoption, or revenue.",
- "Track the scale of your work, including team size, budget, customers, users, markets, or programs supported.",
- "Capture examples of leadership, executive partnership, cross-functional influence, and ownership.",
- "Add promotions, expanded scope, major launches, awards, certifications, speaking engagements, or recognition.",
+
+const DEFAULT_FUTURE_UPDATES = [
+  "Keep adding measurable results such as growth, savings, efficiency, reach, adoption, or revenue.",
+  "Track the scale of your work, including team size, budget, customers, users, markets, or programs supported.",
+  "Capture examples of leadership, executive partnership, cross-functional influence, and ownership.",
+  "Add promotions, expanded scope, major launches, awards, certifications, speaking engagements, or recognition.",
 ];
 
-function clean(v:string){return v.replace(/^#{1,6}\s*/,"").replace(/^\*\*(.*?)\*\*$/,"$1").replace(/\*\*/g,"").replace(/^__|__$/g,"").replace(/\u00a0/g," ").trim()}
-function cleanBullet(v:string){return clean(v).replace(/^[•●▪◦\-*]\s*/,"").trim()}
-function normalize(raw:string){return raw.replace(/\r/g,"").replace(/[’]/g,"'").replace(/\t/g," ")}
-function key(v:string){return clean(v).replace(/:$/,"").replace(/\s+/g," ").toUpperCase()}
-function splitLines(v:string){return v.split(/\n+/).map(cleanBullet).filter(Boolean)}
-function isBullet(v:string){return /^[•●▪◦\-*]\s*/.test(v.trim())}
-function fileBaseName(name:string){const x=name.replace(/[^a-zA-Z0-9 .'-]/g,"").replace(/\s+/g," ").trim();return `${x||"JGO Hire"} Resume Ready Report`}
-function section(lines:string[],starts:string[],ends:string[]){const start=lines.findIndex(l=>starts.includes(key(l)));if(start<0)return[];let end=lines.length;for(let i=start+1;i<lines.length;i++){const k=key(lines[i]);if(ends.includes(k)||/^FINAL RECOMMENDATION\s*:/i.test(clean(lines[i]))){end=i;break}}return lines.slice(start+1,end)}
-function paragraphs(lines:string[]){const out:string[]=[];let buf:string[]=[];const flush=()=>{if(buf.length){out.push(buf.join(" ").replace(/\s+/g," ").trim());buf=[]}};for(const raw of lines){const l=clean(raw);if(!l){flush();continue}if(isBullet(raw)){flush();out.push(cleanBullet(raw));continue}buf.push(l)}flush();return out.join("\n\n")}
-function parseChangeBlock(lines:string[]){const out:Change[]=[];let title="",body:string[]=[];const flush=()=>{const text=body.map(cleanBullet).filter(Boolean).join(" ").replace(/\s+/g," ").trim();if(title&&text)out.push({title:title.replace(/^\d+[.)]\s*/,"").trim(),body:text});title="";body=[]};for(const raw of lines){const l=clean(raw);if(!l)continue;if(/^\d+[.)]\s+/.test(l)){flush();title=l;continue}if(isBullet(raw)){body.push(raw);continue}if(!title){title=l;continue}if(body.length&&l.length<90&&!/[.!?]$/.test(l)){flush();title=l;continue}body.push(raw)}flush();return out}
-function parseFuture(lines:string[]){const out:string[]=[];let current="";for(const raw of lines){const l=clean(raw);if(!l)continue;if(/^As your (career|role)|^As you continue|^Keep track of measurable/i.test(l))continue;if(isBullet(raw)){if(current)out.push(current.trim());current=cleanBullet(raw)}else if(current)current+=` ${l}`;else current=l}if(current)out.push(current.trim());return out.filter(Boolean)}
-function inlineValue(lines:string[],labels:string[]){for(const raw of lines){const l=clean(raw);for(const label of labels){if(l.toLowerCase().startsWith(label.toLowerCase()+":"))return l.slice(label.length+1).trim()}}return""}
-function detectClient(lines:string[]){const cleaned=lines.map(clean).filter(Boolean);const explicit=cleaned.find(l=>/^CLIENT\s*:/i.test(l)||/^PREPARED FOR\s+/i.test(l));if(explicit)return explicit.replace(/^CLIENT\s*:/i,"").replace(/^PREPARED FOR\s+/i,"").trim();const titleIdx=cleaned.findIndex(l=>/JGO HIRE RESUME READY REPORT/i.test(l));if(titleIdx>=0){for(let i=titleIdx+1;i<cleaned.length;i++){const l=cleaned[i];if(/^Prepared by/i.test(l))continue;if(["OVERALL FEEDBACK","YOUR RESUME TRANSFORMATION","WHAT I CHANGED","WHAT CHANGED"].includes(key(l)))continue;if(l.length<=80)return l}}const firstHeading=cleaned.findIndex(l=>["OVERALL FEEDBACK","YOUR RESUME TRANSFORMATION","WHAT CHANGED","WHAT I CHANGED"].includes(key(l)));if(firstHeading>0){for(let i=firstHeading-1;i>=0;i--){const l=cleaned[i];if(/^Prepared by/i.test(l)||/JGO HIRE/i.test(l))continue;if(l.length<=80)return l}}return""}
+const CHATGPT_PROMPT = `I am creating a JGO Hire Resume Ready Report for a client. I will give you TWO resumes below: the ORIGINAL resume and the NEW revised resume.
 
-function parseTagged(raw:string):ReportData|null{if(!/\[(JGO_REPORT|CLIENT|OVERALL_FEEDBACK|TRANSFORMATION_BEFORE)\]/i.test(raw))return null;const text=normalize(raw);const tag=(name:string)=>{const m=text.match(new RegExp(`\\[${name}\\]([\\s\\S]*?)(?=\\n\\[[A-Z0-9_ &-]+\\]|$)`,`i`));return m?m[1].trim():""};const out:ReportData={...emptyReport,changes:[],futureUpdates:[]};out.client=tag("CLIENT");out.overallFeedback=tag("OVERALL_FEEDBACK")||[tag("TRANSFORMATION_BEFORE"),tag("TRANSFORMATION_AFTER")].filter(Boolean).join("\n\n");out.recruiterPerspective=tag("RECRUITER_PERSPECTIVE")||tag("BIGGEST_DIFFERENCE_NOW");out.futureUpdates=splitLines(tag("FUTURE_UPDATES"));out.finalRecommendation=tag("FINAL_RECOMMENDATION")||tag("POSITIONING");const changeRe=/\[CHANGE\]([\s\S]*?)(?=\n\[CHANGE\]|\n\[[A-Z0-9_ &-]+\]|$)/gi;let m;while((m=changeRe.exec(text))){const tm=m[1].match(/\[TITLE\]([\s\S]*?)(?=\n\[BODY\]|$)/i);const bm=m[1].match(/\[BODY\]([\s\S]*)/i);if(tm||bm)out.changes.push({title:tm?tm[1].trim():"Resume Improvement",body:bm?bm[1].trim():""})}if(!out.futureUpdates.length)out.futureUpdates=DEFAULT_FUTURE_UPDATES;return out}
+Act as an experienced recruiter and career coach reviewing the actual differences between the two resumes. Compare them carefully and write a concise, client-facing report explaining what was improved and why the new version is stronger.
 
-function parseReport(raw:string):ReportData{const text=normalize(raw),lines=text.split("\n");const out:ReportData={...emptyReport,changes:[],futureUpdates:[]};out.client=detectClient(lines);const overall=section(lines,["OVERALL FEEDBACK"],["WHAT I CHANGED","WHAT CHANGED","RECRUITER'S PERSPECTIVE","RECRUITERS PERSPECTIVE","SUGGESTIONS FOR FUTURE RESUME UPDATES","JGO HIRE RECOMMENDATIONS"]);if(overall.length)out.overallFeedback=paragraphs(overall);const transformation=section(lines,["YOUR RESUME TRANSFORMATION","RESUME TRANSFORMATION"],["WHAT CHANGED","WHAT I CHANGED","TARGET ROLE ALIGNMENT","YOUR STRONGEST SELLING POINTS"]);if(!out.overallFeedback&&transformation.length){const beforeIdx=transformation.findIndex(l=>key(l)==="BEFORE"),afterIdx=transformation.findIndex(l=>["AFTER","NOW"].includes(key(l)));if(beforeIdx>=0||afterIdx>=0){const before=beforeIdx>=0?paragraphs(transformation.slice(beforeIdx+1,afterIdx>=0?afterIdx:transformation.length)):"";const after=afterIdx>=0?paragraphs(transformation.slice(afterIdx+1)):"";out.overallFeedback=[before&&`Before: ${before}`,after&&`Now: ${after}`].filter(Boolean).join("\n\n")}else out.overallFeedback=paragraphs(transformation)}const changes=section(lines,["WHAT I CHANGED","WHAT CHANGED"],["RECRUITER'S PERSPECTIVE","RECRUITERS PERSPECTIVE","TARGET ROLE ALIGNMENT","YOUR STRONGEST SELLING POINTS","THE BIGGEST DIFFERENCE","SUGGESTIONS FOR FUTURE RESUME UPDATES","JGO HIRE FINAL ASSESSMENT","FINAL ASSESSMENT","JGO HIRE RECOMMENDATIONS"]);out.changes=parseChangeBlock(changes);const perspective=section(lines,["RECRUITER'S PERSPECTIVE","RECRUITERS PERSPECTIVE"],["SUGGESTIONS FOR FUTURE RESUME UPDATES","JGO HIRE RECOMMENDATIONS","JGO HIRE PRO TIP"]);if(perspective.length)out.recruiterPerspective=paragraphs(perspective);const biggest=section(lines,["THE BIGGEST DIFFERENCE"],["JGO HIRE FINAL ASSESSMENT","FINAL ASSESSMENT","SUGGESTIONS FOR FUTURE RESUME UPDATES","JGO HIRE RECOMMENDATIONS"]);if(!out.recruiterPerspective&&biggest.length){const nowIdx=biggest.findIndex(l=>/^(NOW|AFTER)\s*:/i.test(clean(l))||["NOW","AFTER"].includes(key(l)));out.recruiterPerspective=paragraphs(nowIdx>=0?biggest.slice(nowIdx):biggest)}const future=section(lines,["SUGGESTIONS FOR FUTURE RESUME UPDATES"],["JGO HIRE RECOMMENDATIONS","JGO HIRE PRO TIP"]);const finalInFuture=future.findIndex(l=>/^FINAL RECOMMENDATION\s*:/i.test(clean(l)));if(future.length){out.futureUpdates=parseFuture(finalInFuture>=0?future.slice(0,finalInFuture):future);if(finalInFuture>=0){const first=clean(future[finalInFuture]).replace(/^FINAL RECOMMENDATION\s*:\s*/i,"");out.finalRecommendation=[first,...future.slice(finalInFuture+1).map(clean).filter(Boolean)].join(" ").replace(/\s+/g," ").trim()}}if(!out.finalRecommendation){const idx=lines.findIndex(l=>/^FINAL RECOMMENDATION\s*:/i.test(clean(l)));if(idx>=0){const first=clean(lines[idx]).replace(/^FINAL RECOMMENDATION\s*:\s*/i,"");const tail:string[]=[];for(let i=idx+1;i<lines.length;i++){if(["JGO HIRE RECOMMENDATIONS","JGO HIRE PRO TIP"].includes(key(lines[i])))break;const l=clean(lines[i]);if(l)tail.push(l)}out.finalRecommendation=[first,...tail].join(" ").replace(/\s+/g," ").trim()}}const finalAssessment=section(lines,["JGO HIRE FINAL ASSESSMENT","FINAL ASSESSMENT"],["JGO HIRE RECOMMENDATIONS","JGO HIRE PRO TIP"]);const positioning=inlineValue(finalAssessment,["Resume Positioning","Positioning"]),targetLevel=inlineValue(finalAssessment,["Target Level"]),alignment=inlineValue(finalAssessment,["Primary Areas of Alignment","Primary Alignment","Best Fit"]),differentiators=inlineValue(finalAssessment,["Key Differentiators","Differentiators"]),status=inlineValue(finalAssessment,["Resume Status","Status"]);if(!out.recruiterPerspective&&(positioning||targetLevel||alignment||differentiators))out.recruiterPerspective=[positioning&&`Your resume is now positioned around ${positioning}.`,targetLevel&&`The strongest target level is ${targetLevel}.`,alignment&&`The clearest areas of alignment are ${alignment}.`,differentiators&&`Your strongest differentiators are ${differentiators}.`].filter(Boolean).join(" ");if(!out.finalRecommendation&&finalAssessment.length){const labeled=/^(Resume Positioning|Positioning|Target Level|Primary Areas of Alignment|Primary Alignment|Best Fit|Industry Strengths|Industries|Key Differentiators|Differentiators|Resume Status|Status)\s*:/i;const narrative=finalAssessment.map(clean).filter(l=>l&&!labeled.test(l)&&!/^JGO Hire$/i.test(l)&&!/^More than a resume/i.test(l));out.finalRecommendation=narrative.length?narrative.join(" ").replace(/\s+/g," ").trim():[positioning&&`Your resume is now positioned as ${positioning}.`,targetLevel&&`It is aligned for ${targetLevel} opportunities.`,status&&`Resume status: ${status}.`].filter(Boolean).join(" ")}if(!out.futureUpdates.length)out.futureUpdates=DEFAULT_FUTURE_UPDATES;return out}
-function parseImport(raw:string){return parseTagged(raw)||parseReport(raw)}
+IMPORTANT WRITING RULES:
+- Sound like a real recruiter/career coach speaking to a client, not AI.
+- Use natural, straightforward language. Do not use overly polished corporate filler.
+- Do not invent anything that is not supported by the resumes.
+- Be specific about the actual changes you see between the original and revised resume.
+- Focus on what changed, why it matters to a recruiter, and how the revised resume improves the candidate's positioning.
+- Do not overpraise. If something could still be improved, say so constructively.
+- Do not use em dashes.
+- Keep the full report concise enough to fit into a polished 1 to 2 page client report.
+- DO NOT include JGO Hire Recommendations or a JGO Hire Pro Tip. Those are automatically added by my report generator.
 
-function sentences(v:string){return v.replace(/\s+/g," ").trim().split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map(x=>x.trim()).filter(Boolean)}
-function compact(v:string,maxSentences=2,maxChars=240){const picked=sentences(v).slice(0,maxSentences).join(" ");const s=picked||v.replace(/\s+/g," ").trim();if(s.length<=maxChars)return s;const cut=s.slice(0,maxChars);const at=Math.max(cut.lastIndexOf("."),cut.lastIndexOf(";"),cut.lastIndexOf(","),cut.lastIndexOf(" "));let out=cut.slice(0,at>maxChars*.65?at:maxChars).trim().replace(/[,:;\-]+$/g,"");return out+(out&&!/[.!?]$/.test(out)?".":"")}
+RETURN ONLY THE PLAIN TEXT FORMAT BELOW. Do not add markdown, code fences, commentary, or any sections that are not listed.
 
-function Field({label,value,onChange,rows=5}:{label:string;value:string;onChange:(v:string)=>void;rows?:number}){return <label className="block"><span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">{label}</span><textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows} className="w-full resize-y rounded-xl border border-[#e0e5dc] bg-white px-4 py-3 text-sm leading-6 text-[#343b33] outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]"/></label>}
-function Input({label,value,onChange}:{label:string;value:string;onChange:(v:string)=>void}){return <label className="block"><span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">{label}</span><input value={value} onChange={e=>onChange(e.target.value)} className="w-full rounded-xl border border-[#e0e5dc] bg-white px-4 py-3 text-sm text-[#343b33] outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]"/></label>}
-function loadScript(src:string,id:string){return new Promise<void>((resolve,reject)=>{const existing=document.getElementById(id) as HTMLScriptElement|null;if(existing){if(existing.dataset.loaded==="true")return resolve();existing.addEventListener("load",()=>resolve(),{once:true});existing.addEventListener("error",()=>reject(new Error("Could not load PDF tools.")),{once:true});return}const script=document.createElement("script");script.id=id;script.src=src;script.async=true;script.onload=()=>{script.dataset.loaded="true";resolve()};script.onerror=()=>reject(new Error("Could not load PDF tools."));document.head.appendChild(script)})}
-async function imageData(url:string){const blob=await fetch(url).then(r=>{if(!r.ok)throw new Error("Logo not found");return r.blob()});return await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;reader.readAsDataURL(blob)})}
+JGO Hire Resume Ready Report
+Client: [CLIENT NAME]
 
-async function makePdf(data:ReportData){
- await loadScript("https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js","jgo-report-jspdf");const jsPDF=window.jspdf?.jsPDF;if(!jsPDF)throw new Error("PDF generator did not load.");
- const d=new jsPDF({unit:"pt",format:"letter"});const W=612,H=792,M=38,CW=W-M*2,gap=24,col=(CW-gap)/2;const ink:[number,number,number]=[31,37,31],sage:[number,number,number]=[76,96,72],muted:[number,number,number]=[108,116,105],rule:[number,number,number]=[224,228,220],soft:[number,number,number]=[247,249,245];
- const font=(s:number,b=false,c=ink)=>{d.setFont("helvetica",b?"bold":"normal");d.setFontSize(s);d.setTextColor(...c)};const wrap=(t:string,w:number,s=7.5,b=false)=>{font(s,b);return d.splitTextToSize(t,w) as string[]};const text=(t:string,x:number,y:number,w:number,s=7.5,b=false,c=ink,leading=1.28)=>{const lines=wrap(t,w,s,b);font(s,b,c);d.text(lines,x,y);return y+lines.length*s*leading};const ruleLine=(y:number)=>{d.setDrawColor(...rule);d.setLineWidth(.6);d.line(M,y,W-M,y)};const heading=(label:string,x:number,y:number,w:number)=>{font(6.4,true,sage);d.text(label.toUpperCase(),x,y);d.setDrawColor(...rule);d.line(x,y+6,x+w,y+6);return y+19};const bullet=(t:string,x:number,y:number,w:number,s=7.2)=>{const lines=wrap(compact(t,1,145),w-14,s,false);d.setFillColor(...sage);d.circle(x+2,y-2,1.05,"F");font(s,false,ink);d.text(lines,x+12,y);return y+lines.length*s*1.27+5};
- try{const logo=await imageData("/jgo-hire-logo.png");d.addImage(logo,"PNG",M,24,66,25)}catch{font(14,true);d.text("JGO Hire",M,43)}
- font(6.7,true,muted);d.text("RESUME READY REPORT™",W-M,29,{align:"right"});font(18,true,ink);d.text(data.client||"Client",W-M,49,{align:"right"});font(7.4,false,muted);d.text("Prepared by Jen Gordon | Certified Career Coach & Recruiter",W-M,63,{align:"right"});ruleLine(76);
- let ly=99,ry=99;
- ly=heading("Overall Feedback",M,ly,col);ly=text(compact(data.overallFeedback,3,330),M,ly,col,7.7,false,ink,1.32)+12;
- ly=heading("What I Changed",M,ly,col);data.changes.slice(0,4).forEach(c=>{font(7.7,true,ink);d.text(compact(c.title,1,52),M,ly);ly+=11;ly=bullet(c.body,M,ly,col,7.1)+3});
- ly=heading("Recruiter's Perspective",M,ly,col);ly=text(compact(data.recruiterPerspective,2,240),M,ly,col,7.5,false,ink,1.3)+12;
- ly=heading("Final Recommendation",M,ly,col);d.setFillColor(...soft);d.roundedRect(M,ly-6,col,Math.min(74,Math.max(46,wrap(compact(data.finalRecommendation,2,220),col-20,7.5,true).length*10+22)),5,5,"F");ly=text(compact(data.finalRecommendation,2,220),M+10,ly+8,col-20,7.5,true,ink,1.3);
+Overall Feedback
+[Write 1 to 2 concise paragraphs. Explain the biggest difference between the original and revised resume and the overall improvement.]
 
- const rx=M+col+gap;
- ry=heading("Future Resume Updates",rx,ry,col);data.futureUpdates.slice(0,4).forEach(i=>{ry=bullet(i,rx,ry,col,7.1)});ry+=7;
- ry=heading("JGO Hire Recommendations",rx,ry,col);STANDARD_RECOMMENDATIONS.forEach(f=>{ry=bullet(f(data.client),rx,ry,col,6.9)});ry+=7;
- ry=heading("JGO Hire Pro Tip",rx,ry,col);ry=text("A great resume should answer these three questions in the first 30 to 60 seconds:",rx,ry,col,7.2,false,ink,1.28)+7;["Can you do the job?","Why are you a strong fit?","Why should they interview you?"].forEach((q,i)=>{font(7.2,true,ink);d.text(`${i+1}. ${q}`,rx,ry);ry+=12});ry+=7;ry=text("Your updated resume is designed to make those answers easier to see.",rx,ry,col,7.2,false,muted,1.28);
+What I Changed
+1. [SHORT CHANGE TITLE]
+- [Explain the specific change you see between the old and new resume and why it makes the resume stronger.]
 
- const bottom=Math.max(ly,ry);if(bottom>724){const scale=Math.max(.84,724/bottom);d.setFontSize(7*scale)}
- ruleLine(748);font(6.2,false,muted);d.text("JGO HIRE",M,766);d.text("More than a resume. A strategy for what comes next.",W-M,766,{align:"right"});
- d.save(`${fileBaseName(data.client)}.pdf`);
+2. [SHORT CHANGE TITLE]
+- [Explanation]
+
+3. [SHORT CHANGE TITLE]
+- [Explanation]
+
+4. [SHORT CHANGE TITLE]
+- [Explanation]
+
+Recruiter's Perspective
+[Write 1 to 2 concise paragraphs explaining how the revised resume now reads to a recruiter, what is easier to understand, and what makes the candidate stronger or better positioned.]
+
+Suggestions for Future Resume Updates
+- [Specific future suggestion based on this candidate's resume]
+- [Specific future suggestion]
+- [Specific future suggestion]
+- [Specific future suggestion]
+
+Final Recommendation: [Write a concise final recommendation. Include any remaining change you would still make before applying, if there is one. If the revised resume is ready, say that clearly without generic filler.]
+
+ORIGINAL RESUME:
+[PASTE ORIGINAL RESUME HERE]
+
+NEW REVISED RESUME:
+[PASTE NEW RESUME HERE]`;
+
+function clean(v: string) {
+  return v
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/^\*\*(.*?)\*\*$/, "$1")
+    .replace(/\*\*/g, "")
+    .replace(/^__|__$/g, "")
+    .replace(/\u00a0/g, " ")
+    .trim();
+}
+function cleanBullet(v: string) { return clean(v).replace(/^[•●▪◦\-*]\s*/, "").trim(); }
+function normalize(raw: string) { return raw.replace(/\r/g, "").replace(/[’]/g, "'").replace(/\t/g, " "); }
+function key(v: string) { return clean(v).replace(/:$/, "").replace(/\s+/g, " ").toUpperCase(); }
+function splitLines(v: string) { return v.split(/\n+/).map(cleanBullet).filter(Boolean); }
+function isBullet(v: string) { return /^[•●▪◦\-*]\s*/.test(v.trim()); }
+function fileBaseName(name: string) {
+  const x = name.replace(/[^a-zA-Z0-9 .'-]/g, "").replace(/\s+/g, " ").trim();
+  return `${x || "JGO Hire"} Resume Ready Report`;
+}
+function section(lines: string[], starts: string[], ends: string[]) {
+  const start = lines.findIndex(l => starts.includes(key(l)));
+  if (start < 0) return [];
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    const k = key(lines[i]);
+    if (ends.includes(k) || /^FINAL RECOMMENDATION\s*:/i.test(clean(lines[i]))) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(start + 1, end);
+}
+function paragraphs(lines: string[]) {
+  const out: string[] = [];
+  let buf: string[] = [];
+  const flush = () => {
+    if (buf.length) {
+      out.push(buf.join(" ").replace(/\s+/g, " ").trim());
+      buf = [];
+    }
+  };
+  for (const raw of lines) {
+    const l = clean(raw);
+    if (!l) { flush(); continue; }
+    if (isBullet(raw)) { flush(); out.push(cleanBullet(raw)); continue; }
+    buf.push(l);
+  }
+  flush();
+  return out.join("\n\n");
+}
+function parseChangeBlock(lines: string[]) {
+  const out: Change[] = [];
+  let title = "";
+  let body: string[] = [];
+  const flush = () => {
+    const text = body.map(cleanBullet).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    if (title && text) out.push({ title: title.replace(/^\d+[.)]\s*/, "").trim(), body: text });
+    title = "";
+    body = [];
+  };
+  for (const raw of lines) {
+    const l = clean(raw);
+    if (!l) continue;
+    if (/^\d+[.)]\s+/.test(l)) { flush(); title = l; continue; }
+    if (isBullet(raw)) { body.push(raw); continue; }
+    if (!title) { title = l; continue; }
+    if (body.length && l.length < 90 && !/[.!?]$/.test(l)) { flush(); title = l; continue; }
+    body.push(raw);
+  }
+  flush();
+  return out;
+}
+function parseFuture(lines: string[]) {
+  const out: string[] = [];
+  let current = "";
+  for (const raw of lines) {
+    const l = clean(raw);
+    if (!l) continue;
+    if (/^As your (career|role)|^As you continue|^Keep track of measurable/i.test(l)) continue;
+    if (isBullet(raw)) {
+      if (current) out.push(current.trim());
+      current = cleanBullet(raw);
+    } else if (current) current += ` ${l}`;
+    else current = l;
+  }
+  if (current) out.push(current.trim());
+  return out.filter(Boolean);
+}
+function inlineValue(lines: string[], labels: string[]) {
+  for (const raw of lines) {
+    const l = clean(raw);
+    for (const label of labels) {
+      if (l.toLowerCase().startsWith(label.toLowerCase() + ":")) return l.slice(label.length + 1).trim();
+    }
+  }
+  return "";
+}
+function detectClient(lines: string[]) {
+  const cleaned = lines.map(clean).filter(Boolean);
+  const explicit = cleaned.find(l => /^CLIENT\s*:/i.test(l) || /^PREPARED FOR\s+/i.test(l));
+  if (explicit) return explicit.replace(/^CLIENT\s*:/i, "").replace(/^PREPARED FOR\s+/i, "").trim();
+  const titleIdx = cleaned.findIndex(l => /JGO HIRE RESUME READY REPORT/i.test(l));
+  if (titleIdx >= 0) {
+    for (let i = titleIdx + 1; i < cleaned.length; i++) {
+      const l = cleaned[i];
+      if (/^Prepared by/i.test(l)) continue;
+      if (["OVERALL FEEDBACK", "YOUR RESUME TRANSFORMATION", "WHAT I CHANGED", "WHAT CHANGED"].includes(key(l))) continue;
+      if (l.length <= 80) return l;
+    }
+  }
+  return "";
 }
 
-export default function ResumeReadyReportPage(){
- const[report,setReport]=useState<ReportData>(emptyReport),[importText,setImportText]=useState(""),[status,setStatus]=useState("");
- const completion=useMemo(()=>{const checks=[report.client,report.overallFeedback,report.changes.length,report.recruiterPerspective,report.futureUpdates.length,report.finalRecommendation];return Math.round(checks.filter(Boolean).length/checks.length*100)},[report]);
- const update=(k:keyof ReportData,v:any)=>setReport(r=>({...r,[k]:v}));
- const doImport=()=>{try{const parsed=parseImport(importText);const found=[parsed.client,parsed.overallFeedback,parsed.changes.length,parsed.recruiterPerspective,parsed.futureUpdates.length,parsed.finalRecommendation].filter(Boolean).length;setReport(parsed);setStatus(found>=4?`Formatted successfully${parsed.client?` for ${parsed.client}`:""}. ${found} personalized sections were filled.`:`I filled ${found} sections. Review the fields on the right and add anything missing.`)}catch(e:any){setStatus(e?.message||"Could not format this report.")}};
- const download=async()=>{try{setStatus("Building one-page JGO Hire report...");await makePdf(report);setStatus("Report downloaded.")}catch(e:any){setStatus(e?.message||"Could not create PDF.")}};
- return <main className="min-h-screen bg-[#f6f7f4] px-4 py-8 text-[#30372f] md:px-8 md:py-10"><div className="mx-auto max-w-[1320px]"><div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#7e8a7b]">JGO Hire</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-[#2e352d]">Resume Ready Report</h1><p className="mt-2 max-w-2xl text-sm text-[#7a8378]">A concise, premium one-page client summary. The builder keeps the strongest points only.</p></div><div className="flex items-center gap-3 rounded-full border border-[#e1e5dd] bg-white px-4 py-2 shadow-sm"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#edf0eb]"><div className="h-full rounded-full bg-[#758a70]" style={{width:`${completion}%`}}/></div><span className="text-xs font-semibold text-[#596656]">{completion}% ready</span></div></div><div className="grid gap-6 xl:grid-cols-[390px_1fr]"><aside className="space-y-4"><section className="rounded-2xl border border-[#e1e5dd] bg-white p-5 shadow-[0_8px_30px_rgba(51,61,48,.04)]"><h2 className="text-base font-semibold">Quick Paste</h2><p className="mt-1 text-xs leading-5 text-[#7d867b]">Paste either JGO report format. The PDF will automatically condense it into the strongest one-page version.</p><textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={23} className="mt-4 w-full resize-y rounded-xl border border-[#e0e5dc] bg-[#fafbf9] px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" placeholder="Paste report here..."/><button type="button" onClick={doImport} disabled={!importText.trim()} className="mt-3 w-full rounded-xl bg-[#4f614b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Format Report</button>{status&&<p className="mt-3 rounded-lg bg-[#f3f6f1] px-3 py-2 text-xs leading-5 text-[#566452]">{status}</p>}</section><section className="rounded-2xl border border-[#e1e5dd] bg-white p-5"><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#7b8779]">One Page Standard</p><p className="mt-2 text-sm font-semibold">JGO Recommendations + Pro Tip</p><p className="mt-1 text-xs leading-5 text-[#7d867b]">Automatically condensed and included without creating extra pages.</p></section></aside><section className="rounded-2xl border border-[#e1e5dd] bg-white p-6 shadow-[0_8px_30px_rgba(51,61,48,.04)] md:p-7"><div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-base font-semibold">Review & Edit</h2><p className="mt-1 text-xs text-[#7d867b]">Keep full detail here. The PDF automatically selects the strongest content.</p></div><button type="button" onClick={download} disabled={!report.client} className="rounded-xl bg-[#4f614b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Download PDF</button></div><Input label="Client" value={report.client} onChange={v=>update("client",v)}/><div className="mt-6"><Field label="Overall Feedback" value={report.overallFeedback} onChange={v=>update("overallFeedback",v)} rows={8}/></div><div className="mt-7 border-t border-[#edf0ea] pt-6"><div className="mb-4 flex items-center justify-between"><h3 className="text-sm font-semibold">What I Changed</h3><button type="button" onClick={()=>update("changes",[...report.changes,{title:"",body:""}])} className="text-xs font-semibold text-[#60705d]">+ Add Change</button></div><div className="space-y-3">{report.changes.map((c,i)=><div key={i} className="rounded-xl bg-[#fafbf9] p-4"><Input label={`Change ${i+1} Title`} value={c.title} onChange={v=>{const n=[...report.changes];n[i]={...n[i],title:v};update("changes",n)}}/><div className="mt-3"><Field label="Explanation" value={c.body} onChange={v=>{const n=[...report.changes];n[i]={...n[i],body:v};update("changes",n)}} rows={4}/></div></div>)}</div></div><div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Recruiter's Perspective" value={report.recruiterPerspective} onChange={v=>update("recruiterPerspective",v)} rows={7}/></div><div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Suggestions for Future Resume Updates - one per line" value={report.futureUpdates.join("\n")} onChange={v=>update("futureUpdates",splitLines(v))} rows={8}/></div><div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Final Recommendation" value={report.finalRecommendation} onChange={v=>update("finalRecommendation",v)} rows={5}/></div></section></div></div></main>
+function parseReport(raw: string): ReportData {
+  const text = normalize(raw);
+  const lines = text.split("\n");
+  const out: ReportData = { ...emptyReport, changes: [], futureUpdates: [] };
+  out.client = detectClient(lines);
+
+  const overall = section(lines,
+    ["OVERALL FEEDBACK", "OVERALL ASSESSMENT"],
+    ["WHAT I CHANGED", "WHAT CHANGED", "KEY IMPROVEMENTS", "RECRUITER'S PERSPECTIVE", "RECRUITER PERSPECTIVE", "SUGGESTIONS FOR FUTURE RESUME UPDATES", "JGO HIRE RECOMMENDATIONS"]
+  );
+  if (overall.length) out.overallFeedback = paragraphs(overall);
+
+  const transformation = section(lines,
+    ["YOUR RESUME TRANSFORMATION", "RESUME TRANSFORMATION"],
+    ["WHAT CHANGED", "WHAT I CHANGED", "KEY IMPROVEMENTS", "TARGET ROLE ALIGNMENT", "YOUR STRONGEST SELLING POINTS"]
+  );
+  if (!out.overallFeedback && transformation.length) out.overallFeedback = paragraphs(transformation);
+
+  const changes = section(lines,
+    ["WHAT I CHANGED", "WHAT CHANGED", "KEY IMPROVEMENTS"],
+    ["RECRUITER'S PERSPECTIVE", "RECRUITER PERSPECTIVE", "POSITIONING STRATEGY", "TARGET ROLE ALIGNMENT", "YOUR STRONGEST SELLING POINTS", "THE BIGGEST DIFFERENCE", "SUGGESTIONS FOR FUTURE RESUME UPDATES", "JGO HIRE FINAL ASSESSMENT", "FINAL ASSESSMENT", "JGO HIRE RECOMMENDATIONS"]
+  );
+  out.changes = parseChangeBlock(changes);
+
+  const perspective = section(lines,
+    ["RECRUITER'S PERSPECTIVE", "RECRUITER PERSPECTIVE", "RECRUITERS PERSPECTIVE"],
+    ["SUGGESTIONS FOR FUTURE RESUME UPDATES", "FINAL RECOMMENDATION", "JGO HIRE RECOMMENDATIONS", "JGO HIRE PRO TIP"]
+  );
+  if (perspective.length) out.recruiterPerspective = paragraphs(perspective);
+
+  const future = section(lines,
+    ["SUGGESTIONS FOR FUTURE RESUME UPDATES"],
+    ["FINAL RECOMMENDATION", "JGO HIRE RECOMMENDATIONS", "JGO HIRE PRO TIP"]
+  );
+  if (future.length) out.futureUpdates = parseFuture(future);
+
+  const finalIndex = lines.findIndex(l => /^FINAL RECOMMENDATION\s*:/i.test(clean(l)) || key(l) === "FINAL RECOMMENDATION");
+  if (finalIndex >= 0) {
+    const first = clean(lines[finalIndex]).replace(/^FINAL RECOMMENDATION\s*:\s*/i, "").replace(/^FINAL RECOMMENDATION$/i, "").trim();
+    const tail: string[] = [];
+    for (let i = finalIndex + 1; i < lines.length; i++) {
+      if (["JGO HIRE RECOMMENDATIONS", "JGO HIRE PRO TIP"].includes(key(lines[i]))) break;
+      const l = clean(lines[i]);
+      if (l) tail.push(l);
+    }
+    out.finalRecommendation = [first, ...tail].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  const finalAssessment = section(lines,
+    ["JGO HIRE FINAL ASSESSMENT", "FINAL ASSESSMENT"],
+    ["JGO HIRE RECOMMENDATIONS", "JGO HIRE PRO TIP"]
+  );
+  if (!out.finalRecommendation && finalAssessment.length) {
+    const positioning = inlineValue(finalAssessment, ["Resume Positioning", "Positioning"]);
+    const targetLevel = inlineValue(finalAssessment, ["Target Level"]);
+    const status = inlineValue(finalAssessment, ["Resume Status", "Status"]);
+    out.finalRecommendation = [
+      positioning && `Your resume is now positioned as ${positioning}.`,
+      targetLevel && `It is aligned for ${targetLevel} opportunities.`,
+      status && `Resume status: ${status}.`,
+    ].filter(Boolean).join(" ");
+  }
+
+  if (!out.futureUpdates.length) out.futureUpdates = DEFAULT_FUTURE_UPDATES;
+  return out;
+}
+
+function sentences(v: string) {
+  return v.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map(x => x.trim()).filter(Boolean);
+}
+function compact(v: string, maxSentences = 2, maxChars = 240) {
+  const picked = sentences(v).slice(0, maxSentences).join(" ");
+  const s = picked || v.replace(/\s+/g, " ").trim();
+  if (s.length <= maxChars) return s;
+  const cut = s.slice(0, maxChars);
+  const at = Math.max(cut.lastIndexOf("."), cut.lastIndexOf(";"), cut.lastIndexOf(","), cut.lastIndexOf(" "));
+  const out = cut.slice(0, at > maxChars * .65 ? at : maxChars).trim().replace(/[,:;\-]+$/g, "");
+  return out + (out && !/[.!?]$/.test(out) ? "." : "");
+}
+
+function Field({ label, value, onChange, rows = 5 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
+  return <label className="block"><span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">{label}</span><textarea value={value} onChange={e => onChange(e.target.value)} rows={rows} className="w-full resize-y rounded-xl border border-[#e0e5dc] bg-white px-4 py-3 text-sm leading-6 text-[#343b33] outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" /></label>;
+}
+function Input({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return <label className="block"><span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">{label}</span><input value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-xl border border-[#e0e5dc] bg-white px-4 py-3 text-sm text-[#343b33] outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" /></label>;
+}
+function loadScript(src: string, id: string) {
+  return new Promise<void>((resolve, reject) => {
+    const existing = document.getElementById(id) as HTMLScriptElement | null;
+    if (existing) {
+      if (existing.dataset.loaded === "true") return resolve();
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Could not load PDF tools.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = id;
+    script.src = src;
+    script.async = true;
+    script.onload = () => { script.dataset.loaded = "true"; resolve(); };
+    script.onerror = () => reject(new Error("Could not load PDF tools."));
+    document.head.appendChild(script);
+  });
+}
+async function imageData(url: string) {
+  const blob = await fetch(url).then(r => { if (!r.ok) throw new Error("Logo not found"); return r.blob(); });
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function makePdf(data: ReportData) {
+  await loadScript("https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js", "jgo-report-jspdf");
+  const jsPDF = window.jspdf?.jsPDF;
+  if (!jsPDF) throw new Error("PDF generator did not load.");
+  const d = new jsPDF({ unit: "pt", format: "letter" });
+  const W = 612, H = 792, M = 38, CW = W - M * 2, gap = 24, col = (CW - gap) / 2;
+  const ink: [number, number, number] = [31, 37, 31];
+  const sage: [number, number, number] = [76, 96, 72];
+  const muted: [number, number, number] = [108, 116, 105];
+  const rule: [number, number, number] = [224, 228, 220];
+  const soft: [number, number, number] = [247, 249, 245];
+  const font = (s: number, b = false, c = ink) => { d.setFont("helvetica", b ? "bold" : "normal"); d.setFontSize(s); d.setTextColor(...c); };
+  const wrap = (t: string, w: number, s = 7.5, b = false) => { font(s, b); return d.splitTextToSize(t, w) as string[]; };
+  const text = (t: string, x: number, y: number, w: number, s = 7.5, b = false, c = ink, leading = 1.28) => { const lines = wrap(t, w, s, b); font(s, b, c); d.text(lines, x, y); return y + lines.length * s * leading; };
+  const ruleLine = (y: number) => { d.setDrawColor(...rule); d.setLineWidth(.6); d.line(M, y, W - M, y); };
+  const heading = (label: string, x: number, y: number, w: number) => { font(6.4, true, sage); d.text(label.toUpperCase(), x, y); d.setDrawColor(...rule); d.line(x, y + 6, x + w, y + 6); return y + 19; };
+  const bullet = (t: string, x: number, y: number, w: number, s = 7.2) => { const lines = wrap(compact(t, 1, 145), w - 14, s, false); d.setFillColor(...sage); d.circle(x + 2, y - 2, 1.05, "F"); font(s, false, ink); d.text(lines, x + 12, y); return y + lines.length * s * 1.27 + 5; };
+
+  try { const logo = await imageData("/jgo-hire-logo.png"); d.addImage(logo, "PNG", M, 24, 66, 25); }
+  catch { font(14, true); d.text("JGO Hire", M, 43); }
+
+  font(6.7, true, muted); d.text("RESUME READY REPORT™", W - M, 29, { align: "right" });
+  font(18, true, ink); d.text(data.client || "Client", W - M, 49, { align: "right" });
+  font(7.4, false, muted); d.text("Prepared by Jen Gordon | Certified Career Coach & Recruiter", W - M, 63, { align: "right" });
+  ruleLine(76);
+
+  let ly = 99, ry = 99;
+  ly = heading("Overall Feedback", M, ly, col);
+  ly = text(compact(data.overallFeedback, 3, 330), M, ly, col, 7.7, false, ink, 1.32) + 12;
+  ly = heading("What I Changed", M, ly, col);
+  data.changes.slice(0, 4).forEach(c => {
+    font(7.7, true, ink); d.text(compact(c.title, 1, 52), M, ly); ly += 11;
+    ly = bullet(c.body, M, ly, col, 7.1) + 3;
+  });
+  ly = heading("Recruiter's Perspective", M, ly, col);
+  ly = text(compact(data.recruiterPerspective, 2, 240), M, ly, col, 7.5, false, ink, 1.3) + 12;
+  ly = heading("Final Recommendation", M, ly, col);
+  const recText = compact(data.finalRecommendation, 2, 220);
+  const recH = Math.min(74, Math.max(46, wrap(recText, col - 20, 7.5, true).length * 10 + 22));
+  d.setFillColor(...soft); d.roundedRect(M, ly - 6, col, recH, 5, 5, "F");
+  ly = text(recText, M + 10, ly + 8, col - 20, 7.5, true, ink, 1.3);
+
+  const rx = M + col + gap;
+  ry = heading("Future Resume Updates", rx, ry, col);
+  data.futureUpdates.slice(0, 4).forEach(i => { ry = bullet(i, rx, ry, col, 7.1); });
+  ry += 7;
+  ry = heading("JGO Hire Recommendations", rx, ry, col);
+  STANDARD_RECOMMENDATIONS.forEach(f => { ry = bullet(f(data.client), rx, ry, col, 6.9); });
+  ry += 7;
+  ry = heading("JGO Hire Pro Tip", rx, ry, col);
+  ry = text("A great resume should answer these three questions in the first 30 to 60 seconds:", rx, ry, col, 7.2, false, ink, 1.28) + 7;
+  ["Can you do the job?", "Why are you a strong fit?", "Why should they interview you?"].forEach((q, i) => { font(7.2, true, ink); d.text(`${i + 1}. ${q}`, rx, ry); ry += 12; });
+  ry += 7;
+  text("Your updated resume is designed to make those answers easier to see.", rx, ry, col, 7.2, false, muted, 1.28);
+
+  ruleLine(748);
+  font(6.2, false, muted); d.text("JGO HIRE", M, 766);
+  d.text("More than a resume. A strategy for what comes next.", W - M, 766, { align: "right" });
+  d.save(`${fileBaseName(data.client)}.pdf`);
+}
+
+export default function ResumeReadyReportPage() {
+  const [report, setReport] = useState<ReportData>(emptyReport);
+  const [importText, setImportText] = useState("");
+  const [status, setStatus] = useState("");
+  const [promptCopied, setPromptCopied] = useState(false);
+
+  const completion = useMemo(() => {
+    const checks = [report.client, report.overallFeedback, report.changes.length, report.recruiterPerspective, report.futureUpdates.length, report.finalRecommendation];
+    return Math.round(checks.filter(Boolean).length / checks.length * 100);
+  }, [report]);
+
+  const update = (k: keyof ReportData, v: any) => setReport(r => ({ ...r, [k]: v }));
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(CHATGPT_PROMPT);
+      setPromptCopied(true);
+      window.setTimeout(() => setPromptCopied(false), 1800);
+    } catch {
+      setStatus("Could not copy automatically. Select the prompt text and copy it manually.");
+    }
+  };
+  const doImport = () => {
+    try {
+      const parsed = parseReport(importText);
+      const found = [parsed.client, parsed.overallFeedback, parsed.changes.length, parsed.recruiterPerspective, parsed.futureUpdates.length, parsed.finalRecommendation].filter(Boolean).length;
+      setReport(parsed);
+      setStatus(found >= 4 ? `Formatted successfully${parsed.client ? ` for ${parsed.client}` : ""}. ${found} personalized sections were filled.` : `I filled ${found} sections. Review the fields on the right and add anything missing.`);
+    } catch (e: any) {
+      setStatus(e?.message || "Could not format this report.");
+    }
+  };
+  const download = async () => {
+    try {
+      setStatus("Building JGO Hire report...");
+      await makePdf(report);
+      setStatus("Report downloaded.");
+    } catch (e: any) {
+      setStatus(e?.message || "Could not create PDF.");
+    }
+  };
+
+  return <main className="min-h-screen bg-[#f6f7f4] px-4 py-8 text-[#30372f] md:px-8 md:py-10">
+    <div className="mx-auto max-w-[1320px]">
+      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#7e8a7b]">JGO Hire</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-[#2e352d]">Resume Ready Report</h1>
+          <p className="mt-2 max-w-2xl text-sm text-[#7a8378]">Use the JGO prompt with the original and revised resume, then paste ChatGPT's plain-text report back here.</p>
+        </div>
+        <div className="flex items-center gap-3 rounded-full border border-[#e1e5dd] bg-white px-4 py-2 shadow-sm">
+          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#edf0eb]"><div className="h-full rounded-full bg-[#758a70]" style={{ width: `${completion}%` }} /></div>
+          <span className="text-xs font-semibold text-[#596656]">{completion}% ready</span>
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+        <aside className="space-y-4">
+          <section className="rounded-2xl border border-[#dce3d8] bg-[#eef3eb] p-5 shadow-[0_8px_30px_rgba(51,61,48,.04)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71806d]">Step 1</p>
+                <h2 className="mt-1 text-base font-semibold">Get the ChatGPT Prompt</h2>
+              </div>
+              <button type="button" onClick={copyPrompt} className="shrink-0 rounded-lg bg-[#4f614b] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#445441]">{promptCopied ? "Copied!" : "Copy Prompt"}</button>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[#697465]">Copy this into ChatGPT, then paste the client's original resume and revised resume into the two placeholders at the bottom.</p>
+            <textarea readOnly value={CHATGPT_PROMPT} rows={12} onFocus={e => e.currentTarget.select()} className="mt-4 w-full resize-y rounded-xl border border-[#d8e0d4] bg-white px-4 py-3 text-xs leading-5 text-[#465044] outline-none" />
+          </section>
+
+          <section className="rounded-2xl border border-[#e1e5dd] bg-white p-5 shadow-[0_8px_30px_rgba(51,61,48,.04)]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">Step 2</p>
+            <h2 className="mt-1 text-base font-semibold">Paste ChatGPT's Report</h2>
+            <p className="mt-1 text-xs leading-5 text-[#7d867b]">Paste the plain-text response exactly as ChatGPT gives it to you. The generator will place each section into the correct field.</p>
+            <textarea value={importText} onChange={e => setImportText(e.target.value)} rows={18} className="mt-4 w-full resize-y rounded-xl border border-[#e0e5dc] bg-[#fafbf9] px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#aab6a6] focus:ring-2 focus:ring-[#e7ece4]" placeholder="Paste ChatGPT report here..." />
+            <button type="button" onClick={doImport} disabled={!importText.trim()} className="mt-3 w-full rounded-xl bg-[#4f614b] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Format Report</button>
+            {status && <p className="mt-3 rounded-lg bg-[#f3f6f1] px-3 py-2 text-xs leading-5 text-[#566452]">{status}</p>}
+          </section>
+
+          <section className="rounded-2xl border border-[#e1e5dd] bg-white p-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#7b8779]">Automatically Included</p>
+            <p className="mt-2 text-sm font-semibold">JGO Recommendations + Pro Tip</p>
+            <p className="mt-1 text-xs leading-5 text-[#7d867b]">Do not ask ChatGPT to create these. The OS adds your standard JGO sections automatically.</p>
+          </section>
+        </aside>
+
+        <section className="rounded-2xl border border-[#e1e5dd] bg-white p-6 shadow-[0_8px_30px_rgba(51,61,48,.04)] md:p-7">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7b8779]">Step 3</p>
+              <h2 className="mt-1 text-base font-semibold">Review, Edit & Download</h2>
+              <p className="mt-1 text-xs text-[#7d867b]">Make any final edits before generating the client report.</p>
+            </div>
+            <button type="button" onClick={download} disabled={!report.client} className="rounded-xl bg-[#4f614b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#445441] disabled:opacity-40">Download PDF</button>
+          </div>
+
+          <Input label="Client" value={report.client} onChange={v => update("client", v)} />
+          <div className="mt-6"><Field label="Overall Feedback" value={report.overallFeedback} onChange={v => update("overallFeedback", v)} rows={7} /></div>
+
+          <div className="mt-7 border-t border-[#edf0ea] pt-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">What I Changed</h3>
+              <button type="button" onClick={() => update("changes", [...report.changes, { title: "", body: "" }])} className="text-xs font-semibold text-[#60705d]">+ Add Change</button>
+            </div>
+            <div className="space-y-3">
+              {report.changes.map((c, i) => <div key={i} className="rounded-xl bg-[#fafbf9] p-4">
+                <Input label={`Change ${i + 1} Title`} value={c.title} onChange={v => { const n = [...report.changes]; n[i] = { ...n[i], title: v }; update("changes", n); }} />
+                <div className="mt-3"><Field label="Explanation" value={c.body} onChange={v => { const n = [...report.changes]; n[i] = { ...n[i], body: v }; update("changes", n); }} rows={4} /></div>
+              </div>)}
+            </div>
+          </div>
+
+          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Recruiter's Perspective" value={report.recruiterPerspective} onChange={v => update("recruiterPerspective", v)} rows={7} /></div>
+          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Suggestions for Future Resume Updates - one per line" value={report.futureUpdates.join("\n")} onChange={v => update("futureUpdates", splitLines(v))} rows={7} /></div>
+          <div className="mt-7 border-t border-[#edf0ea] pt-6"><Field label="Final Recommendation" value={report.finalRecommendation} onChange={v => update("finalRecommendation", v)} rows={5} /></div>
+        </section>
+      </div>
+    </div>
+  </main>;
 }
