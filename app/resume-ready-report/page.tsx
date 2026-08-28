@@ -54,7 +54,7 @@ IMPORTANT WRITING RULES:
 - Do not overpraise. If something could still be improved, say so constructively.
 - Do not use em dashes.
 - This MUST fit comfortably into a polished 2-page client report. Be selective. Do not repeat the same point in multiple sections.
-- WHAT I CHANGED is the most important section, but it must be easy to scan. Give 5 meaningful changes. Use a 6th only when it adds a truly different point.
+- WHAT I CHANGED is the most important section, but it must be easy to scan. Give exactly 5 meaningful changes unless a truly different sixth point is necessary.
 - Keep EACH What I Changed explanation to about 45 to 65 words maximum. Use 2 to 3 sentences. Do not write long paragraphs.
 - For each change, briefly cover: what was different before, what changed, and why it matters to a recruiter.
 - Preserve important metrics, numbers, scope, leadership details, or achievements exactly when they appear in the resumes.
@@ -64,6 +64,7 @@ IMPORTANT WRITING RULES:
 - Future Resume Updates should be exactly 4 short bullets, each no more than about 25 words.
 - Final Recommendation should be about 50 to 75 words.
 - DO NOT include JGO Hire Recommendations or a JGO Hire Pro Tip. Those are automatically added by my report generator.
+- CRITICAL FORMAT RULE: Under What I Changed, every numbered item MUST use the literal label DETAIL: before its explanation. Keep each numbered title and DETAIL on separate lines. Do not use markdown bullets for the explanation.
 
 RETURN ONLY THE PLAIN TEXT FORMAT BELOW. Do not add markdown, code fences, commentary, or sections that are not listed.
 
@@ -75,22 +76,22 @@ Overall Feedback
 
 What I Changed
 1. [SHORT CHANGE TITLE]
-- [45 to 65 words maximum. Explain what was different before, what changed, and why it matters.]
+DETAIL: [45 to 65 words maximum. Explain what was different before, what changed, and why it matters.]
 
 2. [SHORT CHANGE TITLE]
-- [45 to 65 words maximum.]
+DETAIL: [45 to 65 words maximum.]
 
 3. [SHORT CHANGE TITLE]
-- [45 to 65 words maximum.]
+DETAIL: [45 to 65 words maximum.]
 
 4. [SHORT CHANGE TITLE]
-- [45 to 65 words maximum.]
+DETAIL: [45 to 65 words maximum.]
 
 5. [SHORT CHANGE TITLE]
-- [45 to 65 words maximum.]
+DETAIL: [45 to 65 words maximum.]
 
 6. [ONLY if there is a truly different sixth change]
-- [45 to 65 words maximum.]
+DETAIL: [45 to 65 words maximum.]
 
 Recruiter's Perspective
 [ONE concise paragraph, about 90 to 120 words.]
@@ -144,7 +145,60 @@ function paragraphs(lines: string[]) {
   flush();
   return out.join("\n\n");
 }
+
+function parseChangeChunk(chunk: string): Change | null {
+  const noNumber = chunk.replace(/^\s*[1-6][.)]\s*/, "").trim();
+  if (!noNumber) return null;
+
+  const detailMatch = noNumber.match(/^([\s\S]*?)\s+DETAIL\s*:\s*([\s\S]+)$/i);
+  if (detailMatch) {
+    const title = clean(detailMatch[1]).replace(/\s+/g, " ").trim();
+    const body = cleanBullet(detailMatch[2]).replace(/\s+/g, " ").trim();
+    return title && body ? { title, body } : null;
+  }
+
+  const lineParts = noNumber.split(/\n+/).map(v => v.trim()).filter(Boolean);
+  if (lineParts.length >= 2) {
+    const title = clean(lineParts[0]);
+    const body = lineParts.slice(1).map(cleanBullet).join(" ").replace(/\s+/g, " ").trim();
+    return title && body ? { title, body } : null;
+  }
+
+  const inline = noNumber.match(/^(.{1,120}?)\s+-\s+(.+)$/);
+  if (inline) {
+    const title = clean(inline[1]);
+    const body = cleanBullet(inline[2]).replace(/\s+/g, " ").trim();
+    return title && body ? { title, body } : null;
+  }
+
+  return null;
+}
+
 function parseChangeBlock(lines: string[]) {
+  const raw = lines.join("\n").trim();
+  if (!raw) return [];
+
+  // First, split by every numbered marker no matter whether clipboard copying
+  // preserved line breaks. This prevents 1-5 from ever becoming one change.
+  const marker = /(?:^|\s)([1-6])[.)]\s+/g;
+  const starts: number[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = marker.exec(raw)) !== null) {
+    const offset = match[0].search(/[1-6][.)]/);
+    starts.push(match.index + Math.max(offset, 0));
+  }
+
+  if (starts.length >= 2) {
+    const out: Change[] = [];
+    for (let i = 0; i < starts.length; i++) {
+      const chunk = raw.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : raw.length).trim();
+      const parsed = parseChangeChunk(chunk);
+      if (parsed) out.push(parsed);
+    }
+    if (out.length >= 2) return out;
+  }
+
+  // Backward-compatible parser for the older numbered-title + hyphen-body format.
   const out: Change[] = [];
   let title = "";
   let body: string[] = [];
@@ -153,36 +207,19 @@ function parseChangeBlock(lines: string[]) {
     if (title && text) out.push({ title: title.replace(/^\d+[.)]\s*/, "").trim(), body: text });
     title = ""; body = [];
   };
-
-  // ChatGPT usually returns each numbered change on its own line, but copying from
-  // rich text can occasionally collapse 1-5 into a single paragraph. Reinsert a
-  // line break before numbered change markers so every item remains its own block.
-  const expandedLines = lines
-    .join("\n")
-    .replace(/([^\n])\s+(?=[1-6][.)]\s+[A-Z])/g, "$1\n")
-    .split("\n")
-    .flatMap(raw => {
-      const l = clean(raw);
-      const numbered = l.match(/^(\d+[.)]\s+)(.+)$/);
-      if (!numbered) return [raw];
-
-      // Also support pasted output like: "1. Title - explanation" on one line.
-      const inline = numbered[2].match(/^(.{1,100}?)\s+-\s+(.+)$/);
-      if (!inline) return [raw];
-      return [`${numbered[1]}${inline[1]}`, `- ${inline[2]}`];
-    });
-
-  for (const raw of expandedLines) {
-    const l = clean(raw);
+  for (const rawLine of lines) {
+    const l = clean(rawLine);
     if (!l) continue;
     if (/^\d+[.)]\s+/.test(l)) { flush(); title = l; continue; }
-    if (isBullet(raw)) { body.push(raw); continue; }
+    if (/^DETAIL\s*:/i.test(l)) { body.push(l.replace(/^DETAIL\s*:\s*/i, "")); continue; }
+    if (isBullet(rawLine)) { body.push(rawLine); continue; }
     if (!title) { title = l; continue; }
-    body.push(raw);
+    body.push(rawLine);
   }
   flush();
   return out;
 }
+
 function parseFuture(lines: string[]) {
   const out: string[] = [];
   let current = "";
@@ -331,9 +368,9 @@ async function makePdf(data: ReportData) {
     const titleLines = wrap(`${i + 1}. ${c.title}`, CW, 8.6, true);
     font(8.6, true, ink); d.text(titleLines, M, y);
     y += titleLines.length * 10.4 + 3;
-    y = drawText(c.body, M + 14, y, CW - 14, 8.15, false, ink, 1.24) + 7;
+    y = drawText(c.body, M + 14, y, CW - 14, 8.15, false, ink, 1.24) + 9;
     if (i < Math.min(data.changes.length, 6) - 1) {
-      d.setDrawColor(235, 238, 232); d.line(M + 14, y - 2, W - M, y - 2); y += 5;
+      d.setDrawColor(235, 238, 232); d.line(M + 14, y - 2, W - M, y - 2); y += 7;
     }
   });
 
@@ -400,7 +437,7 @@ export default function ResumeReadyReportPage() {
       const parsed = parseReport(importText);
       const found = [parsed.client, parsed.overallFeedback, parsed.changes.length, parsed.recruiterPerspective, parsed.futureUpdates.length, parsed.finalRecommendation].filter(Boolean).length;
       setReport(parsed);
-      setStatus(found >= 4 ? `Formatted successfully${parsed.client ? ` for ${parsed.client}` : ""}. ${found} personalized sections were filled.` : `I filled ${found} sections. Review the fields on the right and add anything missing.`);
+      setStatus(found >= 4 ? `Formatted successfully${parsed.client ? ` for ${parsed.client}` : ""}. ${parsed.changes.length} separate changes detected.` : `I filled ${found} sections. Review the fields on the right and add anything missing.`);
     } catch (e: any) { setStatus(e?.message || "Could not format this report."); }
   };
   const download = async () => {
@@ -429,7 +466,7 @@ export default function ResumeReadyReportPage() {
               <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71806d]">Step 1</p><h2 className="mt-1 text-base font-semibold">Get the ChatGPT Prompt</h2></div>
               <button type="button" onClick={copyPrompt} className="shrink-0 rounded-lg bg-[#4f614b] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#445441]">{promptCopied ? "Copied!" : "Copy Prompt"}</button>
             </div>
-            <p className="mt-2 text-xs leading-5 text-[#697465]">The prompt now controls section length so the report stays strong without turning What I Changed into long blocks of text.</p>
+            <p className="mt-2 text-xs leading-5 text-[#697465]">The prompt uses fixed change markers so all 5 What I Changed items stay separate when pasted back into the OS.</p>
             <textarea readOnly value={CHATGPT_PROMPT} rows={12} onFocus={e => e.currentTarget.select()} className="mt-4 w-full resize-y rounded-xl border border-[#d8e0d4] bg-white px-4 py-3 text-xs leading-5 text-[#465044] outline-none" />
           </section>
 
@@ -459,7 +496,7 @@ export default function ResumeReadyReportPage() {
           <div className="mt-6"><Field label="Overall Feedback" value={report.overallFeedback} onChange={v => update("overallFeedback", v)} rows={6} /></div>
 
           <div className="mt-7 border-t border-[#edf0ea] pt-6">
-            <div className="mb-4 flex items-center justify-between"><div><h3 className="text-sm font-semibold">What I Changed</h3><p className="mt-1 text-xs text-[#8a9287]">Aim for 5 strong changes with short explanations, not long paragraphs.</p></div><button type="button" onClick={() => update("changes", [...report.changes, { title: "", body: "" }])} className="text-xs font-semibold text-[#60705d]">+ Add Change</button></div>
+            <div className="mb-4 flex items-center justify-between"><div><h3 className="text-sm font-semibold">What I Changed</h3><p className="mt-1 text-xs text-[#8a9287]">Each numbered change is stored and rendered as its own separate block.</p></div><button type="button" onClick={() => update("changes", [...report.changes, { title: "", body: "" }])} className="text-xs font-semibold text-[#60705d]">+ Add Change</button></div>
             <div className="space-y-3">
               {report.changes.map((c, i) => <div key={i} className="rounded-xl bg-[#fafbf9] p-4">
                 <Input label={`Change ${i + 1} Title`} value={c.title} onChange={v => { const n = [...report.changes]; n[i] = { ...n[i], title: v }; update("changes", n); }} />
