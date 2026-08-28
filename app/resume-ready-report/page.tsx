@@ -153,7 +153,26 @@ function parseChangeBlock(lines: string[]) {
     if (title && text) out.push({ title: title.replace(/^\d+[.)]\s*/, "").trim(), body: text });
     title = ""; body = [];
   };
-  for (const raw of lines) {
+
+  // ChatGPT usually returns each numbered change on its own line, but copying from
+  // rich text can occasionally collapse 1-5 into a single paragraph. Reinsert a
+  // line break before numbered change markers so every item remains its own block.
+  const expandedLines = lines
+    .join("\n")
+    .replace(/([^\n])\s+(?=[1-6][.)]\s+[A-Z])/g, "$1\n")
+    .split("\n")
+    .flatMap(raw => {
+      const l = clean(raw);
+      const numbered = l.match(/^(\d+[.)]\s+)(.+)$/);
+      if (!numbered) return [raw];
+
+      // Also support pasted output like: "1. Title - explanation" on one line.
+      const inline = numbered[2].match(/^(.{1,100}?)\s+-\s+(.+)$/);
+      if (!inline) return [raw];
+      return [`${numbered[1]}${inline[1]}`, `- ${inline[2]}`];
+    });
+
+  for (const raw of expandedLines) {
     const l = clean(raw);
     if (!l) continue;
     if (/^\d+[.)]\s+/.test(l)) { flush(); title = l; continue; }
