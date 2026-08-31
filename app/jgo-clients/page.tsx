@@ -10,7 +10,7 @@ export default async function JgoClientsPage() {
   const [{ data: services, error: serviceError }, { data: clients, error: clientError }] = await Promise.all([
     supabase
       .from("client_services")
-      .select("id,client_id,service,service_date,date_added,price,amount_received,payment_date,payment_method,payment_status,notes,deleted_at")
+      .select("id,client_id,service,service_date,date_added,price,amount_received,payment_date,payment_method,payment_status,notes,moved,deleted_at")
       .is("deleted_at", null)
       .order("date_added", { ascending: false, nullsFirst: false })
       .order("id", { ascending: false }),
@@ -48,6 +48,7 @@ export default async function JgoClientsPage() {
       payment_method: service.payment_method || null,
       payment_status: service.payment_status || null,
       notes: service.notes || null,
+      moved: Boolean(service.moved),
     }));
 
   return <JgoClientsTracker initialRows={rows} />;
