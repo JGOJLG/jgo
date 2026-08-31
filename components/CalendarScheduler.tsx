@@ -22,6 +22,7 @@ const EVENT_TYPES = [
   "Career Documents Received",
   "Final Career Documents Sent",
   "Coaching Session",
+  "Resume Revision Call",
   "Client Interview",
 ];
 
@@ -207,7 +208,7 @@ export default function CalendarScheduler({ clientId, events }: Props) {
                   </select>
                 </div>
 
-                {["Client Interview", "Free 15", "Coaching Session"].includes(eventType) ? (
+                {["Client Interview", "Free 15", "Coaching Session", "Resume Revision Call"].includes(eventType) ? (
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wide text-[#708075]">Time</label>
                     <select name="eventTime" required defaultValue="" className="mt-1 w-full rounded-xl border border-[#dfe6db] px-3 py-2 text-sm text-[#243128] outline-none focus:border-[#7f9975]">
