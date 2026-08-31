@@ -53,7 +53,6 @@ export async function createEwcEntry(section: EwcEntryType) {
     .single();
 
   if (error) throw new Error(error.message);
-
   revalidatePath("/ewc");
   return data;
 }
@@ -61,7 +60,6 @@ export async function createEwcEntry(section: EwcEntryType) {
 export async function updateEwcEntry(formData: FormData) {
   const supabase = await createClient();
   const id = Number(formData.get("id"));
-
   if (!id) throw new Error("EWC entry ID is required.");
 
   const { error } = await supabase
@@ -80,34 +78,36 @@ export async function updateEwcEntry(formData: FormData) {
     .eq("id", id);
 
   if (error) throw new Error(error.message);
+  revalidatePath("/ewc");
+}
 
+export async function updateEwcMoved(id: number, moved: boolean) {
+  const supabase = await createClient();
+  if (!id) throw new Error("EWC entry ID is required.");
+
+  const { error } = await supabase
+    .from("ewc_entries")
+    .update({ moved, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
   revalidatePath("/ewc");
 }
 
 export async function deleteEwcEntry(id: number) {
   const supabase = await createClient();
-
   const { error } = await supabase.from("ewc_entries").delete().eq("id", id);
-
   if (error) throw new Error(error.message);
-
   revalidatePath("/ewc");
 }
 
-export async function reorderEwcEntries(
-  section: EwcEntryType,
-  orderedIds: number[],
-) {
+export async function reorderEwcEntries(section: EwcEntryType, orderedIds: number[]) {
   const supabase = await createClient();
-
   const results = await Promise.all(
     orderedIds.map((id, index) =>
       supabase
         .from("ewc_entries")
-        .update({
-          sort_order: index + 1,
-          updated_at: new Date().toISOString(),
-        })
+        .update({ sort_order: index + 1, updated_at: new Date().toISOString() })
         .eq("id", id)
         .eq("section", section),
     ),
@@ -115,6 +115,5 @@ export async function reorderEwcEntries(
 
   const failed = results.find((result) => result.error);
   if (failed?.error) throw new Error(failed.error.message);
-
   revalidatePath("/ewc");
 }
