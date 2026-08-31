@@ -29,7 +29,7 @@ export async function markServicePaid(formData:FormData){
   const noteParts=["Marked paid from client profile."];
   if(extraAmount>0)noteParts.push(`Extra payment: $${extraAmount.toFixed(2)}${extraType?` (${extraType})`:""}.`);
   if(paymentNote)noteParts.push(paymentNote);
-  const{error:updateError}=await supabase.from("client_services").update({payment_status:"Paid",payment_method:paymentMethod}).eq("id",serviceId).eq("client_id",clientId);
+  const{error:updateError}=await supabase.from("client_services").update({payment_status:"Paid",payment_method:paymentMethod,amount_received:amountReceived,payment_date:paymentDate}).eq("id",serviceId).eq("client_id",clientId);
   if(updateError)throw new Error(updateError.message);
   const{error:deletePaymentError}=await supabase.from("payments").delete().eq("client_service_id",serviceId).eq("client_id",clientId);
   if(deletePaymentError)throw new Error(deletePaymentError.message);
