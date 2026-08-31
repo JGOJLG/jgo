@@ -21,7 +21,7 @@ function isMeeting(event: RawMeeting) {
   const eventType = normalize(event.event_type);
   const status = normalize(event.status);
   if (["cancelled", "canceled"].includes(status)) return false;
-  return ["free 15", "coaching session", "appointment"].includes(eventType);
+  return ["free 15", "coaching session", "resume revision call", "appointment"].includes(eventType);
 }
 
 function easternWeekStartUtc(now = new Date()) {
@@ -96,8 +96,13 @@ export async function GET() {
     startAt: event.start_at,
   }));
 
+  const meetings = allMeetings.filter((meeting) => new Date(meeting.startAt).getTime() >= now.getTime());
+  const pastMeetings = allMeetings
+    .filter((meeting) => new Date(meeting.startAt).getTime() < now.getTime())
+    .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+
   return NextResponse.json(
-    { allMeetings, serverNow: now.toISOString(), weekStart: weekStartIso },
+    { meetings, pastMeetings, allMeetings, serverNow: now.toISOString(), weekStart: weekStartIso },
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate", Pragma: "no-cache", Expires: "0" } }
   );
 }
