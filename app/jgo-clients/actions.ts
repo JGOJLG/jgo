@@ -89,6 +89,23 @@ export async function updateJgoClientRow(formData: FormData) {
   refresh(clientId);
 }
 
+export async function updateJgoClientMoved(formData: FormData) {
+  const supabase = await createClient();
+  const clientId = Number(formData.get("clientId"));
+  const serviceId = Number(formData.get("serviceId"));
+  const moved = String(formData.get("moved")) === "true";
+  if (!Number.isInteger(clientId) || !Number.isInteger(serviceId)) throw new Error("Invalid row.");
+
+  const { error } = await supabase
+    .from("client_services")
+    .update({ moved, updated_at: new Date().toISOString() })
+    .eq("id", serviceId)
+    .eq("client_id", clientId);
+  if (error) throw new Error(error.message);
+
+  refresh(clientId);
+}
+
 export async function deleteJgoClientRow(formData: FormData) {
   const supabase = await createClient();
   const clientId = Number(formData.get("clientId"));
