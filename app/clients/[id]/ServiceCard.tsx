@@ -4,10 +4,10 @@ import { useState } from "react";
 import {
   deleteService,
   markServiceInvoiceSent,
-  markServicePaid,
   updateService,
   updateServiceStatus,
 } from "./actions";
+import { recordServicePayment } from "./payment-actions";
 
 type Service = {
   id: number;
@@ -122,7 +122,7 @@ export default function ServiceCard({ clientId, service }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between"><div><h3 className="text-lg font-bold text-[#243128]">Record Payment Received</h3><p className="mt-1 text-sm text-[#708075]">Invoice amount: ${invoiceAmount.toLocaleString()}</p></div><button type="button" onClick={() => setShowPayment(false)} className="text-[#708075] hover:text-[#243128]">✕</button></div>
-            <form action={markServicePaid} onSubmit={() => setShowPayment(false)} className="mt-5 space-y-4">
+            <form action={recordServicePayment} onSubmit={() => setShowPayment(false)} className="mt-5 space-y-4">
               <input type="hidden" name="clientId" value={clientId} /><input type="hidden" name="serviceId" value={service.id} />
               <label className="block"><span className={labelStyle}>Total Amount Received</span><input required min="0" step="0.01" type="number" name="amountReceived" value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)} className={inputStyle} /></label>
               {pendingExtra > 0 ? <div className="rounded-xl border border-[#ead8b7] bg-[#fbf4e6] p-3 text-sm text-[#765b35]">This includes <strong>${pendingExtra.toLocaleString()}</strong> above the ${invoiceAmount.toLocaleString()} invoice.</div> : null}
