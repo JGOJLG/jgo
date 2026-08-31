@@ -22,11 +22,11 @@ function cleanNumber(value: FormDataEntryValue | null) {
 export async function createEwcEntry(section: EwcEntryType) {
   const supabase = await createClient();
 
-  const { data: lastRow } = await supabase
+  const { data: firstRow } = await supabase
     .from("ewc_entries")
     .select("sort_order")
     .eq("section", section)
-    .order("sort_order", { ascending: false })
+    .order("sort_order", { ascending: true })
     .limit(1)
     .maybeSingle();
 
@@ -47,7 +47,7 @@ export async function createEwcEntry(section: EwcEntryType) {
       stripe_fee: 0,
       date_paid: null,
       notes: null,
-      sort_order: (lastRow?.sort_order ?? 0) + 1,
+      sort_order: (firstRow?.sort_order ?? 1) - 1,
     })
     .select("*")
     .single();
