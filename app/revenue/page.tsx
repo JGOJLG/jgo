@@ -32,16 +32,17 @@ function normalize(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? "";
 }
 
-function isPaid(status: string | null | undefined) {
-  return normalize(status) === "paid";
-}
-
 function isCompleted(status: string | null | undefined) {
   return ["complete", "completed", "closed", "cancelled", "canceled"].includes(normalize(status));
 }
 
 function actualReceived(service: ClientService) {
-  return Number(service.amount_received ?? service.price ?? 0);
+  if (service.amount_received !== null && service.amount_received !== undefined) return Number(service.amount_received || 0);
+  return normalize(service.payment_status) === "paid" ? Number(service.price || 0) : 0;
+}
+
+function amountOutstanding(service: ClientService) {
+  return Math.max(Number(service.price || 0) - actualReceived(service), 0);
 }
 
 function formatCurrency(value: number) {
@@ -83,6 +84,7 @@ function getMonthStartDateString() {
 function getPaymentStyle(status: string | null | undefined) {
   const normalized = normalize(status);
   if (normalized === "paid") return "bg-[#e7f1e6] text-[#55704f]";
+  if (normalized === "partial") return "bg-[#e8edf5] text-[#55708b]";
   if (normalized === "overdue" || normalized === "past due") return "bg-[#f7e7e4] text-[#9a554d]";
   return "bg-[#f6ecd9] text-[#8f6d37]";
 }
@@ -95,7 +97,7 @@ export default async function RevenuePage() {
   const supabase = await createClient();
   const [clientsResult, servicesResult] = await Promise.all([
     supabase.from("clients").select("*").order("id", { ascending: false }),
-    supabase.from("client_services").select("*").order("date_added", { ascending: false }).order("id", { ascending: false }),
+    supabase.from("client_services").select("*").is("deleted_at", null).order("date_added", { ascending: false }).order("id", { ascending: false }),
   ]);
 
   const clients = (clientsResult.data ?? []) as Client[];
@@ -103,10 +105,10 @@ export default async function RevenuePage() {
   const databaseErrors = { clients: clientsResult.error, clientServices: servicesResult.error };
   const today = getTodayDateString();
   const monthStart = getMonthStartDateString();
-  const paidServices = services.filter((service) => isPaid(service.payment_status));
+  const receivedServices = services.filter((service) => actualReceived(service) > 0);
 
-  const totalRevenue = paidServices.reduce((total, service) => total + actualReceived(service), 0);
-  const revenueThisMonth = paidServices
+  const totalRevenue = receivedServices.reduce((total, service) => total + actualReceived(service), 0);
+  const revenueThisMonth = receivedServices
     .filter((service) => {
       const paidDate = service.payment_date || service.date_added;
       return Boolean(paidDate && paidDate >= monthStart && paidDate <= today);
@@ -114,17 +116,17 @@ export default async function RevenuePage() {
     .reduce((total, service) => total + actualReceived(service), 0);
 
   const outstandingServices = services.filter((service) => {
-    if (isPaid(service.payment_status)) return false;
+    if (amountOutstanding(service) <= 0) return false;
     const paymentStatus = normalize(service.payment_status);
-    return paymentStatus === "invoice sent" || paymentStatus === "pending" || Boolean(service.scheduled_date);
+    return paymentStatus === "invoice sent" || paymentStatus === "pending" || paymentStatus === "partial" || paymentStatus === "open" || Boolean(service.scheduled_date);
   });
-  const outstandingRevenue = outstandingServices.reduce((total, service) => total + Number(service.price ?? 0), 0);
+  const outstandingRevenue = outstandingServices.reduce((total, service) => total + amountOutstanding(service), 0);
   const activeClients = clients.filter((client) => !isCompleted(client.status));
   const completedClients = clients.filter((client) => isCompleted(client.status));
   const clientNameById = new Map(clients.map((client) => [client.id, client.name || "Unnamed Client"]));
   const revenueByClient = new Map<number, number>();
 
-  paidServices.forEach((service) => {
+  receivedServices.forEach((service) => {
     if (!service.client_id) return;
     revenueByClient.set(service.client_id, (revenueByClient.get(service.client_id) ?? 0) + actualReceived(service));
   });
@@ -142,10 +144,10 @@ export default async function RevenuePage() {
           <div>
             <p className="text-sm font-semibold text-[#7f9975]">Business finances</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#243128]">Revenue</h1>
-            <p className="mt-2 text-sm text-[#708075]">Track payments received, outstanding balances, and client revenue.</p>
+            <p className="mt-2 text-sm text-[#708075]">Track actual payments received, partial payments, outstanding balances, and client revenue.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/" className="rounded-xl border border-[#cbd8c4] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247] shadow-sm transition hover:bg-[#f5f7f2]">Back to Dashboard</Link>
+            <Link href="/jgo-clients" className="rounded-xl border border-[#cbd8c4] bg-white px-5 py-3 text-sm font-semibold text-[#4d6247] shadow-sm transition hover:bg-[#f5f7f2]">JGO Clients</Link>
             <Link href="/clients" className="rounded-xl bg-[#647d5b] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4d6247]">View Clients</Link>
           </div>
         </div>
@@ -162,20 +164,20 @@ export default async function RevenuePage() {
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm"><p className="text-sm font-medium text-[#708075]">Total Revenue</p><p className="mt-3 text-3xl font-bold text-[#243128]">{formatCurrency(totalRevenue)}</p><p className="mt-3 text-xs font-semibold text-[#7f9975]">Actual payments received</p></div>
           <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm"><p className="text-sm font-medium text-[#708075]">This Month Revenue</p><p className="mt-3 text-3xl font-bold text-[#243128]">{formatCurrency(revenueThisMonth)}</p><p className="mt-3 text-xs font-semibold text-[#7f9975]">Actual payments received this month</p></div>
-          <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm"><p className="text-sm font-medium text-[#708075]">Outstanding</p><p className="mt-3 text-3xl font-bold text-[#243128]">{formatCurrency(outstandingRevenue)}</p><p className="mt-3 text-xs font-semibold text-[#8f6d37]">Awaiting payment</p></div>
+          <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm"><p className="text-sm font-medium text-[#708075]">Outstanding</p><p className="mt-3 text-3xl font-bold text-[#243128]">{formatCurrency(outstandingRevenue)}</p><p className="mt-3 text-xs font-semibold text-[#8f6d37]">Remaining balances</p></div>
           <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm"><p className="text-sm font-medium text-[#708075]">Active Clients</p><p className="mt-3 text-3xl font-bold text-[#243128]">{activeClients.length}</p><p className="mt-3 text-xs font-semibold text-[#7f9975]">Current clients</p></div>
           <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm"><p className="text-sm font-medium text-[#708075]">Past Clients</p><p className="mt-3 text-3xl font-bold text-[#243128]">{completedClients.length}</p><p className="mt-3 text-xs font-semibold text-[#7f9975]">Completed clients</p></div>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="overflow-hidden rounded-3xl border border-[#dfe6db] bg-white shadow-sm">
-            <div className="border-b border-[#e4e9df] p-6"><h2 className="text-xl font-bold text-[#243128]">Paid Services</h2><p className="mt-1 text-sm text-[#708075]">Invoice amount and actual amount received are kept separately.</p></div>
-            {paidServices.length === 0 ? <div className="p-10 text-center"><p className="text-sm font-semibold text-[#3d4d39]">No paid services yet</p><p className="mt-2 text-sm text-[#708075]">Services marked paid will appear here automatically.</p></div> : (
+            <div className="border-b border-[#e4e9df] p-6"><h2 className="text-xl font-bold text-[#243128]">Payments Received</h2><p className="mt-1 text-sm text-[#708075]">Invoice amount and actual amount received are kept separately.</p></div>
+            {receivedServices.length === 0 ? <div className="p-10 text-center"><p className="text-sm font-semibold text-[#3d4d39]">No payments received yet</p></div> : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[820px] text-left">
-                  <thead className="bg-[#f8faf6] text-xs uppercase tracking-wide text-[#708075]"><tr><th className="px-6 py-4">Client</th><th className="px-6 py-4">Service</th><th className="px-6 py-4">Date Paid</th><th className="px-6 py-4 text-right">Invoice</th><th className="px-6 py-4 text-right">Received</th></tr></thead>
+                <table className="w-full min-w-[880px] text-left">
+                  <thead className="bg-[#f8faf6] text-xs uppercase tracking-wide text-[#708075]"><tr><th className="px-6 py-4">Client</th><th className="px-6 py-4">Service</th><th className="px-6 py-4">Date Paid</th><th className="px-6 py-4">Status</th><th className="px-6 py-4 text-right">Invoice</th><th className="px-6 py-4 text-right">Received</th></tr></thead>
                   <tbody className="divide-y divide-[#edf0ea]">
-                    {paidServices.map((service) => {
+                    {receivedServices.map((service) => {
                       const received = actualReceived(service);
                       const invoice = Number(service.price ?? 0);
                       const extra = Math.max(0, received - invoice);
@@ -184,6 +186,7 @@ export default async function RevenuePage() {
                           <td className="px-6 py-4">{service.client_id ? <Link href={`/clients/${service.client_id}`} className="text-sm font-semibold text-[#243128] hover:text-[#647d5b]">{clientNameById.get(service.client_id) || "Client"}</Link> : <span className="text-sm font-semibold text-[#243128]">Client</span>}</td>
                           <td className="px-6 py-4 text-sm text-[#647066]">{service.service || "Client service"}</td>
                           <td className="px-6 py-4 text-sm text-[#647066]">{formatDate(service.payment_date || service.date_added)}</td>
+                          <td className="px-6 py-4"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${getPaymentStyle(service.payment_status)}`}>{service.payment_status || "Received"}</span></td>
                           <td className="px-6 py-4 text-right text-sm text-[#647066]">{formatCurrency(invoice)}</td>
                           <td className="px-6 py-4 text-right"><span className="text-sm font-bold text-[#243128]">{formatCurrency(received)}</span>{extra > 0 ? <span className="ml-2 rounded-full bg-[#f6ecd9] px-2 py-1 text-[10px] font-bold text-[#8f6d37]">+{formatCurrency(extra)} extra</span> : null}</td>
                         </tr>
@@ -197,9 +200,9 @@ export default async function RevenuePage() {
 
           <div className="space-y-6">
             <section className="rounded-3xl border border-[#dfe6db] bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-bold text-[#243128]">Outstanding Payments</h2><p className="mt-1 text-sm text-[#708075]">Scheduled services and invoices that are still awaiting payment.</p></div><span className="rounded-full bg-[#f6ecd9] px-3 py-1 text-xs font-semibold text-[#8f6d37]">{outstandingServices.length}</span></div>
+              <div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-bold text-[#243128]">Outstanding Payments</h2><p className="mt-1 text-sm text-[#708075]">What is still owed after any payments already received.</p></div><span className="rounded-full bg-[#f6ecd9] px-3 py-1 text-xs font-semibold text-[#8f6d37]">{outstandingServices.length}</span></div>
               {outstandingServices.length === 0 ? <div className="mt-6 rounded-2xl border border-dashed border-[#cfd9c9] bg-[#fbfcf9] p-6 text-center"><p className="text-sm font-semibold text-[#3d4d39]">Everyone is currently paid</p></div> : (
-                <div className="mt-6 divide-y divide-[#edf0ea]">{outstandingServices.slice(0, 6).map((service) => <div key={service.id} className="flex items-center justify-between gap-4 py-4"><div className="min-w-0">{service.client_id ? <Link href={`/clients/${service.client_id}`} className="truncate text-sm font-semibold text-[#243128] hover:text-[#647d5b]">{clientNameById.get(service.client_id) || "Client"}</Link> : <p className="truncate text-sm font-semibold text-[#243128]">Client</p>}<p className="mt-1 truncate text-xs text-[#708075]">{service.service || "Client service"}</p></div><p className="shrink-0 text-sm font-bold text-[#8f6d37]">{formatCurrency(Number(service.price ?? 0))}</p></div>)}</div>
+                <div className="mt-6 divide-y divide-[#edf0ea]">{outstandingServices.slice(0, 8).map((service) => <div key={service.id} className="flex items-center justify-between gap-4 py-4"><div className="min-w-0">{service.client_id ? <Link href={`/clients/${service.client_id}`} className="truncate text-sm font-semibold text-[#243128] hover:text-[#647d5b]">{clientNameById.get(service.client_id) || "Client"}</Link> : <p className="truncate text-sm font-semibold text-[#243128]">Client</p>}<p className="mt-1 truncate text-xs text-[#708075]">{service.service || "Client service"}{actualReceived(service) > 0 ? ` · ${formatCurrency(actualReceived(service))} received` : ""}</p></div><p className="shrink-0 text-sm font-bold text-[#8f6d37]">{formatCurrency(amountOutstanding(service))}</p></div>)}</div>
               )}
             </section>
 
