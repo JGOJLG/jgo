@@ -12,6 +12,7 @@ export default async function JgoClientsPage() {
       .from("client_services")
       .select("id,client_id,service,service_date,date_added,price,amount_received,payment_date,payment_method,payment_status,notes,moved,deleted_at")
       .is("deleted_at", null)
+      .order("service_date", { ascending: false, nullsFirst: false })
       .order("date_added", { ascending: false, nullsFirst: false })
       .order("id", { ascending: false }),
     supabase
