@@ -14,6 +14,7 @@ type DraftResponse = {
   clientName?: string;
   clientEmail?: string;
   serviceName?: string;
+  googleReviewUrl?: string;
   error?: string;
   detail?: string;
 };
@@ -29,6 +30,7 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
   const [message, setMessage] = useState("");
   const [recipient, setRecipient] = useState("");
   const [serviceName, setServiceName] = useState("");
+  const [googleReviewUrl, setGoogleReviewUrl] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -52,6 +54,7 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
       setMessage(String(data.message || ""));
       setRecipient([data.clientName, data.clientEmail].filter(Boolean).join(" · "));
       setServiceName(String(data.serviceName || ""));
+      setGoogleReviewUrl(String(data.googleReviewUrl || ""));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load the email preview.");
     } finally {
@@ -154,7 +157,7 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
                 />
                 <div>
                   <p className="text-sm font-semibold text-[#344239]">Ask for a Google review</p>
-                  <p className="mt-1 text-xs leading-5 text-[#708075]">Uses your direct Google review link.</p>
+                  <p className="mt-1 text-xs leading-5 text-[#708075]">Adds a clean review button to the email.</p>
                 </div>
               </label>
 
@@ -212,6 +215,20 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
                       className="mt-1.5 w-full resize-y rounded-xl border border-[#d7e1d0] bg-white px-4 py-3 text-sm leading-6 text-[#243128] outline-none focus:border-[#8fa383]"
                     />
                   </label>
+
+                  {includeGoogleReview && googleReviewUrl ? (
+                    <div className="rounded-2xl border border-[#d7e1d0] bg-white p-4">
+                      <p className="mb-3 text-xs font-bold uppercase tracking-wide text-[#708075]">Review Button Preview</p>
+                      <a
+                        href={googleReviewUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex rounded-full bg-[#647d5b] px-6 py-3 text-sm font-bold text-white no-underline"
+                      >
+                        Leave a Google Review
+                      </a>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

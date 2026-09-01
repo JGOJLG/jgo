@@ -36,6 +36,10 @@ function firstName(value: string) {
   return value.trim().split(/\s+/)[0] || "there";
 }
 
+function reviewButtonHtml() {
+  return `<div style="margin:18px 0 22px;"><a href="${esc(GOOGLE_REVIEW_URL)}" target="_blank" style="display:inline-block;background:#647d5b;color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;line-height:1;padding:14px 24px;border-radius:999px;">Leave a Google Review</a></div>`;
+}
+
 function buildDraft(
   clientName: string,
   serviceName: string,
@@ -53,8 +57,7 @@ function buildDraft(
   if (includeGoogleReview) {
     parts.push(
       "",
-      "If you had a great experience, I would be so grateful if you left a quick Google review. It helps other job seekers feel confident choosing JGO Hire:",
-      GOOGLE_REVIEW_URL
+      "If you had a great experience, I would be so grateful if you left a quick Google review. It helps other job seekers feel confident choosing JGO Hire."
     );
   }
 
@@ -73,17 +76,20 @@ function buildDraft(
   };
 }
 
-function messageToHtml(message: string) {
-  const escaped = esc(message);
-  const linked = escaped.replaceAll(
-    esc(GOOGLE_REVIEW_URL),
-    `<a href="${esc(GOOGLE_REVIEW_URL)}" style="display:inline-block;margin-top:8px;background:#53684c;color:#ffffff;text-decoration:none;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:700;">Leave a Google Review</a>`
-  );
-
-  return linked
+function messageToHtml(message: string, includeGoogleReview: boolean) {
+  const blocks = esc(message)
     .split(/\n{2,}/)
-    .map((block) => `<p style="margin:0 0 16px;line-height:1.7;color:#405044;">${block.replaceAll("\n", "<br />")}</p>`)
-    .join("");
+    .map((block) => `<p style="margin:0 0 16px;line-height:1.7;color:#405044;">${block.replaceAll("\n", "<br />")}</p>`);
+
+  if (!includeGoogleReview) return blocks.join("");
+
+  const reviewIndex = blocks.findIndex((block) => block.toLowerCase().includes("google review"));
+  if (reviewIndex >= 0) {
+    blocks.splice(reviewIndex + 1, 0, reviewButtonHtml());
+    return blocks.join("");
+  }
+
+  return `${blocks.join("")}${reviewButtonHtml()}`;
 }
 
 async function loadClientAndService(clientId: number, serviceId: number) {
@@ -187,8 +193,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Subject and message are required." }, { status: 400 });
   }
 
-  const sentText = `${message}\n\n${jgoTextSignature()}`;
-  const messageHtml = `<div style="margin:0;background:#f4f7f1;padding:32px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;"><div style="max-width:640px;margin:0 auto;"><div style="background:#e6eee1;padding:28px;border-radius:24px;text-align:center;"><p style="margin:0;color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;">JGO HIRE</p><h1 style="margin:8px 0 0;font-size:30px;">Payment received</h1></div><div style="margin-top:16px;background:#ffffff;border:1px solid #dfe6db;border-radius:22px;padding:26px;">${messageToHtml(message)}${jgoEmailSignature()}</div></div></div>`;
+  const reviewText = includeGoogleReview ? `\n\nLeave a Google Review: ${GOOGLE_REVIEW_URL}` : "";
+  const sentText = `${message}${reviewText}\n\n${jgoTextSignature()}`;
+  const messageHtml = `<div style="margin:0;background:#f4f7f1;padding:32px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;"><div style="max-width:640px;margin:0 auto;"><div style="background:#e6eee1;padding:28px;border-radius:24px;text-align:center;"><p style="margin:0;color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;">JGO HIRE</p><h1 style="margin:8px 0 0;font-size:30px;">Payment received</h1></div><div style="margin-top:16px;background:#ffffff;border:1px solid #dfe6db;border-radius:22px;padding:26px;">${messageToHtml(message, includeGoogleReview)}${jgoEmailSignature()}</div></div></div>`;
 
   const email = await resend.emails.send({
     from: "JGO Hire <jen@jgohire.com>",
