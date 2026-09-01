@@ -47,7 +47,7 @@ export async function createJgoClientRow(formData: FormData) {
   });
 
   if (serviceError) {
-    await supabase.from("clients").delete().eq("id", client.id);
+    await supabase.from("clients").update({ status: "Archived" }).eq("id", client.id);
     throw new Error(serviceError.message);
   }
   refresh(client.id);
@@ -112,18 +112,12 @@ export async function deleteJgoClientRow(formData: FormData) {
   const serviceId = Number(formData.get("serviceId"));
   if (!Number.isInteger(clientId) || !Number.isInteger(serviceId)) throw new Error("Invalid row.");
 
-  const { error: paymentError } = await supabase.from("payments").delete().eq("client_id", clientId).eq("client_service_id", serviceId);
-  if (paymentError) throw new Error(paymentError.message);
-
-  const { error: serviceError } = await supabase.from("client_services").delete().eq("id", serviceId).eq("client_id", clientId);
+  const { error: serviceError } = await supabase
+    .from("client_services")
+    .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", serviceId)
+    .eq("client_id", clientId);
   if (serviceError) throw new Error(serviceError.message);
-
-  const { count, error: countError } = await supabase.from("client_services").select("id", { count: "exact", head: true }).eq("client_id", clientId).is("deleted_at", null);
-  if (countError) throw new Error(countError.message);
-  if ((count ?? 0) === 0) {
-    const { error: clientError } = await supabase.from("clients").delete().eq("id", clientId);
-    if (clientError) throw new Error(clientError.message);
-  }
 
   refresh(clientId);
 }
