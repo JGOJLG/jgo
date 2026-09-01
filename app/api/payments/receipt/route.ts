@@ -7,14 +7,22 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const googleReviewUrl = String(process.env.JGO_GOOGLE_REVIEW_URL || "").trim();
+const GOOGLE_REVIEW_URL = String(
+  process.env.JGO_GOOGLE_REVIEW_URL ||
+    "https://www.google.com/maps/place//data=!4m3!3m2!1s0x265dc22602f4a189:0xa4bb9e0dca6ee3fe!12e1?source=g.page.m.np._&laa=nmx-review-solicitation-promoted-recommendation-card"
+).trim();
 
 type ReceiptRequest = {
   clientId?: number;
   serviceId?: number;
   includeGoogleReview?: boolean;
   includeAnonymousTestimonial?: boolean;
+  subject?: string;
+  message?: string;
 };
+
+type ClientRecord = { id: number; name: string | null; email: string | null };
+type ServiceRecord = { id: number; client_id: number; service: string | null; payment_status: string | null; payment_date: string | null };
 
 const esc = (value: string) =>
   value
@@ -26,6 +34,110 @@ const esc = (value: string) =>
 
 function firstName(value: string) {
   return value.trim().split(/\s+/)[0] || "there";
+}
+
+function buildDraft(
+  clientName: string,
+  serviceName: string,
+  includeGoogleReview: boolean,
+  includeAnonymousTestimonial: boolean
+) {
+  const parts = [
+    `Hi ${firstName(clientName)},`,
+    "",
+    `Just confirming that your payment for ${serviceName} has been received. Thank you so much for choosing JGO Hire and trusting me to be part of your career journey.`,
+    "",
+    "I truly appreciate your support, and I would love to help you again anytime you need resume, LinkedIn, interview, or job-search support.",
+  ];
+
+  if (includeGoogleReview) {
+    parts.push(
+      "",
+      "If you had a great experience, I would be so grateful if you left a quick Google review. It helps other job seekers feel confident choosing JGO Hire:",
+      GOOGLE_REVIEW_URL
+    );
+  }
+
+  if (includeAnonymousTestimonial) {
+    parts.push(
+      "",
+      "Prefer not to post publicly? Just reply to this email with any feedback or a testimonial. If you are comfortable with it, I can share it anonymously."
+    );
+  }
+
+  parts.push("", "Thank you again!");
+
+  return {
+    subject: "Payment received - thank you!",
+    message: parts.join("\n"),
+  };
+}
+
+function messageToHtml(message: string) {
+  const escaped = esc(message);
+  const linked = escaped.replaceAll(
+    esc(GOOGLE_REVIEW_URL),
+    `<a href="${esc(GOOGLE_REVIEW_URL)}" style="display:inline-block;margin-top:8px;background:#53684c;color:#ffffff;text-decoration:none;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:700;">Leave a Google Review</a>`
+  );
+
+  return linked
+    .split(/\n{2,}/)
+    .map((block) => `<p style="margin:0 0 16px;line-height:1.7;color:#405044;">${block.replaceAll("\n", "<br />")}</p>`)
+    .join("");
+}
+
+async function loadClientAndService(clientId: number, serviceId: number) {
+  const supabase = await createClient();
+  const [{ data: client, error: clientError }, { data: service, error: serviceError }] = await Promise.all([
+    supabase.from("clients").select("id,name,email").eq("id", clientId).maybeSingle(),
+    supabase
+      .from("client_services")
+      .select("id,client_id,service,payment_status,payment_date")
+      .eq("id", serviceId)
+      .eq("client_id", clientId)
+      .maybeSingle(),
+  ]);
+
+  return {
+    supabase,
+    client: client as ClientRecord | null,
+    service: service as ServiceRecord | null,
+    clientError,
+    serviceError,
+  };
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const clientId = Number(url.searchParams.get("clientId"));
+  const serviceId = Number(url.searchParams.get("serviceId"));
+  const includeGoogleReview = url.searchParams.get("includeGoogleReview") !== "false";
+  const includeAnonymousTestimonial = url.searchParams.get("includeAnonymousTestimonial") !== "false";
+
+  if (!Number.isInteger(clientId) || clientId <= 0 || !Number.isInteger(serviceId) || serviceId <= 0) {
+    return NextResponse.json({ error: "Invalid client or service." }, { status: 400 });
+  }
+
+  const { client, service, clientError, serviceError } = await loadClientAndService(clientId, serviceId);
+  if (clientError || !client) {
+    return NextResponse.json({ error: "Client could not be found.", detail: clientError?.message }, { status: 404 });
+  }
+  if (serviceError || !service) {
+    return NextResponse.json({ error: "Service could not be found.", detail: serviceError?.message }, { status: 404 });
+  }
+
+  const clientName = String(client.name || "").trim();
+  const serviceName = String(service.service || "your JGO Hire service").trim();
+  const draft = buildDraft(clientName, serviceName, includeGoogleReview, includeAnonymousTestimonial);
+
+  return NextResponse.json({
+    ok: true,
+    ...draft,
+    clientName,
+    clientEmail: String(client.email || "").trim(),
+    serviceName,
+    googleReviewUrl: GOOGLE_REVIEW_URL,
+  });
 }
 
 export async function POST(request: Request) {
@@ -52,17 +164,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid client or service." }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const [{ data: client, error: clientError }, { data: service, error: serviceError }] = await Promise.all([
-    supabase.from("clients").select("id,name,email").eq("id", clientId).maybeSingle(),
-    supabase
-      .from("client_services")
-      .select("id,client_id,service,payment_status,payment_date")
-      .eq("id", serviceId)
-      .eq("client_id", clientId)
-      .maybeSingle(),
-  ]);
-
+  const { supabase, client, service, clientError, serviceError } = await loadClientAndService(clientId, serviceId);
   if (clientError || !client) {
     return NextResponse.json({ error: "Client could not be found.", detail: clientError?.message }, { status: 404 });
   }
@@ -76,44 +178,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This client does not have a valid email address." }, { status: 400 });
   }
 
-  const first = firstName(clientName);
   const serviceName = String(service.service || "your JGO Hire service").trim();
-  const subject = "Payment received — thank you!";
+  const fallback = buildDraft(clientName, serviceName, includeGoogleReview, includeAnonymousTestimonial);
+  const subject = String(body.subject || fallback.subject).trim();
+  const message = String(body.message || fallback.message).trim();
 
-  const reviewText = includeGoogleReview && googleReviewUrl
-    ? "If you had a great experience, I would be so grateful if you left a quick Google review. It helps other job seekers feel confident choosing JGO Hire."
-    : "";
-  const anonymousText = includeAnonymousTestimonial
-    ? "If you would rather not post publicly, you can simply reply to this email with any feedback or a testimonial. If you are comfortable with it, I can share it anonymously."
-    : "";
+  if (!subject || !message) {
+    return NextResponse.json({ error: "Subject and message are required." }, { status: 400 });
+  }
 
-  const textParts = [
-    `Hi ${first},`,
-    "",
-    `Just confirming that your payment for ${serviceName} has been received. Thank you so much for choosing JGO Hire and trusting me to be part of your career journey.`,
-    "",
-    "I truly appreciate your support, and I would love to help you again anytime you need resume, LinkedIn, interview, or job-search support.",
-  ];
-  if (reviewText) textParts.push("", reviewText, googleReviewUrl);
-  if (anonymousText) textParts.push("", anonymousText);
-  textParts.push("", "Thank you again!", "", jgoTextSignature());
-  const messageText = textParts.join("\n");
-
-  const reviewHtml = includeGoogleReview && googleReviewUrl
-    ? `<div style="margin-top:22px;padding:20px;border-radius:18px;background:#eef3ea;border:1px solid #d7e1d0;"><p style="margin:0 0 14px;line-height:1.65;color:#405044;">If you had a great experience, I would be so grateful if you left a quick Google review. It helps other job seekers feel confident choosing JGO Hire.</p><a href="${esc(googleReviewUrl)}" style="display:inline-block;background:#53684c;color:#ffffff;text-decoration:none;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:700;">Leave a Google Review</a></div>`
-    : "";
-  const anonymousHtml = includeAnonymousTestimonial
-    ? `<div style="margin-top:14px;padding:18px;border-radius:18px;background:#fafbf8;border:1px solid #e1e7dd;"><p style="margin:0;line-height:1.65;color:#566258;">Prefer not to post publicly? Just reply to this email with any feedback or a testimonial. If you are comfortable with it, I can share it anonymously.</p></div>`
-    : "";
-
-  const messageHtml = `<div style="margin:0;background:#f4f7f1;padding:32px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;"><div style="max-width:640px;margin:0 auto;"><div style="background:#e6eee1;padding:28px;border-radius:24px;text-align:center;"><p style="margin:0;color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;">JGO HIRE</p><h1 style="margin:8px 0 0;font-size:30px;">Payment received</h1><p style="margin:12px 0 0;color:#5f6e62;">Thank you, ${esc(first)}!</p></div><div style="margin-top:16px;background:#ffffff;border:1px solid #dfe6db;border-radius:22px;padding:26px;"><p style="margin:0 0 16px;line-height:1.7;color:#405044;">Just confirming that your payment for <strong>${esc(serviceName)}</strong> has been received. Thank you so much for choosing JGO Hire and trusting me to be part of your career journey.</p><p style="margin:0;line-height:1.7;color:#405044;">I truly appreciate your support, and I would love to help you again anytime you need resume, LinkedIn, interview, or job-search support.</p>${reviewHtml}${anonymousHtml}<p style="margin:22px 0 0;line-height:1.7;color:#405044;">Thank you again!</p>${jgoEmailSignature()}</div></div></div>`;
+  const sentText = `${message}\n\n${jgoTextSignature()}`;
+  const messageHtml = `<div style="margin:0;background:#f4f7f1;padding:32px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;"><div style="max-width:640px;margin:0 auto;"><div style="background:#e6eee1;padding:28px;border-radius:24px;text-align:center;"><p style="margin:0;color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;">JGO HIRE</p><h1 style="margin:8px 0 0;font-size:30px;">Payment received</h1></div><div style="margin-top:16px;background:#ffffff;border:1px solid #dfe6db;border-radius:22px;padding:26px;">${messageToHtml(message)}${jgoEmailSignature()}</div></div></div>`;
 
   const email = await resend.emails.send({
     from: "JGO Hire <jen@jgohire.com>",
     to: [clientEmail],
     replyTo: "jen@jgohire.com",
     subject,
-    text: messageText,
+    text: sentText,
     html: messageHtml,
   });
 
@@ -129,7 +211,7 @@ export async function POST(request: Request) {
       recipient_name: clientName || null,
       recipient_email: clientEmail,
       subject,
-      body: messageText,
+      body: sentText,
       body_html: messageHtml,
       status: "sent",
       template_id: null,
@@ -147,6 +229,7 @@ export async function POST(request: Request) {
       month: "2-digit",
       day: "2-digit",
     }).format(new Date());
+
     const { error: noteError } = await supabase.from("client_notes").insert({
       client_id: clientId,
       note_date: noteDate,
@@ -162,6 +245,7 @@ export async function POST(request: Request) {
     .select("id,email_count,first_contacted_at,name,client_id")
     .eq("email", clientEmail)
     .maybeSingle();
+
   if (contact) {
     await supabase
       .from("email_contacts")
@@ -190,8 +274,6 @@ export async function POST(request: Request) {
     ok: true,
     sent: true,
     tracked: Boolean(savedMessage),
-    googleReviewIncluded: Boolean(includeGoogleReview && googleReviewUrl),
-    googleReviewConfigured: Boolean(googleReviewUrl),
     emailId: email.data?.id ?? null,
   });
 }

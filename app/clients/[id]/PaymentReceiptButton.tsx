@@ -8,16 +8,78 @@ type Props = {
   serviceId: number;
 };
 
+type DraftResponse = {
+  subject?: string;
+  message?: string;
+  clientName?: string;
+  clientEmail?: string;
+  serviceName?: string;
+  error?: string;
+  detail?: string;
+};
+
 export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
   const [sending, setSending] = useState(false);
   const [includeGoogleReview, setIncludeGoogleReview] = useState(true);
   const [includeAnonymousTestimonial, setIncludeAnonymousTestimonial] = useState(true);
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [recipient, setRecipient] = useState("");
+  const [serviceName, setServiceName] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  async function loadPreview(review = includeGoogleReview, anonymous = includeAnonymousTestimonial) {
+    setLoadingPreview(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const params = new URLSearchParams({
+        clientId: String(clientId),
+        serviceId: String(serviceId),
+        includeGoogleReview: String(review),
+        includeAnonymousTestimonial: String(anonymous),
+      });
+      const response = await fetch(`/api/payments/receipt?${params.toString()}`, { cache: "no-store" });
+      const data = (await response.json()) as DraftResponse;
+      if (!response.ok) throw new Error(data.detail || data.error || "Unable to load the email preview.");
+
+      setSubject(String(data.subject || ""));
+      setMessage(String(data.message || ""));
+      setRecipient([data.clientName, data.clientEmail].filter(Boolean).join(" · "));
+      setServiceName(String(data.serviceName || ""));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load the email preview.");
+    } finally {
+      setLoadingPreview(false);
+    }
+  }
+
+  async function openPreview() {
+    setOpen(true);
+    await loadPreview(true, true);
+  }
+
+  async function changeGoogleReview(checked: boolean) {
+    setIncludeGoogleReview(checked);
+    await loadPreview(checked, includeAnonymousTestimonial);
+  }
+
+  async function changeAnonymousTestimonial(checked: boolean) {
+    setIncludeAnonymousTestimonial(checked);
+    await loadPreview(includeGoogleReview, checked);
+  }
+
   async function sendReceipt() {
+    if (!subject.trim() || !message.trim()) {
+      setError("Add a subject and message before sending.");
+      return;
+    }
+
     setSending(true);
     setError("");
     setSuccess("");
@@ -31,6 +93,8 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
           serviceId,
           includeGoogleReview,
           includeAnonymousTestimonial,
+          subject: subject.trim(),
+          message: message.trim(),
         }),
       });
 
@@ -39,10 +103,7 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
         throw new Error(data?.detail || data?.error || "Unable to send the receipt email.");
       }
 
-      const reviewNote = includeGoogleReview && !data.googleReviewConfigured
-        ? " The Google review button was skipped because a direct review URL has not been configured yet."
-        : "";
-      setSuccess(`Receipt / thank-you email sent and saved to Notes & Emails.${reviewNote}`);
+      setSuccess("Thank-you email sent and the exact sent version was saved to Notes & Emails.");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to send the receipt email.");
@@ -55,11 +116,7 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
     <>
       <button
         type="button"
-        onClick={() => {
-          setError("");
-          setSuccess("");
-          setOpen(true);
-        }}
+        onClick={openPreview}
         className="rounded-xl border border-[#cbd8c4] bg-white px-4 py-2 text-xs font-semibold text-[#4d6247] transition hover:bg-[#f5f7f2]"
       >
         Send Receipt / Thank You
@@ -67,14 +124,15 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
 
       {open ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 p-4">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl sm:p-7">
+          <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#7f9975]">Payment received</p>
-                <h3 className="mt-1 text-xl font-bold text-[#243128]">Send thank-you receipt</h3>
+                <h3 className="mt-1 text-xl font-bold text-[#243128]">Preview & edit thank-you email</h3>
                 <p className="mt-2 text-sm leading-6 text-[#708075]">
-                  Confirms payment was received without listing the amount, thanks the client, and saves the exact sent email to their profile.
+                  Review exactly what you want to say, make any edits, then send it to the client.
                 </p>
+                {recipient ? <p className="mt-2 text-xs font-semibold text-[#53684c]">To: {recipient}{serviceName ? ` · ${serviceName}` : ""}</p> : null}
               </div>
               <button
                 type="button"
@@ -86,17 +144,17 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
               </button>
             </div>
 
-            <div className="mt-5 space-y-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[#dfe6db] bg-[#fbfcf9] p-4">
                 <input
                   type="checkbox"
                   checked={includeGoogleReview}
-                  onChange={(event) => setIncludeGoogleReview(event.target.checked)}
+                  onChange={(event) => changeGoogleReview(event.target.checked)}
                   className="mt-0.5 h-4 w-4 accent-[#647d5b]"
                 />
                 <div>
                   <p className="text-sm font-semibold text-[#344239]">Ask for a Google review</p>
-                  <p className="mt-1 text-xs leading-5 text-[#708075]">Adds a friendly review request and direct review button when the JGO Google review URL is configured.</p>
+                  <p className="mt-1 text-xs leading-5 text-[#708075]">Uses your direct Google review link.</p>
                 </div>
               </label>
 
@@ -104,14 +162,58 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
                 <input
                   type="checkbox"
                   checked={includeAnonymousTestimonial}
-                  onChange={(event) => setIncludeAnonymousTestimonial(event.target.checked)}
+                  onChange={(event) => changeAnonymousTestimonial(event.target.checked)}
                   className="mt-0.5 h-4 w-4 accent-[#647d5b]"
                 />
                 <div>
-                  <p className="text-sm font-semibold text-[#344239]">Offer an anonymous testimonial option</p>
-                  <p className="mt-1 text-xs leading-5 text-[#708075]">Lets them reply directly with feedback you may share anonymously with their permission.</p>
+                  <p className="text-sm font-semibold text-[#344239]">Offer anonymous testimonial</p>
+                  <p className="mt-1 text-xs leading-5 text-[#708075]">Changing either option refreshes the draft below.</p>
                 </div>
               </label>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-[#dfe6db] bg-[#f8faf6] p-4 sm:p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[.14em] text-[#7f9975]">Email Preview</p>
+                  <p className="mt-1 text-xs text-[#708075]">Everything below is editable. Your JGO Hire signature is added automatically.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => loadPreview()}
+                  disabled={loadingPreview}
+                  className="rounded-lg border border-[#d7e1d0] bg-white px-3 py-2 text-xs font-semibold text-[#4d6247] disabled:opacity-50"
+                >
+                  Reset Draft
+                </button>
+              </div>
+
+              {loadingPreview ? (
+                <div className="rounded-xl border border-dashed border-[#d7e1d0] bg-white p-8 text-center text-sm font-semibold text-[#708075]">
+                  Loading personalized preview...
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase tracking-wide text-[#708075]">Subject</span>
+                    <input
+                      value={subject}
+                      onChange={(event) => setSubject(event.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-[#d7e1d0] bg-white px-4 py-3 text-sm font-semibold text-[#243128] outline-none focus:border-[#8fa383]"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase tracking-wide text-[#708075]">Message</span>
+                    <textarea
+                      rows={15}
+                      value={message}
+                      onChange={(event) => setMessage(event.target.value)}
+                      className="mt-1.5 w-full resize-y rounded-xl border border-[#d7e1d0] bg-white px-4 py-3 text-sm leading-6 text-[#243128] outline-none focus:border-[#8fa383]"
+                    />
+                  </label>
+                </div>
+              )}
             </div>
 
             {error ? (
@@ -133,7 +235,7 @@ export default function PaymentReceiptButton({ clientId, serviceId }: Props) {
                 <button
                   type="button"
                   onClick={sendReceipt}
-                  disabled={sending}
+                  disabled={sending || loadingPreview || !subject.trim() || !message.trim()}
                   className="rounded-xl bg-[#647d5b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#56683f] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {sending ? "Sending..." : "Send Thank You"}
