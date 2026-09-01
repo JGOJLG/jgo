@@ -1,0 +1,197 @@
+import { NextResponse } from "next/server";
+import { Resend } from "resend";
+import { createClient } from "@/lib/supabase-server";
+import { jgoEmailSignature, jgoTextSignature } from "@/lib/emailSignature";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const googleReviewUrl = String(process.env.JGO_GOOGLE_REVIEW_URL || "").trim();
+
+type ReceiptRequest = {
+  clientId?: number;
+  serviceId?: number;
+  includeGoogleReview?: boolean;
+  includeAnonymousTestimonial?: boolean;
+};
+
+const esc = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+
+function firstName(value: string) {
+  return value.trim().split(/\s+/)[0] || "there";
+}
+
+export async function POST(request: Request) {
+  if (!resend) {
+    return NextResponse.json(
+      { error: "Email is not configured.", detail: "Missing RESEND_API_KEY." },
+      { status: 500 }
+    );
+  }
+
+  let body: ReceiptRequest;
+  try {
+    body = (await request.json()) as ReceiptRequest;
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const clientId = Number(body.clientId);
+  const serviceId = Number(body.serviceId);
+  const includeGoogleReview = body.includeGoogleReview !== false;
+  const includeAnonymousTestimonial = body.includeAnonymousTestimonial !== false;
+
+  if (!Number.isInteger(clientId) || clientId <= 0 || !Number.isInteger(serviceId) || serviceId <= 0) {
+    return NextResponse.json({ error: "Invalid client or service." }, { status: 400 });
+  }
+
+  const supabase = await createClient();
+  const [{ data: client, error: clientError }, { data: service, error: serviceError }] = await Promise.all([
+    supabase.from("clients").select("id,name,email").eq("id", clientId).maybeSingle(),
+    supabase
+      .from("client_services")
+      .select("id,client_id,service,payment_status,payment_date")
+      .eq("id", serviceId)
+      .eq("client_id", clientId)
+      .maybeSingle(),
+  ]);
+
+  if (clientError || !client) {
+    return NextResponse.json({ error: "Client could not be found.", detail: clientError?.message }, { status: 404 });
+  }
+  if (serviceError || !service) {
+    return NextResponse.json({ error: "Service could not be found.", detail: serviceError?.message }, { status: 404 });
+  }
+
+  const clientName = String(client.name || "").trim();
+  const clientEmail = String(client.email || "").trim().toLowerCase();
+  if (!clientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
+    return NextResponse.json({ error: "This client does not have a valid email address." }, { status: 400 });
+  }
+
+  const first = firstName(clientName);
+  const serviceName = String(service.service || "your JGO Hire service").trim();
+  const subject = "Payment received — thank you!";
+
+  const reviewText = includeGoogleReview && googleReviewUrl
+    ? "If you had a great experience, I would be so grateful if you left a quick Google review. It helps other job seekers feel confident choosing JGO Hire."
+    : "";
+  const anonymousText = includeAnonymousTestimonial
+    ? "If you would rather not post publicly, you can simply reply to this email with any feedback or a testimonial. If you are comfortable with it, I can share it anonymously."
+    : "";
+
+  const textParts = [
+    `Hi ${first},`,
+    "",
+    `Just confirming that your payment for ${serviceName} has been received. Thank you so much for choosing JGO Hire and trusting me to be part of your career journey.`,
+    "",
+    "I truly appreciate your support, and I would love to help you again anytime you need resume, LinkedIn, interview, or job-search support.",
+  ];
+  if (reviewText) textParts.push("", reviewText, googleReviewUrl);
+  if (anonymousText) textParts.push("", anonymousText);
+  textParts.push("", "Thank you again!", "", jgoTextSignature());
+  const messageText = textParts.join("\n");
+
+  const reviewHtml = includeGoogleReview && googleReviewUrl
+    ? `<div style="margin-top:22px;padding:20px;border-radius:18px;background:#eef3ea;border:1px solid #d7e1d0;"><p style="margin:0 0 14px;line-height:1.65;color:#405044;">If you had a great experience, I would be so grateful if you left a quick Google review. It helps other job seekers feel confident choosing JGO Hire.</p><a href="${esc(googleReviewUrl)}" style="display:inline-block;background:#53684c;color:#ffffff;text-decoration:none;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:700;">Leave a Google Review</a></div>`
+    : "";
+  const anonymousHtml = includeAnonymousTestimonial
+    ? `<div style="margin-top:14px;padding:18px;border-radius:18px;background:#fafbf8;border:1px solid #e1e7dd;"><p style="margin:0;line-height:1.65;color:#566258;">Prefer not to post publicly? Just reply to this email with any feedback or a testimonial. If you are comfortable with it, I can share it anonymously.</p></div>`
+    : "";
+
+  const messageHtml = `<div style="margin:0;background:#f4f7f1;padding:32px 14px;font-family:Arial,Helvetica,sans-serif;color:#243128;"><div style="max-width:640px;margin:0 auto;"><div style="background:#e6eee1;padding:28px;border-radius:24px;text-align:center;"><p style="margin:0;color:#53684c;font-size:11px;font-weight:700;letter-spacing:1.6px;">JGO HIRE</p><h1 style="margin:8px 0 0;font-size:30px;">Payment received</h1><p style="margin:12px 0 0;color:#5f6e62;">Thank you, ${esc(first)}!</p></div><div style="margin-top:16px;background:#ffffff;border:1px solid #dfe6db;border-radius:22px;padding:26px;"><p style="margin:0 0 16px;line-height:1.7;color:#405044;">Just confirming that your payment for <strong>${esc(serviceName)}</strong> has been received. Thank you so much for choosing JGO Hire and trusting me to be part of your career journey.</p><p style="margin:0;line-height:1.7;color:#405044;">I truly appreciate your support, and I would love to help you again anytime you need resume, LinkedIn, interview, or job-search support.</p>${reviewHtml}${anonymousHtml}<p style="margin:22px 0 0;line-height:1.7;color:#405044;">Thank you again!</p>${jgoEmailSignature()}</div></div></div>`;
+
+  const email = await resend.emails.send({
+    from: "JGO Hire <jen@jgohire.com>",
+    to: [clientEmail],
+    replyTo: "jen@jgohire.com",
+    subject,
+    text: messageText,
+    html: messageHtml,
+  });
+
+  if (email.error) {
+    return NextResponse.json({ error: "Unable to send the receipt email.", detail: email.error.message }, { status: 500 });
+  }
+
+  const sentAt = new Date().toISOString();
+  const { data: savedMessage, error: messageError } = await supabase
+    .from("email_messages")
+    .insert({
+      client_id: clientId,
+      recipient_name: clientName || null,
+      recipient_email: clientEmail,
+      subject,
+      body: messageText,
+      body_html: messageHtml,
+      status: "sent",
+      template_id: null,
+      sent_at: sentAt,
+    })
+    .select("id")
+    .single();
+
+  if (messageError || !savedMessage) {
+    console.error("Payment receipt sent but email history could not be saved", messageError);
+  } else {
+    const noteDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const { error: noteError } = await supabase.from("client_notes").insert({
+      client_id: clientId,
+      note_date: noteDate,
+      content: `Payment receipt / thank-you email sent for ${serviceName}.`,
+      action: "Email",
+      email_message_id: savedMessage.id,
+    });
+    if (noteError) console.error("Payment receipt email history note could not be saved", noteError);
+  }
+
+  const { data: contact } = await supabase
+    .from("email_contacts")
+    .select("id,email_count,first_contacted_at,name,client_id")
+    .eq("email", clientEmail)
+    .maybeSingle();
+  if (contact) {
+    await supabase
+      .from("email_contacts")
+      .update({
+        name: clientName || contact.name || null,
+        client_id: clientId,
+        first_contacted_at: contact.first_contacted_at || sentAt,
+        last_contacted_at: sentAt,
+        email_count: Number(contact.email_count || 0) + 1,
+        updated_at: sentAt,
+      })
+      .eq("id", contact.id);
+  } else {
+    await supabase.from("email_contacts").insert({
+      name: clientName || null,
+      email: clientEmail,
+      client_id: clientId,
+      source: "jgo_os_payment_receipt",
+      first_contacted_at: sentAt,
+      last_contacted_at: sentAt,
+      email_count: 1,
+    });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    sent: true,
+    tracked: Boolean(savedMessage),
+    googleReviewIncluded: Boolean(includeGoogleReview && googleReviewUrl),
+    googleReviewConfigured: Boolean(googleReviewUrl),
+    emailId: email.data?.id ?? null,
+  });
+}
