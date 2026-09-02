@@ -58,7 +58,7 @@ export default function ServiceCard({ clientId, service }: Props) {
   const pendingExtra = Math.max(0, Number(amountReceived || 0) - invoiceAmount);
 
   function confirmDelete(event: React.FormEvent<HTMLFormElement>) {
-    if (!window.confirm(`Delete "${service.service}"? This cannot be undone.`)) event.preventDefault();
+    if (!window.confirm(`Delete "${service.service}"? It will be removed from active services and balances, while a backup is retained for recovery.`)) event.preventDefault();
   }
 
   return (
