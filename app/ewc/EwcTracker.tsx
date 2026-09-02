@@ -82,31 +82,10 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
   const linkedin = useMemo(() => bySection("LinkedIn"), [entries]);
   const other = useMemo(() => bySection("Other"), [entries]);
 
-  const totals = useMemo(() => {
-    const billable = entries.filter((row) => row.section !== "LinkedIn");
-    const owed = billable.reduce((sum, row) => sum + Number(row.amount_owed || 0), 0);
-    const paidTowardOwed = billable.reduce(
-      (sum, row) => sum + Math.min(Number(row.amount_paid || 0), Number(row.amount_owed || 0)),
-      0,
-    );
-    const extraPaid = billable.reduce(
-      (sum, row) => sum + Math.max(Number(row.amount_paid || 0) - Number(row.amount_owed || 0), 0),
-      0,
-    );
-    const linkedInGross = entries
-      .filter((row) => row.section === "LinkedIn")
-      .reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
-    const stripe = entries.reduce((sum, row) => sum + Number(row.stripe_fee || 0), 0);
+  const totalMade = useMemo(() => {
     const grossReceived = entries.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
-
-    return {
-      owed,
-      paidTowardOwed,
-      extraPaid,
-      linkedInGross,
-      received: grossReceived - stripe,
-      outstanding: billable.reduce((sum, row) => sum + getOutstanding(row), 0),
-    };
+    const stripeFees = entries.reduce((sum, row) => sum + Number(row.stripe_fee || 0), 0);
+    return grossReceived - stripeFees;
   }, [entries]);
 
   function flashSaved(message = "Saved to Supabase") {
@@ -253,19 +232,14 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
             <div className="grid grid-cols-[44px_205px_92px_145px_110px_110px_120px_1fr_38px] border-b border-[#dfe6db] bg-[#eef2ea] text-[9px] font-bold uppercase tracking-[0.08em] text-[#647066]">
               {['#', 'Client', 'Date', 'Service', 'Owed', 'Paid', 'Outstanding', 'Notes', ''].map(
                 (label, index) => (
-                  <div
-                    key={`${label}-${index}`}
-                    className="border-r border-[#dfe6db] px-2 py-2.5 text-center"
-                  >
+                  <div key={`${label}-${index}`} className="border-r border-[#dfe6db] px-2 py-2.5 text-center">
                     {label}
                   </div>
                 ),
               )}
             </div>
 
-            {rows.length === 0 ? (
-              <div className="p-10 text-center text-sm text-[#708075]">No entries yet.</div>
-            ) : null}
+            {rows.length === 0 ? <div className="p-10 text-center text-sm text-[#708075]">No entries yet.</div> : null}
 
             {rows.map((row, index) => (
               <div
@@ -274,72 +248,15 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
                 onDrop={() => reorderWithinSection(section, row.id)}
                 className={`group grid grid-cols-[44px_205px_92px_145px_110px_110px_120px_1fr_38px] border-b border-[#edf0ea] ${index % 2 ? 'bg-[#fcfdfb]' : 'bg-white'}`}
               >
-                <button
-                  type="button"
-                  draggable
-                  onDragStart={() => setDragged({ section, id: row.id })}
-                  className="cursor-grab border-r border-[#edf0ea] text-[#a5aea6]"
-                >
-                  ⋮⋮
-                </button>
-                <input
-                  value={row.client_name}
-                  onChange={(event) => updateLocal(row.id, 'client_name', event.target.value)}
-                  onBlur={() => persistRow(row)}
-                  placeholder="Client name"
-                  className={`${inputClass} border-r border-[#edf0ea]`}
-                />
-                <input
-                  type="date"
-                  value={row.service_date ?? ''}
-                  onChange={(event) => {
-                    updateLocal(row.id, 'service_date', event.target.value);
-                    persistRow(row, { service_date: event.target.value });
-                  }}
-                  className={`${dateInputClass} border-r border-[#edf0ea]`}
-                />
-                <input
-                  value={row.service_type}
-                  onChange={(event) => updateLocal(row.id, 'service_type', event.target.value)}
-                  onBlur={() => persistRow(row)}
-                  placeholder="Service"
-                  className={`${inputClass} border-r border-[#edf0ea]`}
-                />
-                <MoneyInput
-                  value={row.amount_owed}
-                  onCommit={(value) => {
-                    updateLocal(row.id, 'amount_owed', value);
-                    persistRow(row, { amount_owed: value });
-                  }}
-                />
-                <MoneyInput
-                  value={row.amount_paid}
-                  onCommit={(value) => {
-                    updateLocal(row.id, 'amount_paid', value);
-                    persistRow(row, { amount_paid: value });
-                  }}
-                />
-                <div className="flex items-center justify-end border-r border-[#edf0ea] bg-[#fbf6f3] px-2.5 text-xs font-semibold text-[#9a554d]">
-                  {money(getOutstanding(row))}
-                </div>
-                <input
-                  value={row.notes ?? ''}
-                  onChange={(event) => updateLocal(row.id, 'notes', event.target.value)}
-                  onBlur={() => persistRow(row)}
-                  placeholder="Notes"
-                  className={`${inputClass} border-r border-[#edf0ea]`}
-                />
-                <div className="flex items-center justify-center">
-                  <button
-                    type="button"
-                    onClick={() => archiveRow(row)}
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-[#a8aea8] transition hover:bg-[#f1f2ef] hover:text-[#7b847c]"
-                    aria-label={`Archive ${row.client_name || 'client'}`}
-                    title="Archive"
-                  >
-                    ×
-                  </button>
-                </div>
+                <button type="button" draggable onDragStart={() => setDragged({ section, id: row.id })} className="cursor-grab border-r border-[#edf0ea] text-[#a5aea6]">⋮⋮</button>
+                <input value={row.client_name} onChange={(event) => updateLocal(row.id, 'client_name', event.target.value)} onBlur={() => persistRow(row)} placeholder="Client name" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <input type="date" value={row.service_date ?? ''} onChange={(event) => { updateLocal(row.id, 'service_date', event.target.value); persistRow(row, { service_date: event.target.value }); }} className={`${dateInputClass} border-r border-[#edf0ea]`} />
+                <input value={row.service_type} onChange={(event) => updateLocal(row.id, 'service_type', event.target.value)} onBlur={() => persistRow(row)} placeholder="Service" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <MoneyInput value={row.amount_owed} onCommit={(value) => { updateLocal(row.id, 'amount_owed', value); persistRow(row, { amount_owed: value }); }} />
+                <MoneyInput value={row.amount_paid} onCommit={(value) => { updateLocal(row.id, 'amount_paid', value); persistRow(row, { amount_paid: value }); }} />
+                <div className="flex items-center justify-end border-r border-[#edf0ea] bg-[#fbf6f3] px-2.5 text-xs font-semibold text-[#9a554d]">{money(getOutstanding(row))}</div>
+                <input value={row.notes ?? ''} onChange={(event) => updateLocal(row.id, 'notes', event.target.value)} onBlur={() => persistRow(row)} placeholder="Notes" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <div className="flex items-center justify-center"><button type="button" onClick={() => archiveRow(row)} className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-[#a8aea8] transition hover:bg-[#f1f2ef] hover:text-[#7b847c]" aria-label={`Archive ${row.client_name || 'client'}`} title="Archive">×</button></div>
               </div>
             ))}
           </div>
@@ -352,112 +269,29 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
     return (
       <section className="overflow-hidden rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-[#dfe6db] bg-[#fbfaf6] px-5 py-4">
-          <div>
-            <h2 className="text-xl font-bold text-[#243128]">LinkedIn</h2>
-            <p className="mt-1 text-sm text-[#708075]">Newest entries stay at the top. All edits auto-save.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => addRow("LinkedIn")}
-            disabled={isPending}
-            className="rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            + Add LinkedIn Client
-          </button>
+          <div><h2 className="text-xl font-bold text-[#243128]">LinkedIn</h2><p className="mt-1 text-sm text-[#708075]">Newest entries stay at the top. All edits auto-save.</p></div>
+          <button type="button" onClick={() => addRow("LinkedIn")} disabled={isPending} className="rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">+ Add LinkedIn Client</button>
         </div>
 
         <div className="overflow-x-auto">
           <div className="min-w-[980px]">
             <div className="grid grid-cols-[44px_205px_92px_150px_115px_115px_135px_1fr_38px] border-b border-[#dfe6db] bg-[#eef2ea] text-[9px] font-bold uppercase tracking-[0.08em] text-[#647066]">
-              {['#', 'Client', 'Date', 'Service', 'Paid', 'Stripe Fee', 'Total Received', 'Notes', ''].map(
-                (label, index) => (
-                  <div
-                    key={`${label}-${index}`}
-                    className="border-r border-[#dfe6db] px-2 py-2.5 text-center"
-                  >
-                    {label}
-                  </div>
-                ),
-              )}
+              {['#', 'Client', 'Date', 'Service', 'Paid', 'Stripe Fee', 'Total Received', 'Notes', ''].map((label, index) => <div key={`${label}-${index}`} className="border-r border-[#dfe6db] px-2 py-2.5 text-center">{label}</div>)}
             </div>
 
-            {rows.length === 0 ? (
-              <div className="p-10 text-center text-sm text-[#708075]">No LinkedIn entries yet.</div>
-            ) : null}
+            {rows.length === 0 ? <div className="p-10 text-center text-sm text-[#708075]">No LinkedIn entries yet.</div> : null}
 
             {rows.map((row, index) => (
-              <div
-                key={row.id}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={() => reorderWithinSection("LinkedIn", row.id)}
-                className={`group grid grid-cols-[44px_205px_92px_150px_115px_115px_135px_1fr_38px] border-b border-[#edf0ea] ${index % 2 ? 'bg-[#fcfdfb]' : 'bg-white'}`}
-              >
-                <button
-                  type="button"
-                  draggable
-                  onDragStart={() => setDragged({ section: "LinkedIn", id: row.id })}
-                  className="cursor-grab border-r border-[#edf0ea] text-[#a5aea6]"
-                >
-                  ⋮⋮
-                </button>
-                <input
-                  value={row.client_name}
-                  onChange={(event) => updateLocal(row.id, 'client_name', event.target.value)}
-                  onBlur={() => persistRow(row)}
-                  placeholder="Client name"
-                  className={`${inputClass} border-r border-[#edf0ea]`}
-                />
-                <input
-                  type="date"
-                  value={row.service_date ?? ''}
-                  onChange={(event) => {
-                    updateLocal(row.id, 'service_date', event.target.value);
-                    persistRow(row, { service_date: event.target.value });
-                  }}
-                  className={`${dateInputClass} border-r border-[#edf0ea]`}
-                />
-                <input
-                  value={row.service_type}
-                  onChange={(event) => updateLocal(row.id, 'service_type', event.target.value)}
-                  onBlur={() => persistRow(row)}
-                  placeholder="LinkedIn service"
-                  className={`${inputClass} border-r border-[#edf0ea]`}
-                />
-                <MoneyInput
-                  value={row.amount_paid}
-                  onCommit={(value) => {
-                    updateLocal(row.id, 'amount_paid', value);
-                    persistRow(row, { amount_paid: value });
-                  }}
-                />
-                <MoneyInput
-                  value={row.stripe_fee}
-                  onCommit={(value) => {
-                    updateLocal(row.id, 'stripe_fee', value);
-                    persistRow(row, { stripe_fee: value });
-                  }}
-                />
-                <div className="flex items-center justify-end border-r border-[#edf0ea] bg-[#f5f8f2] px-2.5 text-xs font-bold text-[#56754f]">
-                  {money(Number(row.amount_paid || 0) - Number(row.stripe_fee || 0))}
-                </div>
-                <input
-                  value={row.notes ?? ''}
-                  onChange={(event) => updateLocal(row.id, 'notes', event.target.value)}
-                  onBlur={() => persistRow(row)}
-                  placeholder="Notes"
-                  className={`${inputClass} border-r border-[#edf0ea]`}
-                />
-                <div className="flex items-center justify-center">
-                  <button
-                    type="button"
-                    onClick={() => archiveRow(row)}
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-[#a8aea8] transition hover:bg-[#f1f2ef] hover:text-[#7b847c]"
-                    aria-label={`Archive ${row.client_name || 'client'}`}
-                    title="Archive"
-                  >
-                    ×
-                  </button>
-                </div>
+              <div key={row.id} onDragOver={(event) => event.preventDefault()} onDrop={() => reorderWithinSection("LinkedIn", row.id)} className={`group grid grid-cols-[44px_205px_92px_150px_115px_115px_135px_1fr_38px] border-b border-[#edf0ea] ${index % 2 ? 'bg-[#fcfdfb]' : 'bg-white'}`}>
+                <button type="button" draggable onDragStart={() => setDragged({ section: "LinkedIn", id: row.id })} className="cursor-grab border-r border-[#edf0ea] text-[#a5aea6]">⋮⋮</button>
+                <input value={row.client_name} onChange={(event) => updateLocal(row.id, 'client_name', event.target.value)} onBlur={() => persistRow(row)} placeholder="Client name" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <input type="date" value={row.service_date ?? ''} onChange={(event) => { updateLocal(row.id, 'service_date', event.target.value); persistRow(row, { service_date: event.target.value }); }} className={`${dateInputClass} border-r border-[#edf0ea]`} />
+                <input value={row.service_type} onChange={(event) => updateLocal(row.id, 'service_type', event.target.value)} onBlur={() => persistRow(row)} placeholder="LinkedIn service" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <MoneyInput value={row.amount_paid} onCommit={(value) => { updateLocal(row.id, 'amount_paid', value); persistRow(row, { amount_paid: value }); }} />
+                <MoneyInput value={row.stripe_fee} onCommit={(value) => { updateLocal(row.id, 'stripe_fee', value); persistRow(row, { stripe_fee: value }); }} />
+                <div className="flex items-center justify-end border-r border-[#edf0ea] bg-[#f5f8f2] px-2.5 text-xs font-bold text-[#56754f]">{money(Number(row.amount_paid || 0) - Number(row.stripe_fee || 0))}</div>
+                <input value={row.notes ?? ''} onChange={(event) => updateLocal(row.id, 'notes', event.target.value)} onBlur={() => persistRow(row)} placeholder="Notes" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <div className="flex items-center justify-center"><button type="button" onClick={() => archiveRow(row)} className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-[#a8aea8] transition hover:bg-[#f1f2ef] hover:text-[#7b847c]" aria-label={`Archive ${row.client_name || 'client'}`} title="Archive">×</button></div>
               </div>
             ))}
           </div>
@@ -471,40 +305,17 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
       <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7f9975]">Emily Weiss Consulting</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight">EWC</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#708075]">
-          Track Sessions, LinkedIn work, and Other EWC clients in one place.
-        </p>
       </header>
 
       <div className="space-y-7 p-6 lg:p-10">
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-[#708075]">Total Owed</p>
-            <p className="mt-3 text-3xl font-bold">{money(totals.owed)}</p>
-          </div>
-          <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-[#708075]">Paid Toward Owed</p>
-            <p className="mt-3 text-3xl font-bold text-[#56754f]">{money(totals.paidTowardOwed)}</p>
-            {totals.extraPaid > 0 ? (
-              <p className="mt-1 text-xs text-[#708075]">+ {money(totals.extraPaid)} extra paid</p>
-            ) : null}
-          </div>
-          <div className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-[#708075]">Net Received</p>
-            <p className="mt-3 text-3xl font-bold text-[#56754f]">{money(totals.received)}</p>
-            <p className="mt-1 text-xs text-[#708075]">Includes {money(totals.linkedInGross)} LinkedIn gross</p>
-          </div>
-          <div className="rounded-2xl border border-[#ead4d0] bg-[#fffdfc] p-5 shadow-sm">
-            <p className="text-sm font-medium text-[#8b6a65]">Outstanding</p>
-            <p className="mt-3 text-3xl font-bold text-[#9a554d]">{money(totals.outstanding)}</p>
-          </div>
+        <section className="max-w-sm rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7f8d82]">Total Made</p>
+          <p className="mt-2 text-3xl font-bold text-[#56754f]">{money(totalMade)}</p>
         </section>
 
         <div className="flex items-center justify-between rounded-xl border border-[#dfe6db] bg-white px-4 py-3 text-xs text-[#708075]">
           <span>Everything auto-saves to Supabase. Archived rows stay safely stored in JGO OS.</span>
-          <span className="font-semibold text-[#647d5b]">
-            {isPending ? "Saving..." : savedMessage || "Auto-saved"}
-          </span>
+          <span className="font-semibold text-[#647d5b]">{isPending ? "Saving..." : savedMessage || "Auto-saved"}</span>
         </div>
 
         <StandardTable section="Session" rows={sessions} />
