@@ -58,9 +58,10 @@ export default function JgoClientsTracker({ initialRows }: { initialRows: JgoCli
           owed: sum.owed + Number(row.amount_owed || 0),
           paid: sum.paid + appliedPayment(row),
           extra: sum.extra + extraPayment(row),
+          received: sum.received + Number(row.amount_received || 0),
           outstanding: sum.outstanding + outstanding(row),
         }),
-        { owed: 0, paid: 0, extra: 0, outstanding: 0 },
+        { owed: 0, paid: 0, extra: 0, received: 0, outstanding: 0 },
       ),
     [rows],
   );
@@ -163,10 +164,35 @@ export default function JgoClientsTracker({ initialRows }: { initialRows: JgoCli
         </form>
       ) : null}
 
-      <section className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-[#dfe6db] bg-white p-4 shadow-sm sm:p-5"><p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7f8d82]">Total Invoiced</p><p className="mt-2 text-2xl font-bold text-[#243128]">{currency(totals.owed)}</p></div>
-        <div className="rounded-2xl border border-[#dfe6db] bg-white p-4 shadow-sm sm:p-5"><p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7f8d82]">Paid Toward Invoices</p><p className="mt-2 text-2xl font-bold text-[#243128]">{currency(totals.paid)}</p>{totals.extra > 0 ? <p className="mt-1 text-xs font-semibold text-[#7f8d82]">+ {currency(totals.extra)} extra received</p> : null}</div>
-        <div className="rounded-2xl border border-[#dfe6db] bg-white p-4 shadow-sm sm:p-5"><p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7f8d82]">Outstanding</p><p className="mt-2 text-2xl font-bold text-[#243128]">{currency(totals.outstanding)}</p></div>
+      <section className="mt-6 grid gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+        <div className="flex min-h-[180px] flex-col justify-between rounded-2xl border border-[#cbd8c4] bg-white p-5 shadow-sm sm:p-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#7f9975]">Total Made</p>
+            <p className="mt-3 text-4xl font-bold tracking-tight text-[#243128] sm:text-5xl">{currency(totals.received)}</p>
+          </div>
+          <p className="mt-5 text-xs text-[#708075]">Total payments received across JGO clients.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <div className="rounded-2xl border border-[#dfe6db] bg-white px-4 py-3 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#7f8d82]">Total Invoiced</p>
+              <p className="text-lg font-bold text-[#243128]">{currency(totals.owed)}</p>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-[#dfe6db] bg-white px-4 py-3 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#7f8d82]">Paid Toward Invoices</p>
+              <p className="text-lg font-bold text-[#243128]">{currency(totals.paid)}</p>
+            </div>
+            {totals.extra > 0 ? <p className="mt-1 text-right text-[11px] font-semibold text-[#7f8d82]">+ {currency(totals.extra)} extra received</p> : null}
+          </div>
+          <div className="rounded-2xl border border-[#ead4d0] bg-[#fffdfc] px-4 py-3 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#9a7772]">Outstanding</p>
+              <p className="text-lg font-bold text-[#9a554d]">{currency(totals.outstanding)}</p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <div className="mt-6 overflow-hidden rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
