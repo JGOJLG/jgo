@@ -11,6 +11,7 @@ export default async function EwcPage() {
   const { data, error } = await supabase
     .from("ewc_entries")
     .select("*")
+    .or("moved.eq.false,moved.is.null")
     .order("section", { ascending: true })
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
