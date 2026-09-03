@@ -104,6 +104,10 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
     );
   }
 
+  function getCurrentRow(id: number) {
+    return entries.find((row) => row.id === id);
+  }
+
   function rowFormData(row: EwcEntry, overrides: Partial<EwcEntry> = {}) {
     const next = { ...row, ...overrides };
     const formData = new FormData();
@@ -120,7 +124,8 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
   }
 
   function persistRow(row: EwcEntry, overrides: Partial<EwcEntry> = {}) {
-    const formData = rowFormData(row, overrides);
+    const latest = getCurrentRow(row.id) ?? row;
+    const formData = rowFormData(latest, overrides);
     startTransition(async () => {
       try {
         await updateEwcEntry(formData);
@@ -154,7 +159,8 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
       return;
     }
 
-    const formData = rowFormData(row);
+    const latest = getCurrentRow(row.id) ?? row;
+    const formData = rowFormData(latest);
     startTransition(async () => {
       try {
         await updateEwcEntry(formData);
@@ -207,14 +213,12 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
   const dateInputClass =
     "h-full w-full min-w-0 border-0 bg-transparent px-1.5 py-2 text-[11px] text-[#243128] outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_rgba(100,125,91,0.24)]";
 
-  function StandardTable({ section, rows }: { section: "Session" | "Other"; rows: EwcEntry[] }) {
+  function renderStandardTable(section: "Session" | "Other", rows: EwcEntry[]) {
     return (
       <section className="overflow-hidden rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-[#dfe6db] bg-[#fbfaf6] px-5 py-4">
           <div>
-            <h2 className="text-xl font-bold text-[#243128]">
-              {section === "Session" ? "Sessions" : "Other"}
-            </h2>
+            <h2 className="text-xl font-bold text-[#243128]">{section === "Session" ? "Sessions" : "Other"}</h2>
             <p className="mt-1 text-sm text-[#708075]">Newest entries stay at the top. All edits auto-save.</p>
           </div>
           <button
@@ -230,13 +234,9 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
         <div className="overflow-x-auto">
           <div className="min-w-[1060px]">
             <div className="grid grid-cols-[44px_205px_92px_145px_110px_110px_120px_1fr_38px] border-b border-[#dfe6db] bg-[#eef2ea] text-[9px] font-bold uppercase tracking-[0.08em] text-[#647066]">
-              {['#', 'Client', 'Date', 'Service', 'Owed', 'Paid', 'Outstanding', 'Notes', ''].map(
-                (label, index) => (
-                  <div key={`${label}-${index}`} className="border-r border-[#dfe6db] px-2 py-2.5 text-center">
-                    {label}
-                  </div>
-                ),
-              )}
+              {["#", "Client", "Date", "Service", "Owed", "Paid", "Outstanding", "Notes", ""].map((label, index) => (
+                <div key={`${label}-${index}`} className="border-r border-[#dfe6db] px-2 py-2.5 text-center">{label}</div>
+              ))}
             </div>
 
             {rows.length === 0 ? <div className="p-10 text-center text-sm text-[#708075]">No entries yet.</div> : null}
@@ -246,17 +246,17 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
                 key={row.id}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => reorderWithinSection(section, row.id)}
-                className={`group grid grid-cols-[44px_205px_92px_145px_110px_110px_120px_1fr_38px] border-b border-[#edf0ea] ${index % 2 ? 'bg-[#fcfdfb]' : 'bg-white'}`}
+                className={`group grid grid-cols-[44px_205px_92px_145px_110px_110px_120px_1fr_38px] border-b border-[#edf0ea] ${index % 2 ? "bg-[#fcfdfb]" : "bg-white"}`}
               >
                 <button type="button" draggable onDragStart={() => setDragged({ section, id: row.id })} className="cursor-grab border-r border-[#edf0ea] text-[#a5aea6]">⋮⋮</button>
-                <input value={row.client_name} onChange={(event) => updateLocal(row.id, 'client_name', event.target.value)} onBlur={() => persistRow(row)} placeholder="Client name" className={`${inputClass} border-r border-[#edf0ea]`} />
-                <input type="date" value={row.service_date ?? ''} onChange={(event) => { updateLocal(row.id, 'service_date', event.target.value); persistRow(row, { service_date: event.target.value }); }} className={`${dateInputClass} border-r border-[#edf0ea]`} />
-                <input value={row.service_type} onChange={(event) => updateLocal(row.id, 'service_type', event.target.value)} onBlur={() => persistRow(row)} placeholder="Service" className={`${inputClass} border-r border-[#edf0ea]`} />
-                <MoneyInput value={row.amount_owed} onCommit={(value) => { updateLocal(row.id, 'amount_owed', value); persistRow(row, { amount_owed: value }); }} />
-                <MoneyInput value={row.amount_paid} onCommit={(value) => { updateLocal(row.id, 'amount_paid', value); persistRow(row, { amount_paid: value }); }} />
+                <input value={row.client_name} onChange={(event) => updateLocal(row.id, "client_name", event.target.value)} onBlur={() => persistRow(row)} placeholder="Client name" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <input type="date" value={row.service_date ?? ""} onChange={(event) => { updateLocal(row.id, "service_date", event.target.value); persistRow(row, { service_date: event.target.value }); }} className={`${dateInputClass} border-r border-[#edf0ea]`} />
+                <input value={row.service_type} onChange={(event) => updateLocal(row.id, "service_type", event.target.value)} onBlur={() => persistRow(row)} placeholder="Service" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <MoneyInput value={row.amount_owed} onCommit={(value) => { updateLocal(row.id, "amount_owed", value); persistRow(row, { amount_owed: value }); }} />
+                <MoneyInput value={row.amount_paid} onCommit={(value) => { updateLocal(row.id, "amount_paid", value); persistRow(row, { amount_paid: value }); }} />
                 <div className="flex items-center justify-end border-r border-[#edf0ea] bg-[#fbf6f3] px-2.5 text-xs font-semibold text-[#9a554d]">{money(getOutstanding(row))}</div>
-                <input value={row.notes ?? ''} onChange={(event) => updateLocal(row.id, 'notes', event.target.value)} onBlur={() => persistRow(row)} placeholder="Notes" className={`${inputClass} border-r border-[#edf0ea]`} />
-                <div className="flex items-center justify-center"><button type="button" onClick={() => archiveRow(row)} className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-[#a8aea8] transition hover:bg-[#f1f2ef] hover:text-[#7b847c]" aria-label={`Archive ${row.client_name || 'client'}`} title="Archive">×</button></div>
+                <input value={row.notes ?? ""} onChange={(event) => updateLocal(row.id, "notes", event.target.value)} onBlur={() => persistRow(row)} placeholder="Notes" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <div className="flex items-center justify-center"><button type="button" onClick={() => archiveRow(row)} className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-[#a8aea8] transition hover:bg-[#f1f2ef] hover:text-[#7b847c]" aria-label={`Archive ${row.client_name || "client"}`} title="Archive">×</button></div>
               </div>
             ))}
           </div>
@@ -265,33 +265,38 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
     );
   }
 
-  function LinkedInTable({ rows }: { rows: EwcEntry[] }) {
+  function renderLinkedInTable(rows: EwcEntry[]) {
     return (
       <section className="overflow-hidden rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-[#dfe6db] bg-[#fbfaf6] px-5 py-4">
-          <div><h2 className="text-xl font-bold text-[#243128]">LinkedIn</h2><p className="mt-1 text-sm text-[#708075]">Newest entries stay at the top. All edits auto-save.</p></div>
+          <div>
+            <h2 className="text-xl font-bold text-[#243128]">LinkedIn</h2>
+            <p className="mt-1 text-sm text-[#708075]">Newest entries stay at the top. All edits auto-save.</p>
+          </div>
           <button type="button" onClick={() => addRow("LinkedIn")} disabled={isPending} className="rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">+ Add LinkedIn Client</button>
         </div>
 
         <div className="overflow-x-auto">
           <div className="min-w-[980px]">
             <div className="grid grid-cols-[44px_205px_92px_150px_115px_115px_135px_1fr_38px] border-b border-[#dfe6db] bg-[#eef2ea] text-[9px] font-bold uppercase tracking-[0.08em] text-[#647066]">
-              {['#', 'Client', 'Date', 'Service', 'Paid', 'Stripe Fee', 'Total Received', 'Notes', ''].map((label, index) => <div key={`${label}-${index}`} className="border-r border-[#dfe6db] px-2 py-2.5 text-center">{label}</div>)}
+              {["#", "Client", "Date", "Service", "Paid", "Stripe Fee", "Total Received", "Notes", ""].map((label, index) => (
+                <div key={`${label}-${index}`} className="border-r border-[#dfe6db] px-2 py-2.5 text-center">{label}</div>
+              ))}
             </div>
 
             {rows.length === 0 ? <div className="p-10 text-center text-sm text-[#708075]">No LinkedIn entries yet.</div> : null}
 
             {rows.map((row, index) => (
-              <div key={row.id} onDragOver={(event) => event.preventDefault()} onDrop={() => reorderWithinSection("LinkedIn", row.id)} className={`group grid grid-cols-[44px_205px_92px_150px_115px_115px_135px_1fr_38px] border-b border-[#edf0ea] ${index % 2 ? 'bg-[#fcfdfb]' : 'bg-white'}`}>
+              <div key={row.id} onDragOver={(event) => event.preventDefault()} onDrop={() => reorderWithinSection("LinkedIn", row.id)} className={`group grid grid-cols-[44px_205px_92px_150px_115px_115px_135px_1fr_38px] border-b border-[#edf0ea] ${index % 2 ? "bg-[#fcfdfb]" : "bg-white"}`}>
                 <button type="button" draggable onDragStart={() => setDragged({ section: "LinkedIn", id: row.id })} className="cursor-grab border-r border-[#edf0ea] text-[#a5aea6]">⋮⋮</button>
-                <input value={row.client_name} onChange={(event) => updateLocal(row.id, 'client_name', event.target.value)} onBlur={() => persistRow(row)} placeholder="Client name" className={`${inputClass} border-r border-[#edf0ea]`} />
-                <input type="date" value={row.service_date ?? ''} onChange={(event) => { updateLocal(row.id, 'service_date', event.target.value); persistRow(row, { service_date: event.target.value }); }} className={`${dateInputClass} border-r border-[#edf0ea]`} />
-                <input value={row.service_type} onChange={(event) => updateLocal(row.id, 'service_type', event.target.value)} onBlur={() => persistRow(row)} placeholder="LinkedIn service" className={`${inputClass} border-r border-[#edf0ea]`} />
-                <MoneyInput value={row.amount_paid} onCommit={(value) => { updateLocal(row.id, 'amount_paid', value); persistRow(row, { amount_paid: value }); }} />
-                <MoneyInput value={row.stripe_fee} onCommit={(value) => { updateLocal(row.id, 'stripe_fee', value); persistRow(row, { stripe_fee: value }); }} />
+                <input value={row.client_name} onChange={(event) => updateLocal(row.id, "client_name", event.target.value)} onBlur={() => persistRow(row)} placeholder="Client name" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <input type="date" value={row.service_date ?? ""} onChange={(event) => { updateLocal(row.id, "service_date", event.target.value); persistRow(row, { service_date: event.target.value }); }} className={`${dateInputClass} border-r border-[#edf0ea]`} />
+                <input value={row.service_type} onChange={(event) => updateLocal(row.id, "service_type", event.target.value)} onBlur={() => persistRow(row)} placeholder="LinkedIn service" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <MoneyInput value={row.amount_paid} onCommit={(value) => { updateLocal(row.id, "amount_paid", value); persistRow(row, { amount_paid: value }); }} />
+                <MoneyInput value={row.stripe_fee} onCommit={(value) => { updateLocal(row.id, "stripe_fee", value); persistRow(row, { stripe_fee: value }); }} />
                 <div className="flex items-center justify-end border-r border-[#edf0ea] bg-[#f5f8f2] px-2.5 text-xs font-bold text-[#56754f]">{money(Number(row.amount_paid || 0) - Number(row.stripe_fee || 0))}</div>
-                <input value={row.notes ?? ''} onChange={(event) => updateLocal(row.id, 'notes', event.target.value)} onBlur={() => persistRow(row)} placeholder="Notes" className={`${inputClass} border-r border-[#edf0ea]`} />
-                <div className="flex items-center justify-center"><button type="button" onClick={() => archiveRow(row)} className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-[#a8aea8] transition hover:bg-[#f1f2ef] hover:text-[#7b847c]" aria-label={`Archive ${row.client_name || 'client'}`} title="Archive">×</button></div>
+                <input value={row.notes ?? ""} onChange={(event) => updateLocal(row.id, "notes", event.target.value)} onBlur={() => persistRow(row)} placeholder="Notes" className={`${inputClass} border-r border-[#edf0ea]`} />
+                <div className="flex items-center justify-center"><button type="button" onClick={() => archiveRow(row)} className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-[#a8aea8] transition hover:bg-[#f1f2ef] hover:text-[#7b847c]" aria-label={`Archive ${row.client_name || "client"}`} title="Archive">×</button></div>
               </div>
             ))}
           </div>
@@ -318,9 +323,9 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
           <span className="font-semibold text-[#647d5b]">{isPending ? "Saving..." : savedMessage || "Auto-saved"}</span>
         </div>
 
-        <StandardTable section="Session" rows={sessions} />
-        <LinkedInTable rows={linkedin} />
-        <StandardTable section="Other" rows={other} />
+        {renderStandardTable("Session", sessions)}
+        {renderLinkedInTable(linkedin)}
+        {renderStandardTable("Other", other)}
       </div>
     </section>
   );
