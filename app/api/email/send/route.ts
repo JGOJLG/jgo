@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
+const JGO_OWNER_EMAIL = "jen@jgohire.com";
 
 type Recipient = { clientId?: number | null; name?: string; email?: string };
 type EmailRequest = { recipients?: Recipient[]; subject?: string; body?: string; bodyHtml?: string; templateId?: number | null };
@@ -42,7 +43,8 @@ export async function POST(request: Request) {
       const renderedHtml = wrapEmailHtml(personalizedHtml);
       const messageText = rawBody ? personalize(rawBody, recipient) : stripHtml(personalizedHtml);
       const personalizedText = `${messageText}\n\n${jgoTextSignature()}`;
-      const emailResult = await resend.emails.send({ from: "JGO Hire <jen@jgohire.com>", to: [recipient.email], replyTo: "jen@jgohire.com", subject: personalizedSubject, text: personalizedText, html: renderedHtml });
+      const cc = recipient.email.toLowerCase() === JGO_OWNER_EMAIL ? undefined : [JGO_OWNER_EMAIL];
+      const emailResult = await resend.emails.send({ from: `JGO Hire <${JGO_OWNER_EMAIL}>`, to: [recipient.email], cc, replyTo: JGO_OWNER_EMAIL, subject: personalizedSubject, text: personalizedText, html: renderedHtml });
       if (emailResult.error) return { ok: false as const, email: recipient.email, error: emailResult.error.message };
       const now = new Date().toISOString();
       const { data: existingContact } = await supabase.from("email_contacts").select("id, email_count, first_contacted_at, name, client_id").eq("email", recipient.email).maybeSingle();
