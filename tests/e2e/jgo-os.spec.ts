@@ -3,12 +3,22 @@ import { expect, test } from "@playwright/test";
 const adminProtectedRoutes = [
   "/",
   "/clients",
+  "/clients/new",
   "/calendar",
   "/tasks",
   "/revenue",
   "/email",
   "/docs",
   "/settings",
+  "/content-ideas",
+  "/ewc",
+  "/guide-signups",
+  "/jgo-clients",
+  "/leads",
+  "/leads/new",
+  "/leads/archived",
+  "/leads/no-shows",
+  "/leads/past-free-15",
 ];
 
 const clientProtectedRoutes = [
