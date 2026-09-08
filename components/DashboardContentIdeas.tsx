@@ -175,6 +175,32 @@ export default function DashboardContentIdeas({ initialIdeas }: Props) {
           > section.border-red-300 {
           order: 0;
         }
+
+        @media (min-width: 1280px) {
+          section:has([data-dashboard-content-ideas])
+            > div.relative.grid:has(> [data-dashboard-content-ideas]) {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          }
+
+          [data-dashboard-content-ideas] {
+            grid-column: 1 / -1;
+            grid-row: 2;
+          }
+
+          [data-dashboard-content-ideas] + div.grid {
+            display: contents;
+          }
+
+          [data-dashboard-content-ideas] + div.grid > section:first-child {
+            grid-column: 2;
+            grid-row: 1;
+          }
+
+          [data-dashboard-content-ideas] + div.grid > section:last-child {
+            grid-column: 1;
+            grid-row: 1;
+          }
+        }
       `}</style>
 
       <section
