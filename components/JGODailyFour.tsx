@@ -2,13 +2,37 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const habits = [
-  { id: "linkedin-requests", label: "LinkedIn Requests", helper: "Review and respond to requests", icon: "in" },
-  { id: "linkedin-post", label: "LinkedIn Post", helper: "Publish a helpful recruiter post", icon: "✎" },
-  { id: "substack", label: "Substack Article", helper: "Write or work on your article", icon: "S" },
-  { id: "social-media", label: "Social Media Check", helper: "Check comments, reply, post a video, or do one social action", icon: "↗" },
-  { id: "survival-guide-followup", label: "Survival Guide Follow-Up", helper: "Check new signups and send follow-up emails", icon: "@" },
+const sections = [
+  {
+    title: "LINKEDIN",
+    tasks: [
+      { id: "linkedin-requests", label: "Send new connection requests" },
+      { id: "linkedin-intros", label: "Send intro messages" },
+      { id: "linkedin-post", label: "Write a post" },
+    ],
+  },
+  {
+    title: "SUBSTACK",
+    tasks: [{ id: "substack", label: "Write an article" }],
+  },
+  {
+    title: "SOCIAL MEDIA",
+    tasks: [
+      { id: "social-check", label: "Check comments & messages" },
+      { id: "social-video", label: "Create a new video" },
+    ],
+  },
+  {
+    title: "INTERNAL",
+    tasks: [
+      { id: "survival-guide-followup", label: "Send Survival Guide follow-ups" },
+      { id: "client-interview-good-luck", label: "Send client interview good lucks" },
+      { id: "respond-inquiries", label: "Respond to inquiries" },
+    ],
+  },
 ];
+
+const tasks = sections.flatMap((section) => section.tasks);
 
 function getTodayKey() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -47,7 +71,7 @@ export default function JGODailyFour() {
   async function toggleHabit(id: string) {
     const previous = completed;
     const nextCompleted = completed.includes(id)
-      ? completed.filter((habitId) => habitId !== id)
+      ? completed.filter((taskId) => taskId !== id)
       : [...completed, id];
 
     setCompleted(nextCompleted);
@@ -65,8 +89,8 @@ export default function JGODailyFour() {
     }
   }
 
-  const completedCount = completed.filter((id) => habits.some((habit) => habit.id === id)).length;
-  const progress = useMemo(() => Math.round((completedCount / habits.length) * 100), [completedCount]);
+  const completedCount = completed.filter((id) => tasks.some((task) => task.id === id)).length;
+  const progress = useMemo(() => Math.round((completedCount / tasks.length) * 100), [completedCount]);
 
   if (!ready) {
     return <section className="h-28 animate-pulse rounded-[28px] border border-white/75 bg-white/50 shadow-sm backdrop-blur-2xl" />;
@@ -74,18 +98,16 @@ export default function JGODailyFour() {
 
   return (
     <section className="overflow-hidden rounded-[28px] border border-white/80 bg-white/66 p-4 shadow-[0_20px_55px_rgba(71,91,66,0.11)] backdrop-blur-2xl lg:p-5">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#dce5d7] bg-[#eef3ea] text-sm font-bold text-[#4d6247]">
-              <span className="text-sm font-bold tracking-wide">JGO</span>
-            </div>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#dce5d7] bg-[#eef3ea] text-sm font-bold text-[#4d6247]">JGO</div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-bold text-[#243128]">JGO Daily Do It</p>
-                <span className="rounded-full bg-[#eef2e9] px-2.5 py-1 text-[11px] font-semibold text-[#647d5b]">{completedCount} of {habits.length}</span>
+                <span className="rounded-full bg-[#eef2e9] px-2.5 py-1 text-[11px] font-semibold text-[#647d5b]">{completedCount} of {tasks.length}</span>
               </div>
-              <p className="mt-1 text-xs text-[#708075]">Small daily actions that keep JGO Hire moving.</p>
+              <p className="mt-0.5 text-xs text-[#708075]">Small daily actions that keep JGO Hire moving.</p>
             </div>
           </div>
           <div className="flex min-w-[120px] items-center gap-3">
@@ -96,25 +118,34 @@ export default function JGODailyFour() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {habits.map((habit) => {
-            const isCompleted = completed.includes(habit.id);
-            return (
-              <button key={habit.id} type="button" onClick={() => toggleHabit(habit.id)} aria-pressed={isCompleted}
-                className={`flex min-w-0 items-center gap-3 rounded-[20px] border px-4 py-3.5 text-left transition duration-200 ${isCompleted ? "border-[#b8c9af] bg-[#dfe9da]/94 shadow-[0_10px_26px_rgba(87,111,78,0.12)]" : "border-white/85 bg-white/76 shadow-sm hover:-translate-y-0.5 hover:bg-white"}`}>
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${isCompleted ? "bg-[#647d5b] text-white" : "border border-[#dfe6db] bg-[#f8faf6] text-[#647d5b]"}`}>{isCompleted ? "✓" : habit.icon}</span>
-                <div className="min-w-0">
-                  <p className={`text-sm font-semibold leading-5 ${isCompleted ? "text-[#55704f] line-through" : "text-[#3d4d39]"}`}>{habit.label}</p>
-                  <p className={`mt-1 text-xs leading-4 ${isCompleted ? "text-[#789070]" : "text-[#8a968d]"}`}>{isCompleted ? "Completed today" : habit.helper}</p>
-                </div>
-              </button>
-            );
-          })}
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {sections.map((section) => (
+            <div key={section.title} className="rounded-2xl border border-white/85 bg-white/72 px-3 py-2.5 shadow-sm">
+              <p className="mb-1.5 text-[10px] font-bold tracking-[0.14em] text-[#647d5b]">{section.title}</p>
+              <div className="space-y-0.5">
+                {section.tasks.map((task) => {
+                  const isCompleted = completed.includes(task.id);
+                  return (
+                    <button
+                      key={task.id}
+                      type="button"
+                      onClick={() => toggleHabit(task.id)}
+                      aria-pressed={isCompleted}
+                      className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left transition hover:bg-[#f4f7f1]"
+                    >
+                      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] font-bold ${isCompleted ? "border-[#647d5b] bg-[#647d5b] text-white" : "border-[#cdd8c8] bg-white text-transparent"}`}>✓</span>
+                      <span className={`text-xs leading-4 ${isCompleted ? "text-[#789070] line-through" : "font-medium text-[#3d4d39]"}`}>{task.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {completedCount === habits.length ? (
-        <div className="mt-4 rounded-2xl border border-[#c8d7c1] bg-[#e9f1e5] px-4 py-2.5 text-center text-xs font-semibold text-[#55704f]">Daily Do It complete. Nice work keeping the momentum going.</div>
+      {completedCount === tasks.length ? (
+        <div className="mt-3 rounded-xl border border-[#c8d7c1] bg-[#e9f1e5] px-3 py-2 text-center text-xs font-semibold text-[#55704f]">Daily Do It complete. Nice work keeping the momentum going.</div>
       ) : null}
     </section>
   );
