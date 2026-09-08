@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
-import { addJob, setOfferOutcome, updateJob } from "../actions";
+import { addJob, updateJob } from "../actions";
 import { ArchiveJobButton, ResetTrackerButton, RestoreJobButton } from "./JobSafetyControls";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +12,8 @@ const statuses = [
   "Interview",
   "Final Interview",
   "Offer",
-  "Offer Accepted",
-  "Offer Declined",
+  "Accepted Offer",
+  "Declined Offer",
   "Rejected",
   "Withdrawn",
 ];
@@ -32,7 +32,7 @@ export default async function Page() {
   const jobs = (allJobs ?? []).filter((j) => !j.archived_at);
   const archived = (allJobs ?? []).filter((j) => j.archived_at);
   const activeOffers = jobs.filter((j) => j.status === "Offer");
-  const acceptedOffers = jobs.filter((j) => j.status === "Offer Accepted");
+  const acceptedOffers = jobs.filter((j) => j.status === "Accepted Offer" || j.status === "Offer Accepted");
   const latestAccepted = acceptedOffers[0];
 
   return (
@@ -63,33 +63,8 @@ export default async function Page() {
       {activeOffers.length ? (
         <section className="mt-7 rounded-3xl border border-[#d9c9a7] bg-[#fffaf0] p-6 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-[.18em] text-[#8b7042]">You have {activeOffers.length === 1 ? "an offer" : "offers"}</p>
-          <h2 className="mt-2 font-serif text-3xl text-[#4d412e]">What happened with the offer?</h2>
-          <p className="mt-2 text-sm leading-6 text-[#746650]">Update the outcome here and your portal will automatically move out of the active-offer state.</p>
-
-          <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            {activeOffers.map((offer) => (
-              <div key={offer.id} className="rounded-2xl border border-[#e8dcc3] bg-white p-5">
-                <p className="font-bold text-[#3f392f]">{offer.company}</p>
-                <p className="mt-1 text-sm text-[#708075]">{offer.job_title}</p>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <form action={setOfferOutcome}>
-                    <input type="hidden" name="id" value={offer.id} />
-                    <input type="hidden" name="outcome" value="accepted" />
-                    <button className="rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#52684d]">
-                      I Accepted the Offer
-                    </button>
-                  </form>
-                  <form action={setOfferOutcome}>
-                    <input type="hidden" name="id" value={offer.id} />
-                    <input type="hidden" name="outcome" value="declined" />
-                    <button className="rounded-xl border border-[#d7ddd2] bg-white px-4 py-2.5 text-sm font-bold text-[#667263] hover:bg-[#f7f8f3]">
-                      I Declined the Offer
-                    </button>
-                  </form>
-                </div>
-              </div>
-            ))}
-          </div>
+          <h2 className="mt-2 font-serif text-3xl text-[#4d412e]">Update the stage below when you decide.</h2>
+          <p className="mt-2 text-sm leading-6 text-[#746650]">Choose Accepted Offer or Declined Offer from that job's Status dropdown and hit Save.</p>
         </section>
       ) : null}
 
@@ -116,7 +91,9 @@ export default async function Page() {
                 </td>
                 <td className="p-2">
                   <select form={`job-${j.id}`} name="status" defaultValue={j.status} className="rounded-lg border px-2 py-2">
-                    {statuses.map((s) => <option key={s}>{s}</option>)}
+                    {(j.status === "Offer Accepted" && !statuses.includes(j.status)) ? <option value="Offer Accepted">Accepted Offer</option> : null}
+                    {(j.status === "Offer Declined" && !statuses.includes(j.status)) ? <option value="Offer Declined">Declined Offer</option> : null}
+                    {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </td>
                 <td className="p-2"><input form={`job-${j.id}`} type="date" name="dateApplied" defaultValue={j.date_applied ?? ""} className="rounded border px-2 py-2" /></td>
