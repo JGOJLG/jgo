@@ -28,6 +28,7 @@ export type EwcEntry = {
 
 type TextField = "client_name" | "service_date" | "service_type" | "date_paid" | "notes";
 type MoneyField = "amount_owed" | "amount_paid" | "stripe_fee";
+type FinanceView = "week" | "month" | "year" | "total";
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", {
@@ -45,6 +46,41 @@ function parseMoney(value: string) {
 
 function getOutstanding(row: EwcEntry) {
   return Math.max(Number(row.amount_owed || 0) - Number(row.amount_paid || 0), 0);
+}
+
+function parseLocalDate(value: string | null | undefined) {
+  if (!value) return null;
+  const dateOnly = value.slice(0, 10);
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function getFinanceRange(view: FinanceView, today: Date) {
+  const end = startOfDay(today);
+  if (view === "total") return { start: null, end };
+
+  if (view === "year") {
+    return { start: new Date(end.getFullYear(), 0, 1), end };
+  }
+
+  if (view === "month") {
+    return { start: new Date(end.getFullYear(), end.getMonth(), 1), end };
+  }
+
+  const day = end.getDay();
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+  const start = new Date(end);
+  start.setDate(end.getDate() - daysSinceMonday);
+  return { start, end };
+}
+
+function formatRangeDate(date: Date) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
 }
 
 function MoneyInput({ value, onCommit }: { value: number; onCommit: (value: number) => void }) {
@@ -72,6 +108,7 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
   const [entries, setEntries] = useState(initialEntries);
   const [dragged, setDragged] = useState<{ section: EwcEntryType; id: number } | null>(null);
   const [savedMessage, setSavedMessage] = useState("");
+  const [financeView, setFinanceView] = useState<FinanceView>("week");
   const [isPending, startTransition] = useTransition();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -82,11 +119,35 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
   const linkedin = useMemo(() => bySection("LinkedIn"), [entries]);
   const other = useMemo(() => bySection("Other"), [entries]);
 
-  const totalMade = useMemo(() => {
-    const grossReceived = entries.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
-    const stripeFees = entries.reduce((sum, row) => sum + Number(row.stripe_fee || 0), 0);
-    return grossReceived - stripeFees;
-  }, [entries]);
+  const financeSummary = useMemo(() => {
+    const today = new Date();
+    const { start, end } = getFinanceRange(financeView, today);
+
+    const periodEntries = entries.filter((row) => {
+      if (financeView === "total") return true;
+      const reportingDate = parseLocalDate(row.date_paid ?? row.service_date ?? row.created_at);
+      if (!reportingDate || !start) return false;
+      return reportingDate >= start && reportingDate <= end;
+    });
+
+    const paidEntries = periodEntries.filter((row) => Number(row.amount_paid || 0) > 0);
+    const grossReceived = paidEntries.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
+    const stripeFees = paidEntries.reduce((sum, row) => sum + Number(row.stripe_fee || 0), 0);
+    const netMade = grossReceived - stripeFees;
+
+    let rangeLabel = "All time";
+    if (financeView === "week" && start) rangeLabel = `${formatRangeDate(start)} – ${formatRangeDate(end)}`;
+    if (financeView === "month") rangeLabel = `${formatRangeDate(new Date(end.getFullYear(), end.getMonth(), 1))} – ${formatRangeDate(end)}`;
+    if (financeView === "year") rangeLabel = `${end.getFullYear()} year to date`;
+
+    return {
+      netMade,
+      grossReceived,
+      stripeFees,
+      paidCount: paidEntries.length,
+      rangeLabel,
+    };
+  }, [entries, financeView]);
 
   function flashSaved(message = "Saved to Supabase") {
     setSavedMessage(message);
@@ -313,9 +374,46 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
       </header>
 
       <div className="space-y-7 p-6 lg:p-10">
-        <section className="max-w-sm rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7f8d82]">Total Made</p>
-          <p className="mt-2 text-3xl font-bold text-[#56754f]">{money(totalMade)}</p>
+        <section className="max-w-xl rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7f8d82]">Finance</p>
+              <p className="mt-2 text-3xl font-bold text-[#56754f]">{money(financeSummary.netMade)}</p>
+              <p className="mt-1 text-xs font-medium text-[#879188]">Net made · {financeSummary.rangeLabel}</p>
+            </div>
+
+            <div className="inline-flex w-fit rounded-xl border border-[#dfe6db] bg-[#f7f8f3] p-1">
+              {(["week", "month", "year", "total"] as FinanceView[]).map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  onClick={() => setFinanceView(view)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition ${
+                    financeView === view
+                      ? "bg-white text-[#4f6b49] shadow-sm"
+                      : "text-[#7b877e] hover:text-[#4f6b49]"
+                  }`}
+                >
+                  {view}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-3 divide-x divide-[#e7ebe4] border-t border-[#e7ebe4] pt-4">
+            <div className="pr-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#8b958d]">Gross</p>
+              <p className="mt-1 text-sm font-bold text-[#35443a]">{money(financeSummary.grossReceived)}</p>
+            </div>
+            <div className="px-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#8b958d]">Stripe Fees</p>
+              <p className="mt-1 text-sm font-bold text-[#35443a]">{money(financeSummary.stripeFees)}</p>
+            </div>
+            <div className="pl-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#8b958d]">Paid Entries</p>
+              <p className="mt-1 text-sm font-bold text-[#35443a]">{financeSummary.paidCount}</p>
+            </div>
+          </div>
         </section>
 
         <div className="flex items-center justify-between rounded-xl border border-[#dfe6db] bg-white px-4 py-3 text-xs text-[#708075]">
