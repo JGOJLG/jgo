@@ -108,7 +108,7 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
   const [entries, setEntries] = useState(initialEntries);
   const [dragged, setDragged] = useState<{ section: EwcEntryType; id: number } | null>(null);
   const [savedMessage, setSavedMessage] = useState("");
-  const [financeView, setFinanceView] = useState<FinanceView>("week");
+  const [financeView, setFinanceView] = useState<FinanceView>("total");
   const [isPending, startTransition] = useTransition();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -374,21 +374,21 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
       </header>
 
       <div className="space-y-7 p-6 lg:p-10">
-        <section className="max-w-xl rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm">
+        <section className="w-full rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm lg:p-7">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7f8d82]">Finance</p>
-              <p className="mt-2 text-3xl font-bold text-[#56754f]">{money(financeSummary.netMade)}</p>
+              <p className="mt-2 text-4xl font-bold text-[#56754f]">{money(financeSummary.netMade)}</p>
               <p className="mt-1 text-xs font-medium text-[#879188]">Net made · {financeSummary.rangeLabel}</p>
             </div>
 
             <div className="inline-flex w-fit rounded-xl border border-[#dfe6db] bg-[#f7f8f3] p-1">
-              {(["week", "month", "year", "total"] as FinanceView[]).map((view) => (
+              {(["total", "week", "month", "year"] as FinanceView[]).map((view) => (
                 <button
                   key={view}
                   type="button"
                   onClick={() => setFinanceView(view)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition ${
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold capitalize transition ${
                     financeView === view
                       ? "bg-white text-[#4f6b49] shadow-sm"
                       : "text-[#7b877e] hover:text-[#4f6b49]"
@@ -400,18 +400,18 @@ export default function EwcTracker({ initialEntries }: { initialEntries: EwcEntr
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-3 divide-x divide-[#e7ebe4] border-t border-[#e7ebe4] pt-4">
-            <div className="pr-4">
+          <div className="mt-6 grid grid-cols-3 divide-x divide-[#e7ebe4] border-t border-[#e7ebe4] pt-5">
+            <div className="pr-5">
               <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#8b958d]">Gross</p>
-              <p className="mt-1 text-sm font-bold text-[#35443a]">{money(financeSummary.grossReceived)}</p>
+              <p className="mt-1 text-base font-bold text-[#35443a]">{money(financeSummary.grossReceived)}</p>
             </div>
-            <div className="px-4">
+            <div className="px-5">
               <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#8b958d]">Stripe Fees</p>
-              <p className="mt-1 text-sm font-bold text-[#35443a]">{money(financeSummary.stripeFees)}</p>
+              <p className="mt-1 text-base font-bold text-[#35443a]">{money(financeSummary.stripeFees)}</p>
             </div>
-            <div className="pl-4">
+            <div className="pl-5">
               <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#8b958d]">Paid Entries</p>
-              <p className="mt-1 text-sm font-bold text-[#35443a]">{financeSummary.paidCount}</p>
+              <p className="mt-1 text-base font-bold text-[#35443a]">{financeSummary.paidCount}</p>
             </div>
           </div>
         </section>
