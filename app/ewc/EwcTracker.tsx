@@ -59,7 +59,7 @@ export default function EwcTracker({ initialEntries }: { initialEntries:EwcEntry
   const dateClass="h-full w-full min-w-0 border-0 bg-transparent px-1.5 py-2 text-[11px] text-[#243128] outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_rgba(100,125,91,0.24)]";
 
   function table(section:EwcEntryType,rows:EwcEntry[]){const title=section==="Session"?"Sessions":section;return <section className="relative min-w-0 max-w-full rounded-2xl border border-[#dfe6db] bg-white shadow-sm">
-    <div className="sticky top-0 z-30 flex items-center justify-between rounded-t-2xl border-b border-[#dfe6db] bg-[#fbfaf6]/95 px-5 py-4 shadow-[0_5px_14px_rgba(67,78,69,0.08)] backdrop-blur-md"><div><h2 className="text-xl font-bold text-[#243128]">{title}</h2><p className="mt-1 text-sm text-[#708075]">Newest entries stay at the top. All edits auto-save.</p></div><button type="button" onClick={()=>addRow(section)} disabled={isPending} className="shrink-0 rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">+ Add {section==="LinkedIn"?"LinkedIn Client":section}</button></div>
+    <div className="sticky top-0 z-40 flex items-center justify-between rounded-t-2xl border-b border-[#dfe6db] bg-[#fbfaf6] px-5 py-4 shadow-[0_5px_14px_rgba(67,78,69,0.10)]"><div><h2 className="text-xl font-bold text-[#243128]">{title}</h2><p className="mt-1 text-sm text-[#708075]">Newest entries stay at the top. All edits auto-save.</p></div><button type="button" onClick={()=>addRow(section)} disabled={isPending} className="shrink-0 rounded-xl bg-[#647d5b] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">+ Add {section==="LinkedIn"?"LinkedIn Client":section}</button></div>
     <div className="w-full max-w-full overflow-x-auto overscroll-x-contain touch-pan-x"><div className="min-w-[1320px]">
       <div className="grid grid-cols-[44px_190px_92px_135px_105px_105px_110px_110px_110px_1fr_38px] border-b border-[#dfe6db] bg-[#eef2ea] text-[9px] font-bold uppercase tracking-[0.08em] text-[#647066]">{["#","Client","Date","Service","Owed","Paid","Received","Deduction","Final Earned","Notes",""].map((x,i)=><div key={`${x}-${i}`} className="border-r border-[#dfe6db] px-2 py-2.5 text-center">{x}</div>)}</div>
       {rows.length===0?<div className="p-10 text-center text-sm text-[#708075]">No entries yet.</div>:null}
@@ -79,7 +79,7 @@ export default function EwcTracker({ initialEntries }: { initialEntries:EwcEntry
     </div></div>
   </section>}
 
-  return <section className="min-w-0 flex-1 overflow-x-hidden bg-[#f7f8f3] text-[#243128]">
+  return <section className="min-w-0 flex-1 bg-[#f7f8f3] text-[#243128]">
     <header className="border-b border-[#dfe6db] bg-[#fbfaf6] px-6 py-7 lg:px-10"><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7f9975]">Emily Weiss Consulting</p><h1 className="mt-2 text-3xl font-bold tracking-tight">EWC</h1></header>
     <div className="min-w-0 max-w-full space-y-7 p-4 sm:p-6 lg:p-10">
       <section className="w-full rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm lg:p-7">
