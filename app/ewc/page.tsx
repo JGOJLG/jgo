@@ -10,7 +10,7 @@ export default async function EwcPage() {
 
   const { data, error } = await supabase
     .from("ewc_entries")
-    .select("*")
+    .select("id,section,client_name,service_date,service_type,amount_owed,amount_paid,amount_received,stripe_fee,date_paid,notes,moved,sort_order,created_at,updated_at")
     .or("moved.eq.false,moved.is.null")
     .order("section", { ascending: true })
     .order("sort_order", { ascending: true })
@@ -20,13 +20,9 @@ export default async function EwcPage() {
     return (
       <section className="min-w-0 flex-1 bg-[#f7f8f3] p-6 text-[#243128] lg:p-10">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-          <h1 className="text-xl font-bold text-red-700">
-            EWC tracker could not be loaded
-          </h1>
+          <h1 className="text-xl font-bold text-red-700">EWC tracker could not be loaded</h1>
           <p className="mt-2 text-sm text-red-600">{error.message}</p>
-          <p className="mt-3 text-sm text-red-600">
-            Make sure the EWC Supabase table has been created.
-          </p>
+          <p className="mt-3 text-sm text-red-600">Make sure the EWC Supabase table has been created.</p>
         </div>
       </section>
     );
