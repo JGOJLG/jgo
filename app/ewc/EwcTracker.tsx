@@ -16,6 +16,7 @@ function money(value: number) { return new Intl.NumberFormat("en-US", { style: "
 function parseMoney(value: string) { const n = Number(value.replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; }
 function received(row: EwcEntry) { return Number(row.amount_received ?? row.amount_paid ?? 0); }
 function deduction(row: EwcEntry) { return Math.max(Number(row.amount_paid || 0) - received(row), 0); }
+function isOutstanding(row: EwcEntry) { return Number(row.amount_owed || 0) > 0 && received(row) <= 0; }
 function parseLocalDate(value?: string | null) { if (!value) return null; const [y,m,d] = value.slice(0,10).split("-").map(Number); return y && m && d ? new Date(y,m-1,d) : null; }
 function startOfDay(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 function getRange(view: FinanceView, today: Date) {
@@ -41,7 +42,7 @@ export default function EwcTracker({ initialEntries }: { initialEntries:EwcEntry
 
   const finance=useMemo(()=>{
     const {start,end}=getRange(financeView,new Date()); const rows=entries.filter(r=>{if(financeView==="total")return true; const d=parseLocalDate(r.date_paid??r.service_date??r.created_at); return !!d&&!!start&&d>=start&&d<=end;});
-    const paidRows=rows.filter(r=>Number(r.amount_paid||0)>0); const owed=rows.reduce((s,r)=>s+Number(r.amount_owed||0),0); const paid=rows.reduce((s,r)=>s+Number(r.amount_paid||0),0); const rec=rows.reduce((s,r)=>s+received(r),0); const ded=rows.reduce((s,r)=>s+deduction(r),0);
+    const paidRows=rows.filter(r=>Number(r.amount_paid||0)>0); const owed=rows.filter(isOutstanding).reduce((s,r)=>s+Number(r.amount_owed||0),0); const paid=rows.reduce((s,r)=>s+Number(r.amount_paid||0),0); const rec=rows.reduce((s,r)=>s+received(r),0); const ded=rows.reduce((s,r)=>s+deduction(r),0);
     let label="All time"; if(financeView==="week"&&start)label=`${fmtDate(start)} – ${fmtDate(end)}`; if(financeView==="month")label=`${fmtDate(new Date(end.getFullYear(),end.getMonth(),1))} – ${fmtDate(end)}`; if(financeView==="year")label=`${end.getFullYear()} year to date`;
     return {owed,paid,received:rec,deductions:ded,final:rec,paidCount:paidRows.length,label};
   },[entries,financeView]);
@@ -62,19 +63,19 @@ export default function EwcTracker({ initialEntries }: { initialEntries:EwcEntry
     <div className="overflow-x-auto"><div className="min-w-[1320px]">
       <div className="grid grid-cols-[44px_190px_92px_135px_105px_105px_110px_110px_110px_1fr_38px] border-b border-[#dfe6db] bg-[#eef2ea] text-[9px] font-bold uppercase tracking-[0.08em] text-[#647066]">{["#","Client","Date","Service","Owed","Paid","Received","Deduction","Final Earned","Notes",""].map((x,i)=><div key={`${x}-${i}`} className="border-r border-[#dfe6db] px-2 py-2.5 text-center">{x}</div>)}</div>
       {rows.length===0?<div className="p-10 text-center text-sm text-[#708075]">No entries yet.</div>:null}
-      {rows.map((row,index)=><div key={row.id} onDragOver={e=>e.preventDefault()} onDrop={()=>reorder(section,row.id)} className={`group grid grid-cols-[44px_190px_92px_135px_105px_105px_110px_110px_110px_1fr_38px] border-b border-[#edf0ea] ${index%2?"bg-[#fcfdfb]":"bg-white"}`}>
+      {rows.map((row,index)=>{const outstanding=isOutstanding(row);return <div key={row.id} onDragOver={e=>e.preventDefault()} onDrop={()=>reorder(section,row.id)} className={`group grid grid-cols-[44px_190px_92px_135px_105px_105px_110px_110px_110px_1fr_38px] border-b ${outstanding?"border-[#ead8a6] bg-[#fff8df] shadow-[inset_4px_0_0_#d6a93b]":index%2?"border-[#edf0ea] bg-[#fcfdfb]":"border-[#edf0ea] bg-white"}`}>
         <button type="button" draggable onDragStart={()=>setDragged({section,id:row.id})} className="cursor-grab border-r border-[#edf0ea] text-[#a5aea6]">⋮⋮</button>
-        <input value={row.client_name} onChange={e=>updateLocal(row.id,"client_name",e.target.value)} onBlur={()=>persist(row)} placeholder="Client name" className={`${inputClass} border-r border-[#edf0ea]`}/>
+        <input value={row.client_name} onChange={e=>updateLocal(row.id,"client_name",e.target.value)} onBlur={()=>persist(row)} placeholder="Client name" className={`${inputClass} border-r border-[#edf0ea] ${outstanding?"font-semibold":""}`}/>
         <input type="date" value={row.service_date??""} onChange={e=>{updateLocal(row.id,"service_date",e.target.value);persist(row,{service_date:e.target.value});}} className={`${dateClass} border-r border-[#edf0ea]`}/>
         <input value={row.service_type} onChange={e=>updateLocal(row.id,"service_type",e.target.value)} onBlur={()=>persist(row)} placeholder="Service" className={`${inputClass} border-r border-[#edf0ea]`}/>
-        <MoneyInput value={Number(row.amount_owed||0)} onCommit={v=>{updateLocal(row.id,"amount_owed",v);persist(row,{amount_owed:v});}}/>
+        <div className={outstanding?"bg-[#fff0b8] font-bold text-[#7a5b00]":""}><MoneyInput value={Number(row.amount_owed||0)} onCommit={v=>{updateLocal(row.id,"amount_owed",v);persist(row,{amount_owed:v});}}/></div>
         <MoneyInput value={Number(row.amount_paid||0)} onCommit={v=>{updateLocal(row.id,"amount_paid",v);persist(row,{amount_paid:v});}}/>
         <MoneyInput value={received(row)} onCommit={v=>{updateLocal(row.id,"amount_received",v);persist(row,{amount_received:v});}}/>
         <div className="flex items-center justify-end border-r border-[#edf0ea] bg-[#fbf1ee] px-2.5 text-xs font-semibold text-[#9b6559]">{money(deduction(row))}</div>
         <div className="flex items-center justify-end border-r border-[#edf0ea] bg-[#edf5ee] px-2.5 text-xs font-bold text-[#4f755a]">{money(received(row))}</div>
         <input value={row.notes??""} onChange={e=>updateLocal(row.id,"notes",e.target.value)} onBlur={()=>persist(row)} placeholder="Notes" className={`${inputClass} border-r border-[#edf0ea]`}/>
         <div className="flex items-center justify-center"><button type="button" onClick={()=>archive(row)} className="flex h-6 w-6 items-center justify-center rounded-full text-sm font-medium text-[#a8aea8] hover:bg-[#f1f2ef] hover:text-[#7b847c]" title="Archive">×</button></div>
-      </div>)}
+      </div>})}
     </div></div>
   </section>}
 
@@ -84,10 +85,12 @@ export default function EwcTracker({ initialEntries }: { initialEntries:EwcEntry
       <section className="w-full rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm lg:p-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7f8d82]">Finance</p><p className="mt-2 text-4xl font-bold text-[#56754f]">{money(finance.final)}</p><p className="mt-1 text-xs font-medium text-[#879188]">Final earned · {finance.label}</p></div>
           <div className="inline-flex w-fit rounded-xl border border-[#dfe6db] bg-[#f7f8f3] p-1">{(["total","week","month","year"] as FinanceView[]).map(v=><button key={v} type="button" onClick={()=>setFinanceView(v)} className={`rounded-lg px-4 py-2 text-sm font-semibold capitalize transition ${financeView===v?"bg-white text-[#4f6b49] shadow-sm":"text-[#7b877e] hover:text-[#4f6b49]"}`}>{v}</button>)}</div></div>
-        <div className="mt-6 grid grid-cols-2 gap-y-4 border-t border-[#e7ebe4] pt-5 sm:grid-cols-5 sm:divide-x sm:divide-[#e7ebe4]">{[["Owed",finance.owed],["Paid",finance.paid],["Received",finance.received],["Deductions",finance.deductions],["Paid Entries",finance.paidCount]].map(([l,v],i)=><div key={String(l)} className={i?"sm:px-4":"sm:pr-4"}><p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#8b958d]">{l}</p><p className="mt-1 text-base font-bold text-[#35443a]">{l==="Paid Entries"?v:money(Number(v))}</p></div>)}</div>
+        <div className="mt-6 grid grid-cols-2 gap-y-4 border-t border-[#e7ebe4] pt-5 sm:grid-cols-5 sm:divide-x sm:divide-[#e7ebe4]">{[["Owed",finance.owed],["Paid",finance.paid],["Received",finance.received],["Deductions",finance.deductions],["Paid Entries",finance.paidCount]].map(([l,v],i)=><div key={String(l)} className={i?"sm:px-4":"sm:pr-4"}><p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#8b958d]">{l}</p><p className={`mt-1 text-base font-bold ${l==="Owed"&&Number(v)>0?"text-[#9a6a00]":"text-[#35443a]"}`}>{l==="Paid Entries"?v:money(Number(v))}</p></div>)}</div>
       </section>
-      <div className="flex items-center justify-between rounded-xl border border-[#dfe6db] bg-white px-4 py-3 text-xs text-[#708075]"><span>Everything auto-saves to Supabase. Archived rows stay safely stored in JGO OS.</span><span className="font-semibold text-[#647d5b]">{isPending?"Saving...":savedMessage||"Auto-saved"}</span></div>
-      {table("Session",sessions)}{table("LinkedIn",linkedin)}{table("Other",other)}
+      <div className="flex items-center justify-between rounded-xl border border-[#dfe6db] bg-white px-4 py-3 text-xs text-[#708075]"><span>Everything auto-saves to Supabase. Archived rows stay safely stored in JGO OS.</span><span className="font-semibold text-[#647d5b]">{savedMessage||"Ready"}</span></div>
+      {table("Session",sessions)}
+      {table("LinkedIn",linkedin)}
+      {table("Other",other)}
     </div>
   </section>;
 }
