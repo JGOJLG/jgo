@@ -257,7 +257,7 @@ export default function JgoClientsTracker({ initialRows }: { initialRows: JgoCli
           {rows.length === 0 ? <div className="p-8 text-center text-sm text-[#708075]">No client services yet.</div> : null}
           <div className="space-y-3">
             {sortedRows.map((row) => (
-              <article key={row.service_id} className="relative rounded-2xl border border-[#e1e7de] bg-white p-4 shadow-sm">
+              <article key={row.service_id} className={`relative rounded-2xl border p-4 shadow-sm ${outstanding(row) > 0 ? "border-[#ead4d0] bg-[#fff8f6]" : "border-[#e1e7de] bg-white"}`}>
                 <button type="button" onClick={() => archiveRow(row)} className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-lg font-medium text-[#a8aea8] active:bg-[#f1f2ef]" aria-label={`Archive ${row.client_name}`} title="Archive">×</button>
                 <div className="pr-10">
                   <input value={row.client_name} onChange={(event) => updateLocal(row.service_id, "client_name", event.target.value)} onBlur={() => save(row)} className="w-full border-0 bg-transparent p-0 text-lg font-bold text-[#243128] outline-none" aria-label="Client name" />
@@ -286,7 +286,7 @@ export default function JgoClientsTracker({ initialRows }: { initialRows: JgoCli
             </div>
             {rows.length === 0 ? <div className="p-10 text-center text-sm text-[#708075]">No client services yet.</div> : null}
             {sortedRows.map((row, index) => (
-              <div key={row.service_id} className={`grid grid-cols-[190px_92px_175px_105px_105px_115px_105px_105px_70px_38px] border-b border-[#edf0ea] ${index % 2 ? "bg-[#fcfdfb]" : "bg-white"}`}>
+              <div key={row.service_id} className={`grid grid-cols-[190px_92px_175px_105px_105px_115px_105px_105px_70px_38px] border-b border-[#edf0ea] ${outstanding(row) > 0 ? "bg-[#fff8f6]" : index % 2 ? "bg-[#fcfdfb]" : "bg-white"}`}>
                 <input value={row.client_name} onChange={(event) => updateLocal(row.service_id, "client_name", event.target.value)} onBlur={() => save(row)} className={`${inputClass} border-r border-[#edf0ea]`} />
                 <input type="date" value={row.service_date || ""} onChange={(event) => { updateLocal(row.service_id, "service_date", event.target.value); save(row, { service_date: event.target.value }); }} className={`${dateInputClass} border-r border-[#edf0ea]`} />
                 <input value={row.service} onChange={(event) => updateLocal(row.service_id, "service", event.target.value)} onBlur={() => save(row)} className={`${inputClass} border-r border-[#edf0ea]`} />
