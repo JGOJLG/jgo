@@ -13,5 +13,6 @@ export const config = {
     "/tasks/:path*",
     "/revenue/:path*",
     "/settings/:path*",
+    "/jgojob/:path*",
   ],
 };
