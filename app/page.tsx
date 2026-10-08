@@ -801,6 +801,7 @@ export default async function Home() {
 
   return (
     <section className="jgo-dashboard relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(217,229,210,0.95),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(241,226,209,0.8),_transparent_30%),linear-gradient(180deg,_#f7f8f3_0%,_#f3f5ef_100%)] before:pointer-events-none before:absolute before:left-[-120px] before:top-[220px] before:h-80 before:w-80 before:rounded-full before:bg-white/45 before:blur-3xl after:pointer-events-none after:absolute after:right-[-140px] after:top-[520px] after:h-96 after:w-96 after:rounded-full after:bg-[#dfead9]/55 after:blur-3xl">
+      <div className="dashboard-zoomed-out">
       <DashboardHeader />
 
       <div className="relative z-20 min-w-0 px-4 pt-5 sm:px-6 lg:px-10">
@@ -1464,6 +1465,7 @@ export default async function Home() {
             </div>
           </div>
         </section>
+      </div>
       </div>
     </section>
   );
