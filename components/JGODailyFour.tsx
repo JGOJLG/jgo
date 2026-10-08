@@ -104,6 +104,5 @@ export default function JGODailyFour() {
         })}</div>
       </div>)}
     </div>
-    <p className="mt-3 text-xs text-[#708075]">Daily comment checks reset each day. Other checkmarks reset Monday. Survival Guide follow-ups are only needed when someone signs up; they do not count against weekly progress. Substack runs every other Friday.</p>
   </section>;
 }
