@@ -95,14 +95,15 @@ export default async function RevenuePage() {
   if (!unlocked) redirect("/revenue/unlock");
 
   const supabase = await createClient();
-  const [clientsResult, servicesResult] = await Promise.all([
+  const [clientsResult, servicesResult, ewcResult] = await Promise.all([
     supabase.from("clients").select("*").order("id", { ascending: false }),
     supabase.from("client_services").select("*").is("deleted_at", null).order("date_added", { ascending: false }).order("id", { ascending: false }),
+    supabase.from("ewc_entries").select("amount_owed,amount_paid,amount_received,moved").or("moved.eq.false,moved.is.null"),
   ]);
 
   const clients = (clientsResult.data ?? []) as Client[];
   const services = (servicesResult.data ?? []) as ClientService[];
-  const databaseErrors = { clients: clientsResult.error, clientServices: servicesResult.error };
+  const databaseErrors = { clients: clientsResult.error, clientServices: servicesResult.error, ewc: ewcResult.error };
   const today = getTodayDateString();
   const monthStart = getMonthStartDateString();
   const receivedServices = services.filter((service) => actualReceived(service) > 0);
@@ -115,12 +116,14 @@ export default async function RevenuePage() {
     })
     .reduce((total, service) => total + actualReceived(service), 0);
 
-  const outstandingServices = services.filter((service) => {
-    if (amountOutstanding(service) <= 0) return false;
-    const paymentStatus = normalize(service.payment_status);
-    return paymentStatus === "invoice sent" || paymentStatus === "pending" || paymentStatus === "partial" || paymentStatus === "open" || Boolean(service.scheduled_date);
-  });
-  const outstandingRevenue = outstandingServices.reduce((total, service) => total + amountOutstanding(service), 0);
+  const visibleClientIds = new Set(clients.filter(client => normalize(client.status) !== "archived").map(client => client.id));
+  const outstandingServices = services.filter(service => service.client_id && visibleClientIds.has(service.client_id) && amountOutstanding(service) > 0);
+  const jgoOutstanding = outstandingServices.reduce((total, service) => total + amountOutstanding(service), 0);
+  const ewcOutstanding = (ewcResult.data ?? []).reduce((total, row) => {
+    const received = Number(row.amount_received ?? row.amount_paid ?? 0);
+    return total + (Number(row.amount_owed || 0) > 0 && received <= 0 ? Number(row.amount_owed) : 0);
+  }, 0);
+  const outstandingRevenue = jgoOutstanding + ewcOutstanding;
   const activeClients = clients.filter((client) => !isCompleted(client.status));
   const completedClients = clients.filter((client) => isCompleted(client.status));
   const clientNameById = new Map(clients.map((client) => [client.id, client.name || "Unnamed Client"]));
