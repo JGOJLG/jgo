@@ -59,6 +59,7 @@ type ClientService = {
   date_added: string | null;
   deleted_at?: string | null;
   amount_received?: number | null;
+  payment_date?: string | null;
   scheduled_date: string | null;
   due_date: string | null;
   completed_date: string | null;
@@ -362,7 +363,6 @@ export default async function Home() {
         .from("clients")
         .select("*")
         .order("id", { ascending: false })
-        .limit(150)
     ),
     safeQuery<IntakeCall>(
       "intake calls",
@@ -385,8 +385,8 @@ export default async function Home() {
       supabase
         .from("client_services")
         .select("*")
+        .is("deleted_at", null)
         .order("date_added", { ascending: false })
-        .limit(250)
     ),
     safeQuery<Task>(
       "tasks",
@@ -479,30 +479,27 @@ export default async function Home() {
   const completedClients = clients.filter((client) =>
     isCompleted(client.status)
   );
-  const paidServices = services.filter((service) =>
-    isPaid(service.payment_status)
-  );
+  // Match the Revenue page: recognize money received, not the full service price.
+  const receivedAmount = (service: ClientService) =>
+    service.amount_received !== null && service.amount_received !== undefined
+      ? Number(service.amount_received || 0)
+      : isPaid(service.payment_status) ? Number(service.price || 0) : 0;
 
-  // Revenue now comes from client_services so a paid service counts
-  // whether it was added during Add New Client or Add New Service.
-  const totalRevenue = paidServices.reduce(
-    (total, service) => total + Number(service.price ?? 0),
-    0
+  const receivedServices = services.filter((service) => receivedAmount(service) > 0);
+  const totalRevenue = receivedServices.reduce(
+    (total, service) => total + receivedAmount(service), 0
   );
-
-  const revenueThisMonth = paidServices
-    .filter(
-      (service) =>
-        service.date_added &&
-        service.date_added >= monthStart &&
-        service.date_added <= today
-    )
-    .reduce((total, service) => total + Number(service.price ?? 0), 0);
+  const revenueThisMonth = receivedServices
+    .filter((service) => {
+      const paidDate = service.payment_date || service.date_added;
+      return Boolean(paidDate && paidDate >= monthStart && paidDate <= today);
+    })
+    .reduce((total, service) => total + receivedAmount(service), 0);
 
   // Mirror the two master client trackers rather than inferring debt from scheduled services.
   const jgoOutstanding = services
     .filter((service) => !service.deleted_at && service.client_id && clients.some((client) => client.id === service.client_id))
-    .reduce((total, service) => total + Math.max(Number(service.price || 0) - Number(service.amount_received || 0), 0), 0);
+    .reduce((total, service) => total + Math.max(Number(service.price || 0) - receivedAmount(service), 0), 0);
   const ewcOutstanding = ewcEntriesResult.data.reduce((total,entry) => {
     const received = Number(entry.amount_received ?? entry.amount_paid ?? 0);
     return total + (Number(entry.amount_owed || 0) > 0 && received <= 0 ? Number(entry.amount_owed) : 0);
