@@ -432,9 +432,9 @@ export default async function Home() {
         .order("id", { ascending: false })
         .limit(50)
     ),
-    safeQuery<{ amount_owed: number | null; amount_paid: number | null; amount_received: number | null; moved: boolean | null }>(
+    safeQuery<{ amount_owed: number | null; amount_paid: number | null; amount_received: number | null; date_paid: string | null; moved: boolean | null }>(
       "EWC client balances",
-      supabase.from("ewc_entries").select("amount_owed,amount_paid,amount_received,moved").or("moved.eq.false,moved.is.null")
+      supabase.from("ewc_entries").select("amount_owed,amount_paid,amount_received,date_paid,moved").or("moved.eq.false,moved.is.null")
     ),
   ]);
 
@@ -486,15 +486,26 @@ export default async function Home() {
       : isPaid(service.payment_status) ? Number(service.price || 0) : 0;
 
   const receivedServices = services.filter((service) => receivedAmount(service) > 0);
-  const totalRevenue = receivedServices.reduce(
-    (total, service) => total + receivedAmount(service), 0
+  // The two master trackers are the sources of truth for dashboard revenue.
+  const jgoReceived = receivedServices.filter(
+    (service) => service.client_id && clients.some((client) => client.id === service.client_id)
   );
-  const revenueThisMonth = receivedServices
-    .filter((service) => {
-      const paidDate = service.payment_date || service.date_added;
-      return Boolean(paidDate && paidDate >= monthStart && paidDate <= today);
-    })
-    .reduce((total, service) => total + receivedAmount(service), 0);
+  const ewcReceivedAmount = (entry: { amount_received: number | null; amount_paid: number | null }) =>
+    Number(entry.amount_received ?? entry.amount_paid ?? 0);
+  const ewcReceived = ewcEntriesResult.data.filter((entry) => ewcReceivedAmount(entry) > 0);
+  const totalRevenue =
+    jgoReceived.reduce((total, service) => total + receivedAmount(service), 0) +
+    ewcReceived.reduce((total, entry) => total + ewcReceivedAmount(entry), 0);
+  const revenueThisMonth =
+    jgoReceived
+      .filter((service) => {
+        const paidDate = service.payment_date || service.date_added;
+        return Boolean(paidDate && paidDate >= monthStart && paidDate <= today);
+      })
+      .reduce((total, service) => total + receivedAmount(service), 0) +
+    ewcReceived
+      .filter((entry) => Boolean(entry.date_paid && entry.date_paid >= monthStart && entry.date_paid <= today))
+      .reduce((total, entry) => total + ewcReceivedAmount(entry), 0);
 
   // Mirror the two master client trackers rather than inferring debt from scheduled services.
   const jgoOutstanding = services
