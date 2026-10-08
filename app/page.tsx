@@ -822,8 +822,8 @@ export default async function Home() {
           <div className="pointer-events-none absolute right-[-70px] top-[-80px] h-72 w-72 rounded-full bg-[#eadff2]/70 blur-3xl" />
           <div className="pointer-events-none absolute bottom-[-110px] left-[38%] h-64 w-64 rounded-full bg-[#f3e4cf]/70 blur-3xl" />
 
-          <div className="relative grid gap-3">
-            <div className="grid gap-3">
+          <div className="relative grid gap-3 lg:grid-cols-2">
+            <div className="grid min-w-0 gap-3">
               <section className="relative overflow-hidden rounded-[28px] border border-[#d9e8f7]/90 bg-[linear-gradient(145deg,rgba(242,248,255,0.96),rgba(250,253,255,0.88),rgba(233,243,253,0.92))] p-6 shadow-[0_22px_65px_rgba(86,125,162,0.15)] backdrop-blur-2xl lg:p-7">
                 <div className="pointer-events-none absolute -left-16 -top-20 h-52 w-52 rounded-full bg-[#d8ebfb]/70 blur-3xl" />
                 <div className="pointer-events-none absolute -bottom-24 right-[-40px] h-56 w-56 rounded-full bg-white/80 blur-3xl" />
