@@ -73,3 +73,15 @@ a {
   background: var(--sage-200);
   color: var(--sage-900);
 }
+/* Keep dashboard content inside narrow mobile viewports. */
+@media (max-width: 767px) {
+  html, body { width: 100%; max-width: 100%; overflow-x: clip; }
+  main { min-width: 0; max-width: 100%; }
+  main :where(section, article, form, .grid, .flex) { min-width: 0; }
+  main :where(h1, h2, h3, p, a, button, label) { overflow-wrap: anywhere; }
+  main :where(img, svg, canvas) { max-width: 100%; }
+  main :where(input, select, textarea) { max-width: 100%; min-width: 0; }
+  main :where(table) { max-width: 100%; }
+  main :where(.overflow-x-auto) { -webkit-overflow-scrolling: touch; }
+  main :where(.grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6) { min-width: 0; }
+}
