@@ -115,7 +115,7 @@ if (!s.includes(oldLogic)) {
 s = s.replace(oldLogic, newLogic);
 
 const startMarker = '          <div className="rounded-[28px] border border-white/70 bg-[#eaf0e5]/72';
-const endMarker = '        </section>\n\n        <Link\n          href="/revenue/unlock"';
+const endMarker = '        </section>\n\n        <DashboardContentIdeas';
 const start = s.indexOf(startMarker);
 const end = s.indexOf(endMarker, start);
 
