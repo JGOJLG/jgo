@@ -101,6 +101,7 @@ a {
 @media (min-width: 1024px) {
   .jgo-dashboard .dashboard-zoomed-out {
     zoom: 0.8;
-    width: 125%;
+    width: 100%;
+    max-width: 100%;
   }
 }
