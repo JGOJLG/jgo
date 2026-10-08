@@ -822,15 +822,7 @@ export default async function Home() {
           <div className="pointer-events-none absolute right-[-70px] top-[-80px] h-72 w-72 rounded-full bg-[#eadff2]/70 blur-3xl" />
           <div className="pointer-events-none absolute bottom-[-110px] left-[38%] h-64 w-64 rounded-full bg-[#f3e4cf]/70 blur-3xl" />
 
-          <div className="relative grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
-            <DashboardContentIdeas
-              initialIdeas={contentIdeas.map((idea) => ({
-                id: idea.id,
-                title: idea.title,
-                content_type: idea.content_type,
-              }))}
-            />
-
+          <div className="relative grid gap-3">
             <div className="grid gap-3">
               <section className="relative overflow-hidden rounded-[28px] border border-[#d9e8f7]/90 bg-[linear-gradient(145deg,rgba(242,248,255,0.96),rgba(250,253,255,0.88),rgba(233,243,253,0.92))] p-6 shadow-[0_22px_65px_rgba(86,125,162,0.15)] backdrop-blur-2xl lg:p-7">
                 <div className="pointer-events-none absolute -left-16 -top-20 h-52 w-52 rounded-full bg-[#d8ebfb]/70 blur-3xl" />
@@ -1195,6 +1187,14 @@ export default async function Home() {
             )}
           </div>
         </section>
+
+        <DashboardContentIdeas
+          initialIdeas={contentIdeas.map((idea) => ({
+            id: idea.id,
+            title: idea.title,
+            content_type: idea.content_type,
+          }))}
+        />
 
         <Link
           href="/revenue/unlock"
