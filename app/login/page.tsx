@@ -1,4 +1,5 @@
 import { login } from "./actions";
+import LoginSubmitButton from "@/components/LoginSubmitButton";
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -13,8 +14,8 @@ export default async function LoginPage({
   const error = params.error;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f7f8f3] p-8">
-      <div className="w-full max-w-md rounded-3xl border border-[#dfe6db] bg-white p-10 shadow-xl">
+    <main className="flex min-h-screen items-center justify-center bg-[#f7f8f3] px-4 py-6 sm:p-8">
+      <div className="w-full max-w-md rounded-3xl border border-[#dfe6db] bg-white p-6 shadow-xl sm:p-10">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#7f9975]">
           JGO Hire
         </p>
@@ -70,12 +71,7 @@ export default async function LoginPage({
             </div>
           ) : null}
 
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-[#647d5b] py-3 font-semibold text-white hover:bg-[#4d6247]"
-          >
-            Sign In
-          </button>
+          <LoginSubmitButton />
         </form>
       </div>
     </main>
