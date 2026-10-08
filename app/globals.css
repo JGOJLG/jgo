@@ -96,3 +96,11 @@ a {
   .jgo-dashboard :where(.rounded-\\[30px\\], .rounded-\\[28px\\]) { padding: 16px; }
   .jgo-dashboard :where(.overflow-x-auto) { max-width: 100%; overflow-x: auto; }
 }
+
+/* Dashboard-only overview scale: fit more content above the fold on desktop. */
+@media (min-width: 1024px) {
+  .jgo-dashboard .dashboard-zoomed-out {
+    zoom: 0.8;
+    width: 125%;
+  }
+}
