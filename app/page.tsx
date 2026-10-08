@@ -799,14 +799,14 @@ export default async function Home() {
   ];
 
   return (
-    <section className="relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(217,229,210,0.95),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(241,226,209,0.8),_transparent_30%),linear-gradient(180deg,_#f7f8f3_0%,_#f3f5ef_100%)] before:pointer-events-none before:absolute before:left-[-120px] before:top-[220px] before:h-80 before:w-80 before:rounded-full before:bg-white/45 before:blur-3xl after:pointer-events-none after:absolute after:right-[-140px] after:top-[520px] after:h-96 after:w-96 after:rounded-full after:bg-[#dfead9]/55 after:blur-3xl">
+    <section className="jgo-dashboard relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(217,229,210,0.95),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(241,226,209,0.8),_transparent_30%),linear-gradient(180deg,_#f7f8f3_0%,_#f3f5ef_100%)] before:pointer-events-none before:absolute before:left-[-120px] before:top-[220px] before:h-80 before:w-80 before:rounded-full before:bg-white/45 before:blur-3xl after:pointer-events-none after:absolute after:right-[-140px] after:top-[520px] after:h-96 after:w-96 after:rounded-full after:bg-[#dfead9]/55 after:blur-3xl">
       <DashboardHeader />
 
-      <div className="relative z-20 px-6 pt-5 lg:px-10">
+      <div className="relative z-20 min-w-0 px-4 pt-5 sm:px-6 lg:px-10">
         <JGODailyFour />
       </div>
 
-      <div className="relative z-10 space-y-7 p-6 pt-5 lg:p-10 lg:pt-6">
+      <div className="relative z-10 min-w-0 space-y-5 p-4 pt-5 sm:p-6 lg:p-10 lg:pt-6">
         {Object.values(databaseErrors).some(Boolean) ? (
           <section className="rounded-2xl border border-red-300 bg-red-50 p-6">
             <h3 className="text-lg font-bold text-red-700">Dashboard Error</h3>
@@ -993,7 +993,7 @@ export default async function Home() {
 
 
 
-        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <div className="rounded-[30px] border border-white/70 bg-white/64 p-7 shadow-[0_26px_70px_rgba(71,91,66,0.14)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:bg-white/78 lg:p-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -1173,7 +1173,7 @@ export default async function Home() {
                     className="flex items-center justify-between gap-4 rounded-2xl border border-[#d8e1d3] bg-white px-4 py-4 transition hover:border-[#bdcdb7]"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-[#243128]">{person.name}</p>
+                      <p className="break-words whitespace-normal text-sm font-bold text-[#243128]">{person.name}</p>
                       <p className="mt-1 truncate text-xs text-[#708075]">{person.label}</p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
