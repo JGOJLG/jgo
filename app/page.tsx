@@ -817,18 +817,18 @@ export default async function Home() {
           </section>
         ) : null}
 
-        <section className="relative overflow-hidden rounded-[34px] border border-white/75 bg-white/48 p-3 shadow-[0_34px_100px_rgba(64,86,60,0.16)] backdrop-blur-3xl">
+        <section className="relative overflow-hidden rounded-[18px] border border-white/75 bg-white/48 p-2 shadow-[0_34px_100px_rgba(64,86,60,0.16)] backdrop-blur-3xl">
           <div className="pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full bg-[#dce9d5]/75 blur-3xl" />
           <div className="pointer-events-none absolute right-[-70px] top-[-80px] h-72 w-72 rounded-full bg-[#eadff2]/70 blur-3xl" />
           <div className="pointer-events-none absolute bottom-[-110px] left-[38%] h-64 w-64 rounded-full bg-[#f3e4cf]/70 blur-3xl" />
 
           <div className="relative grid gap-3 lg:grid-cols-2">
-              <section className="relative overflow-hidden rounded-[28px] border border-[#d9e8f7]/90 bg-[linear-gradient(145deg,rgba(242,248,255,0.96),rgba(250,253,255,0.88),rgba(233,243,253,0.92))] p-6 shadow-[0_22px_65px_rgba(86,125,162,0.15)] backdrop-blur-2xl lg:p-7">
+              <section className="relative overflow-hidden rounded-[20px] border border-[#d9e8f7]/90 bg-[linear-gradient(145deg,rgba(242,248,255,0.96),rgba(250,253,255,0.88),rgba(233,243,253,0.92))] p-4 shadow-[0_22px_65px_rgba(86,125,162,0.15)] backdrop-blur-2xl lg:p-5">
                 <div className="pointer-events-none absolute -left-16 -top-20 h-52 w-52 rounded-full bg-[#d8ebfb]/70 blur-3xl" />
                 <div className="pointer-events-none absolute -bottom-24 right-[-40px] h-56 w-56 rounded-full bg-white/80 blur-3xl" />
 
-                <div className="relative flex items-start gap-4">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#cfe1f2] bg-white/82 text-[#4f6f8f] shadow-[0_10px_28px_rgba(86,125,162,0.12)]">
+                <div className="relative flex items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-[#cfe1f2] bg-white/82 text-[#4f6f8f] shadow-[0_10px_28px_rgba(86,125,162,0.12)]">
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
@@ -850,7 +850,7 @@ export default async function Home() {
                       JGO Hire Recruiter Insight
                     </p>
 
-                    <h3 className="mt-3 text-2xl font-bold leading-tight tracking-[-0.02em] text-[#243128]">
+                    <h3 className="mt-3 text-xl font-bold leading-tight tracking-[-0.02em] text-[#243128]">
                       {recruiterTopic.title}
                     </h3>
 
@@ -869,14 +869,14 @@ export default async function Home() {
                 </div>
               </section>
 
-              <section className="relative overflow-hidden rounded-[28px] border border-white/80 bg-[linear-gradient(145deg,rgba(244,241,251,0.94),rgba(255,255,255,0.70))] p-6 shadow-[0_22px_65px_rgba(92,76,126,0.14)] backdrop-blur-2xl lg:p-7">
+              <section className="relative overflow-hidden rounded-[20px] border border-white/80 bg-[linear-gradient(145deg,rgba(244,241,251,0.94),rgba(255,255,255,0.70))] p-4 shadow-[0_22px_65px_rgba(92,76,126,0.14)] backdrop-blur-2xl lg:p-5">
                 <div className="pointer-events-none absolute right-[-50px] top-[-50px] h-48 w-48 rounded-full bg-[#e3d8f0]/75 blur-3xl" />
 
                 <div className="relative">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="flex items-center gap-3">
-                        <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/80 bg-white/70 text-lg shadow-sm">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-white/80 bg-white/70 text-lg shadow-sm">
                           ★
                         </span>
 
@@ -885,13 +885,13 @@ export default async function Home() {
                             Client Interviews
                           </p>
 
-                          <h3 className="mt-1 text-3xl font-bold tracking-tight text-[#2f2938]">
+                          <h3 className="mt-1 text-2xl font-bold tracking-tight text-[#2f2938]">
                             Wish Them Luck!
                           </h3>
                         </div>
                       </div>
 
-                      <p className="mt-3 text-sm text-[#756c7d]">
+                      <p className="mt-3 text-xs text-[#756c7d]">
                         Upcoming interviews for your clients.
                       </p>
                     </div>
@@ -905,17 +905,17 @@ export default async function Home() {
                   </div>
 
                   {upcomingClientInterviews.length === 0 ? (
-                    <div className="mt-7 rounded-[24px] border border-dashed border-[#d7d0e5] bg-white/55 p-8 text-center">
+                    <div className="mt-4 rounded-[18px] border border-dashed border-[#d7d0e5] bg-white/55 p-4 text-center">
                       <p className="text-sm font-semibold text-[#4d425c]">
                         No upcoming client interviews
                       </p>
 
-                      <p className="mt-2 text-sm text-[#7d7386]">
+                      <p className="mt-2 text-xs text-[#7d7386]">
                         Interviews added from a client profile will appear here.
                       </p>
                     </div>
                   ) : (
-                    <div className="mt-7 grid gap-3 md:grid-cols-2">
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
                       {upcomingClientInterviews.map((interview) => {
                         const clientName = interview.client_id
                           ? clientNameById.get(interview.client_id) || "Client"
@@ -984,14 +984,14 @@ export default async function Home() {
 
 
 
-        <section className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <div className="rounded-[30px] border border-white/70 bg-white/64 p-7 shadow-[0_26px_70px_rgba(71,91,66,0.14)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:bg-white/78 lg:p-8">
+        <section className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <div className="rounded-[22px] border border-white/70 bg-white/64 p-5 shadow-[0_26px_70px_rgba(71,91,66,0.14)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:bg-white/78 lg:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7f9975]">
                   Today
                 </p>
-                <h3 className="mt-2 text-2xl font-bold text-[#243128]">
+                <h3 className="mt-2 text-xl font-bold text-[#243128]">
                   Tasks
                 </h3>
                 <p className="mt-1 text-sm text-[#708075]">
@@ -1132,13 +1132,13 @@ export default async function Home() {
             )}
           </div>
 
-          <div className="rounded-[28px] border border-white/70 bg-[#eaf0e5]/72 p-6 shadow-[0_22px_60px_rgba(71,91,66,0.12)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:bg-[#eaf0e5]/88 lg:p-7">
-            <div className="flex items-start justify-between gap-4">
+          <div className="rounded-[20px] border border-white/70 bg-[#eaf0e5]/72 p-4 shadow-[0_22px_60px_rgba(71,91,66,0.12)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:bg-[#eaf0e5]/88 lg:p-5">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6f8966]">
                   Priority
                 </p>
-                <h3 className="mt-2 text-2xl font-bold text-[#243128]">
+                <h3 className="mt-2 text-xl font-bold text-[#243128]">
                   People to Reach Out To
                 </h3>
                 <p className="mt-1 text-sm text-[#637166]">
@@ -1161,7 +1161,7 @@ export default async function Home() {
                   <Link
                     key={person.key}
                     href={person.href}
-                    className="flex items-center justify-between gap-4 rounded-2xl border border-[#d8e1d3] bg-white px-4 py-4 transition hover:border-[#bdcdb7]"
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-[#d8e1d3] bg-white px-4 py-4 transition hover:border-[#bdcdb7]"
                   >
                     <div className="min-w-0">
                       <p className="break-words whitespace-normal text-sm font-bold text-[#243128]">{person.name}</p>
