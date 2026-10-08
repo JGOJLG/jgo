@@ -352,6 +352,7 @@ export default async function Home() {
     contentIdeasResult,
     calendarEventsResult,
     undatedInterviewsResult,
+    ewcEntriesResult,
   ] = await Promise.all([
     safeQuery<Client>(
       "clients",
@@ -429,6 +430,10 @@ export default async function Home() {
         .order("id", { ascending: false })
         .limit(50)
     ),
+    safeQuery<{ amount_owed: number | null; amount_paid: number | null; amount_received: number | null; moved: boolean | null }>(
+      "EWC client balances",
+      supabase.from("ewc_entries").select("amount_owed,amount_paid,amount_received,moved").or("moved.eq.false,moved.is.null")
+    ),
   ]);
 
   const allClients = clientsResult.data;
@@ -492,21 +497,15 @@ export default async function Home() {
     )
     .reduce((total, service) => total + Number(service.price ?? 0), 0);
 
-  const outstandingRevenue = services
-    .filter((service) => {
-      if (isPaid(service.payment_status)) {
-        return false;
-      }
-
-      const paymentStatus = normalize(service.payment_status);
-
-      return (
-        paymentStatus === "invoice sent" ||
-        paymentStatus === "pending" ||
-        Boolean(service.scheduled_date)
-      );
-    })
-    .reduce((total, service) => total + Number(service.price ?? 0), 0);
+  // Mirror the two master client trackers rather than inferring debt from scheduled services.
+  const jgoOutstanding = services
+    .filter((service) => !service.deleted_at && service.client_id && clients.some((client) => client.id === service.client_id))
+    .reduce((total, service) => total + Math.max(Number(service.price || 0) - Number(service.amount_received || 0), 0), 0);
+  const ewcOutstanding = ewcEntriesResult.data.reduce((total,entry) => {
+    const received = Number(entry.amount_received ?? entry.amount_paid ?? 0);
+    return total + (Number(entry.amount_owed || 0) > 0 && received <= 0 ? Number(entry.amount_owed) : 0);
+  }, 0);
+  const outstandingRevenue = jgoOutstanding + ewcOutstanding;
 
   const openTasks = tasks.filter(
     (task) =>
