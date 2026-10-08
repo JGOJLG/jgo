@@ -85,3 +85,14 @@ a {
   main :where(.overflow-x-auto) { -webkit-overflow-scrolling: touch; }
   main :where(.grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6) { min-width: 0; }
 }
+
+/* Dashboard-only phone layout: prevent nested grid min-content from widening the page. */
+@media (max-width: 639px) {
+  .jgo-dashboard { width: 100%; max-width: 100%; min-width: 0; }
+  .jgo-dashboard :where(.grid, .grid > *, section, article, .flex > *, .relative) { min-width: 0; max-width: 100%; }
+  .jgo-dashboard :where(h1, h2, h3, p, span, a) { overflow-wrap: anywhere; }
+  .jgo-dashboard :where(.truncate) { white-space: normal; text-overflow: clip; overflow: visible; }
+  .jgo-dashboard :where(.grid) { grid-template-columns: minmax(0, 1fr); }
+  .jgo-dashboard :where(.rounded-\\[30px\\], .rounded-\\[28px\\]) { padding: 16px; }
+  .jgo-dashboard :where(.overflow-x-auto) { max-width: 100%; overflow-x: auto; }
+}
