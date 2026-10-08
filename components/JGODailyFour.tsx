@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Habit = { id: string; label: string; schedule: string; days?: number[]; biweekly?: boolean };
+type Habit = { id: string; label: string; schedule: string; days?: number[]; biweekly?: boolean; daily?: boolean; optional?: boolean };
 const sections: { title: string; tasks: Habit[] }[] = [
   { title: "LINKEDIN", tasks: [
     { id: "linkedin-requests", label: "Send connection requests", schedule: "Monday", days: [1] },
@@ -14,8 +14,8 @@ const sections: { title: string; tasks: Habit[] }[] = [
     { id: "substack", label: "Publish a Substack article", schedule: "Every other Friday", days: [5], biweekly: true },
   ]},
   { title: "COMMUNITY", tasks: [
-    { id: "social-check", label: "Check comments and messages", schedule: "Thursday", days: [4] },
-    { id: "survival-guide-followup", label: "Send Survival Guide follow-ups", schedule: "Thursday", days: [4] },
+    { id: "social-check", label: "Check comments and messages", schedule: "Daily", days: [0,1,2,3,4,5,6], daily: true },
+    { id: "survival-guide-followup", label: "Send Survival Guide follow-ups", schedule: "Weekly · only if someone signs up", optional: true },
   ]},
   { title: "CLIENTS & INQUIRIES", tasks: [
     { id: "client-interview-good-luck", label: "Send interview good luck messages", schedule: "As needed" },
@@ -44,9 +44,10 @@ export default function JGODailyFour() {
   const substackDue = substackWeek >= 0 && substackWeek % 2 === 0;
   const day=today.getUTCDay();
   const currentWeekDays=Array.from({length:7},(_,i)=>{const d=new Date(week);d.setUTCDate(d.getUTCDate()+i);return d;});
-  const currentTasks=tasks.filter(task=>!task.biweekly || substackDue);
+  const currentTasks=tasks.filter(task=>(!task.biweekly || substackDue) && !task.optional);
+  const completionId=(task:Habit)=>task.daily?`${task.id}-${dateKey(today)}`:task.id;
   const total=currentTasks.length;
-  const completedCount=currentTasks.filter(task=>weekly.includes(task.id)).length;
+  const completedCount=currentTasks.filter(task=>weekly.includes(completionId(task))).length;
   const progress=Math.round(completedCount/total*100);
   useEffect(()=>{
     const timer=window.setInterval(()=>setToday(localNow()),60000);
@@ -65,7 +66,8 @@ export default function JGODailyFour() {
   },[weekKey]);
   async function toggle(task:Habit) {
     const previous=weekly;
-    const next=previous.includes(task.id)?previous.filter(id=>id!==task.id):[...previous,task.id];
+    const id=completionId(task);
+    const next=previous.includes(id)?previous.filter(value=>value!==id):[...previous,id];
     setWeekly(next);
     setError("");
     try{
@@ -76,8 +78,8 @@ export default function JGODailyFour() {
       setError("Your change could not be saved. Please try again.");
     }
   }
-  const dueToday=currentTasks.filter(task=>task.days?.includes(day) && !(weekly.includes(task.id)));
-  const dueLater=currentTasks.filter(task=>task.days?.some(d=>currentWeekDays.some(date=>date.getUTCDay()===d && date>today)) && !weekly.includes(task.id));
+  const dueToday=currentTasks.filter(task=>task.days?.includes(day) && !(weekly.includes(completionId(task))));
+  const dueLater=currentTasks.filter(task=>task.days?.some(d=>currentWeekDays.some(date=>date.getUTCDay()===d && date>today)) && !weekly.includes(completionId(task)));
   const summary=useMemo(()=>dueToday.length?`${dueToday.length} scheduled for today`:dueLater.length?`${dueLater.length} coming up this week`:"You're on track this week", [dueToday.length,dueLater.length]);
   if(!ready)return <section className="h-28 animate-pulse rounded-3xl border border-white/75 bg-white/50"/>;
   return <section className="min-w-0 rounded-[24px] border border-white/80 bg-white/75 p-4 shadow-[0_20px_55px_rgba(71,91,66,0.11)] backdrop-blur-2xl sm:p-5">
@@ -93,7 +95,7 @@ export default function JGODailyFour() {
       {sections.map(section=><div key={section.title} className="min-w-0 rounded-2xl border border-[#e6ece2] bg-white/80 p-3">
         <h3 className="mb-2 text-[11px] font-bold tracking-wider text-[#647d5b]">{section.title}</h3>
         <div className="space-y-1">{section.tasks.filter(task=>!task.biweekly || substackDue).map(task=>{
-          const checked=weekly.includes(task.id);
+          const checked=weekly.includes(completionId(task));
           const due=task.days?.includes(day);
           return <button key={task.id} type="button" onClick={()=>toggle(task)} aria-pressed={checked} className={`flex min-h-12 w-full items-start gap-2 rounded-xl px-2 py-2 text-left hover:bg-[#f4f7f1] ${due&&!checked?"bg-[#f1f5ed]":""}`}>
             <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs ${checked?"border-[#647d5b] bg-[#647d5b] text-white":"border-[#cdd8c8] bg-white text-transparent"}`}>✓</span>
@@ -102,6 +104,6 @@ export default function JGODailyFour() {
         })}</div>
       </div>)}
     </div>
-    <p className="mt-3 text-xs text-[#708075]">Weekly checkmarks reset every Monday. Substack is scheduled every other Friday, starting October 9. Tasks without a set day can be checked off anytime.</p>
+    <p className="mt-3 text-xs text-[#708075]">Daily comment checks reset each day. Other checkmarks reset Monday. Survival Guide follow-ups are only needed when someone signs up; they do not count against weekly progress. Substack runs every other Friday.</p>
   </section>;
 }
