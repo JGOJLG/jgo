@@ -57,6 +57,8 @@ type ClientService = {
   status: string | null;
   payment_status: string | null;
   date_added: string | null;
+  deleted_at?: string | null;
+  amount_received?: number | null;
   scheduled_date: string | null;
   due_date: string | null;
   completed_date: string | null;
