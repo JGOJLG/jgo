@@ -13,7 +13,10 @@ const JGO_OWNER_EMAIL = "jen@jgohire.com";
 const VENMO_HANDLE = "@jengordon";
 const VENMO_HANDOFF_URL = "https://portal.jgohire.com/pay/venmo";
 const ZELLE_NUMBER = "908-477-5032";
-const CARD_FEE_RATE = 0.03;
+const CARD_FEE_RATE = 0.029;
+const CARD_FIXED_FEE_CENTS = 30;
+// Gross up the checkout amount so standard domestic card processing does not reduce the service price.
+// A customer-facing card surcharge must only be enabled where permitted by applicable law and network rules.
 type InvoiceRequest = { clientId?: number; clientName?: string; clientEmail?: string; service?: string; price?: number; message?: string };
 const esc = (v:string)=>v.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 const currency=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
@@ -28,7 +31,7 @@ export async function POST(request:Request){
  if(!Number.isFinite(price)||price<=0||price>100000)return NextResponse.json({error:"Enter a valid invoice price."},{status:400});
  const supabase=await createClient();const{data:client,error:clientError}=await supabase.from("clients").select("id,name,email,status").eq("id",clientId).maybeSingle();
  if(clientError||!client)return NextResponse.json({error:"Client could not be found.",detail:clientError?.message},{status:404});
- const base=Math.round(price*100),cardCents=Math.round(base*(1+CARD_FEE_RATE)),fee=(cardCents-base)/100,cardTotal=cardCents/100;
+ const base=Math.round(price*100),cardCents=Math.ceil((base+CARD_FIXED_FEE_CENTS)/(1-CARD_FEE_RATE)),fee=(cardCents-base)/100,cardTotal=cardCents/100;
  try{
   const checkout=await stripe.checkout.sessions.create({mode:"payment",customer_email:clientEmail,client_reference_id:String(clientId),success_url:"https://www.jgohire.com/?payment=success",cancel_url:"https://www.jgohire.com/?payment=cancelled",line_items:[{quantity:1,price_data:{currency:"usd",unit_amount:cardCents,product_data:{name:`JGO Hire: ${service}`,description:`${currency(price)} service + ${currency(fee)} card processing fee`}}}],metadata:{source:"jgo_os_invoice",client_id:String(clientId),client_name:clientName,client_email:clientEmail,service,base_price:price.toFixed(2),card_fee:fee.toFixed(2)}});
   if(!checkout.url)throw new Error("Stripe did not return a checkout URL.");
