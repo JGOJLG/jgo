@@ -4,6 +4,7 @@ import {supabase} from "@/lib/supabase";
 type Client={id:number;name:string;email:string;company:string;status:string;clientType:string;parentName:string;parentEmail:string};
 export default function HolidayCards({clients,leads,loadError}:{clients:Client[];leads:Client[];loadError:string|null}){
  const [search,setSearch]=useState("");
+ const [audience,setAudience]=useState<"clients"|"leads">("clients");
  const [year,setYear]=useState(2026);
  const [campaign,setCampaign]=useState("thanksgiving");
  const campaigns=[{id:"thanksgiving",name:"Thanksgiving",client:"Thank you for being part of our story this year. Wishing you a wonderful Thanksgiving!",lead:"Wishing you and your family a wonderful Thanksgiving!"},{id:"holidays",name:"Happy Holidays",client:"Wishing you a wonderful holiday season. I'm so grateful you've been part of JGO Hire this year!",lead:"Wishing you a wonderful holiday season and all the best in the year ahead!"},{id:"newyear",name:"Happy New Year",client:"Happy New Year! Thank you for trusting JGO Hire. Here's to everything ahead!",lead:"Happy New Year! Wishing you success and exciting opportunities in the year ahead."}];
@@ -17,7 +18,7 @@ export default function HolidayCards({clients,leads,loadError}:{clients:Client[]
  useEffect(()=>{let active=true;supabase.from("jgo_holiday_card_log").select("*").then(({data,error})=>{if(active){setLogs(data??[]);setLogError(error?.message??"")}});return()=>{active=false}},[]);
  async function markSent(){if(!selected.length)return;setLogging(true);setLogError("");const rows=selected.filter(c=>address(c)).map(c=>({year,campaign,audience,contact_id:c.id,email:address(c).trim().toLowerCase(),sent_at:new Date().toISOString()}));const {error}=await supabase.from("jgo_holiday_card_log").upsert(rows,{onConflict:"year,campaign,audience,contact_id,email"});if(error)setLogError(error.message);else {const result=await supabase.from("jgo_holiday_card_log").select("*");setLogs(result.data??[]);if(result.error)setLogError(result.error.message)}setLogging(false)}
  
- const [audience,setAudience]=useState<"clients"|"leads">("clients");
+
  const contacts=audience==="clients"?clients:leads;
  const [media,setMedia]=useState<{url:string;kind:"video"|"image";name:string}|null>(null);
  const [mediaError,setMediaError]=useState("");
