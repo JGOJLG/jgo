@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   deleteService,
+  voidServiceInvoice,
   markServiceInvoiceSent,
   updateService,
   updateServiceStatus,
@@ -112,6 +113,7 @@ export default function ServiceCard({ clientId, service }: Props) {
 
           <div className="flex flex-wrap gap-2">
             {!invoiceSent && !isPaid && !isPartial ? <form action={markServiceInvoiceSent}><input type="hidden" name="clientId" value={clientId} /><input type="hidden" name="serviceId" value={service.id} /><button type="submit" className="rounded-xl border border-[#cbd8c4] bg-white px-4 py-2 text-xs font-semibold text-[#4d6247] transition hover:bg-[#f5f7f2]">Mark Invoice Sent</button></form> : null}
+            {invoiceSent && !isPaid && !isPartial ? <form action={voidServiceInvoice} onSubmit={e=>{if(!window.confirm(`Void the invoice for "${service.service}"? This removes its outstanding balance. Make sure the Stripe payment link has not been used, and expire it in Stripe if it is still open.`))e.preventDefault()}}><input type="hidden" name="clientId" value={clientId}/><input type="hidden" name="serviceId" value={service.id}/><button type="submit" className="rounded-xl border border-[#e2c6c2] bg-white px-4 py-2 text-xs font-semibold text-[#9a554d]">Void Invoice</button></form> : null}
             {!isPaid ? <button type="button" onClick={() => { setAmountReceived(String(service.amount_received ?? service.price ?? 0)); setShowPayment(true); }} className="rounded-xl bg-[#647d5b] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#56683f]">{isPartial ? "Update Payment" : "Mark Paid"}</button> : null}
             {isPaid || isPartial ? <PaymentReceiptButton clientId={clientId} serviceId={service.id} /> : null}
           </div>
