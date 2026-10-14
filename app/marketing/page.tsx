@@ -1,8 +1,4 @@
-import {createClient} from "@/lib/supabase-server";
-import HolidayCards from "./HolidayCards";
-export const dynamic="force-dynamic";
-export default async function MarketingPage(){
- const db=await createClient();
- const {data,error}=await db.from("clients").select("id,name,email,company,status,client_type,parent_name,parent_email").order("name");
- return <HolidayCards clients={(data??[]).map(c=>({id:Number(c.id),name:c.name??"",email:c.email??"",company:c.company??"",status:c.status??"",clientType:c.client_type??"",parentName:c.parent_name??"",parentEmail:c.parent_email??""}))} loadError={error?.message??null}/>;
+import Link from "next/link";
+export default function MarketingPage(){
+ return <main className="min-h-screen bg-[#f7f8f3] p-5 sm:p-10"><div className="mx-auto max-w-5xl"><p className="text-xs font-bold uppercase tracking-widest text-[#70866a]">JGO OS</p><h1 className="mt-2 text-3xl font-bold text-[#243128]">Marketing</h1><p className="mt-2 text-sm text-[#708075]">Your marketing workspace. Choose a project to get started.</p><div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Link href="/marketing/holiday-cards" className="group rounded-2xl border border-[#dfe6db] bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-[#9bb492] hover:shadow-md"><div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#e7eee3] text-2xl">✉</div><h2 className="text-lg font-bold text-[#243128]">Holiday Cards <span className="ml-1 text-[#70866a]">↗</span></h2><p className="mt-2 text-sm text-[#708075]">Plan yearly greetings, select clients, and add your own image or animated MP4.</p></Link></div></div></main>;
 }
