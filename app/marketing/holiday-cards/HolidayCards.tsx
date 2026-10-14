@@ -1,27 +1,29 @@
 "use client";
 import {useMemo,useState} from "react";
 type Client={id:number;name:string;email:string;company:string;status:string;clientType:string;parentName:string;parentEmail:string};
-export default function HolidayCards({clients,loadError}:{clients:Client[];loadError:string|null}){
+export default function HolidayCards({clients,leads,loadError}:{clients:Client[];leads:Client[];loadError:string|null}){
  const [search,setSearch]=useState("");
+ const [audience,setAudience]=useState<"clients"|"leads">("clients");
+ const contacts=audience==="clients"?clients:leads;
  const [media,setMedia]=useState<{url:string;kind:"video"|"image";name:string}|null>(null);
  const [mediaError,setMediaError]=useState("");
  function selectMedia(file:File|undefined){if(!file)return;setMediaError("");if(!file.type.startsWith("image/")&&file.type!=="video/mp4"){setMediaError("Upload an image or MP4 video.");return}if(file.size>25*1024*1024){setMediaError("Please use a file smaller than 25 MB.");return}setMedia({url:URL.createObjectURL(file),kind:file.type==="video/mp4"?"video":"image",name:file.name})}
  
  const [year,setYear]=useState(2026);
  const [yearSelections,setYearSelections]=useState<Record<number,number[]>>({});
- const selection=yearSelections[year]??[];
- const setSelection=(updater:(previous:number[])=>number[])=>setYearSelections(prev=>({...prev,[year]:updater(prev[year]??[])}));
+ const selection=yearSelections[year*10+(audience==="clients"?1:2)]??[];
+ const setSelection=(updater:(previous:number[])=>number[])=>setYearSelections(prev=>({...prev,[year*10+(audience==="clients"?1:2)]:updater(prev[year*10+(audience==="clients"?1:2)]??[])}));
  const [includeArchived,setIncludeArchived]=useState(false);
  const [subject,setSubject]=useState("Warm wishes from JGO Hire");
  const [message,setMessage]=useState("Wishing you a wonderful holiday season and a happy, healthy New Year! Thank you for being part of the JGO Hire community.\n\nBest,\nJen");
  const [recipientType,setRecipientType]=useState<"client"|"parent">("client");
- const available=useMemo(()=>clients.filter(c=>(includeArchived||c.status!=="Archived")&&(!search||[c.name,c.email,c.company,c.parentName,c.parentEmail].some(v=>v.toLowerCase().includes(search.toLowerCase())))),[clients,includeArchived,search]);
- const selected=clients.filter(c=>selection.includes(c.id));
+ const available=useMemo(()=>contacts.filter(c=>(includeArchived||c.status!=="Archived")&&(!search||[c.name,c.email,c.company,c.parentName,c.parentEmail].some(v=>v.toLowerCase().includes(search.toLowerCase())))),[contacts,includeArchived,search]);
+ const selected=contacts.filter(c=>selection.includes(c.id));
  const address=(c:Client)=>recipientType==="parent"&&c.parentEmail?c.parentEmail:c.email;
  const emails=Array.from(new Set(selected.map(address).map(s=>s.trim().toLowerCase()).filter(Boolean)));
  const toggle=(id:number)=>setSelection(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
  const csvCell=(v:string)=>'"'+v.replace(/"/g,'""')+'"';
- function downloadCsv(){const rows=[["Name","Email","Company","Status","Client type"],...selected.map(c=>[c.name,address(c),c.company,c.status,c.clientType])];const blob=new Blob(["\ufeff"+rows.map(r=>r.map(csvCell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="jgo-holiday-card-recipients.csv";a.click();URL.revokeObjectURL(url)}
+ function downloadCsv(){const rows=[["Name","Email","Company","Status","Client type"],...selected.map(c=>[c.name,address(c),c.company,c.status,c.clientType])];const blob=new Blob(["\ufeff"+rows.map(r=>r.map(csvCell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`jgo-holiday-${audience}-${year}.csv`;a.click();URL.revokeObjectURL(url)}
  function copyEmails(){void navigator.clipboard.writeText(emails.join("; "))}
  const panel="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm";
  const field="w-full rounded-xl border border-[#dce5d7] bg-white px-3 py-2.5 text-sm text-[#243128] focus:border-[#708c67] focus:outline-none";
