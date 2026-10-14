@@ -55,6 +55,24 @@ export async function deleteService(formData:FormData){
   if(clientError)throw new Error(clientError.message);
   for(const path of [`/clients/${clientId}`,"/jgo-clients","/revenue","/"]){revalidatePath(path);}
 }
+export async function voidServiceInvoice(formData:FormData){
+ const clientId=getClientId(formData),serviceId=getServiceId(formData),supabase=await createClient();
+ const {data:service,error:lookupError}=await supabase.from("client_services").select("id,payment_status,amount_received,notes").eq("id",serviceId).eq("client_id",clientId).is("deleted_at",null).maybeSingle();
+ if(lookupError||!service)throw new Error(lookupError?.message||"Invoice not found.");
+ if(String(service.payment_status||"").toLowerCase()!=="invoice sent"||Number(service.amount_received||0)>0)throw new Error("Only unpaid, sent invoices can be voided.");
+ const {data:payments,error:paymentError}=await supabase.from("payments").select("id").eq("client_id",clientId).eq("client_service_id",serviceId).limit(1);
+ if(paymentError)throw new Error(paymentError.message);
+ if(payments?.length)throw new Error("A payment is recorded for this invoice. It cannot be voided.");
+ const {error}=await supabase.from("client_services").update({payment_status:"Voided",status:"Voided",price:0,amount_received:0,notes:[service.notes,"Invoice voided by administrator."].filter(Boolean).join("\n"),updated_at:new Date().toISOString()}).eq("id",serviceId).eq("client_id",clientId).eq("payment_status","Invoice Sent").is("deleted_at",null);
+ if(error)throw new Error(error.message);
+ const {data:remaining,error:remainingError}=await supabase.from("client_services").select("payment_status").eq("client_id",clientId).is("deleted_at",null).neq("payment_status","Voided");
+ if(remainingError)throw new Error(remainingError.message);
+ const statuses=(remaining??[]).map(x=>String(x.payment_status||"").trim().toLowerCase());
+ const paymentStatus=!statuses.length?null:statuses.every(x=>x==="paid")?"Paid":statuses.some(x=>x==="partial")?"Partial":statuses.some(x=>x==="invoice sent")?"Invoice Sent":"Open";
+ const {error:clientError}=await supabase.from("clients").update({payment_status:paymentStatus}).eq("id",clientId);
+ if(clientError)throw new Error(clientError.message);
+ for(const path of [`/clients/${clientId}`,"/jgo-clients","/revenue","/"]){revalidatePath(path);}
+}
 export async function updateService(formData:FormData){const clientId=getClientId(formData),serviceId=getServiceId(formData);const price=formData.get("price"),dateAdded=String(formData.get("dateAdded")||""),scheduledDate=String(formData.get("scheduledDate")||""),notes=String(formData.get("notes")||"").trim(),supabase=await createClient();const{error}=await supabase.from("client_services").update({price:price?Number(price):null,date_added:dateAdded||null,scheduled_date:scheduledDate||null,notes:notes||null}).eq("id",serviceId).eq("client_id",clientId).is("deleted_at",null);if(error)throw new Error(error.message);revalidatePath(`/clients/${clientId}`);revalidatePath("/");}
 export async function toggleTimelineStep(formData:FormData){const clientId=getClientId(formData),eventType=String(formData.get("eventType")||""),title=String(formData.get("title")||"");if(!eventType)throw new Error("Missing timeline event.");const supabase=await createClient();const{data:existing,error}=await supabase.from("client_timeline").select("id").eq("client_id",clientId).eq("event_type",eventType);if(error)throw new Error(error.message);if(existing?.length){const{error:e}=await supabase.from("client_timeline").delete().eq("client_id",clientId).eq("event_type",eventType);if(e)throw new Error(e.message);}else{const{error:e}=await supabase.from("client_timeline").insert({client_id:clientId,event_type:eventType,title,status:"Complete",completed_at:new Date().toISOString()});if(e)throw new Error(e.message);}revalidatePath(`/clients/${clientId}`);}
 export async function addClientNote(formData:FormData){const clientId=getClientId(formData),noteDate=String(formData.get("noteDate")||""),content=String(formData.get("content")||"").trim();if(!content)throw new Error("Note cannot be empty.");const supabase=await createClient();const{error}=await supabase.from("client_notes").insert({client_id:clientId,note_date:noteDate||new Date().toISOString().slice(0,10),content});if(error)throw new Error(error.message);revalidatePath(`/clients/${clientId}`);}
