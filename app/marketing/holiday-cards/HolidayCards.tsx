@@ -7,7 +7,7 @@ const occasions=[{id:"thanksgiving",name:"Thanksgiving",client:"Thank you for be
 export default function HolidayCards({clients,leads,loadError}:{clients:Contact[];leads:Contact[];loadError:string|null}){
  const [year,setYear]=useState(2026),[campaign,setCampaign]=useState("thanksgiving"),[audience,setAudience]=useState<"clients"|"leads">("clients");
  const [drafts,setDrafts]=useState<Record<string,Draft>>({}),[saved,setSaved]=useState<Record<string,Draft>>({});
- const [selection,setSelection]=useState<number[]>([]),[search,setSearch]=useState(""),[step,setStep]=useState<"compose"|"recipients"|"preview">("compose");
+ const [sendAll,setSendAll]=useState(true),[selection,setSelection]=useState<number[]>([]),[search,setSearch]=useState(""),[step,setStep]=useState<"compose"|"recipients"|"preview">("compose");
  const [logs,setLogs]=useState<{year:number;campaign:string;audience:string;contact_id:number;email:string;sent_at:string}[]>([]);
  const [busy,setBusy]=useState(false),[uploading,setUploading]=useState(false),[notice,setNotice]=useState(""),[includeArchived,setIncludeArchived]=useState(false);
  const [recipientType,setRecipientType]=useState<"client"|"parent">("client");
@@ -17,11 +17,11 @@ export default function HolidayCards({clients,leads,loadError}:{clients:Contact[
  const edit=(patch:Partial<Draft>)=>setDrafts(old=>({...old,[key]:{...draft,...patch}}));
  const contacts=audience==="clients"?clients:leads;
  const available=useMemo(()=>contacts.filter(c=>(includeArchived||c.status!=="Archived")&&[c.name,c.email,c.company,c.parentEmail].some(x=>(x||"").toLowerCase().includes(search.toLowerCase()))),[contacts,search,includeArchived]);
- const chosen=contacts.filter(c=>selection.includes(c.id));
+ const chosen=contacts.filter(c=>c.status!=="Archived"&&(sendAll||selection.includes(c.id)));
  const address=(c:Contact)=>recipientType==="parent"&&c.parentEmail?c.parentEmail:c.email;
  const sent=(c:Contact)=>logs.find(l=>l.year===year&&l.campaign===campaign&&l.audience===audience&&l.contact_id===c.id&&l.email===address(c).trim().toLowerCase());
  const pending=chosen.filter(c=>address(c)&&!sent(c));
- const changeContext=(fn:()=>void)=>{fn();setSelection([]);setNotice("")};
+ const changeContext=(fn:()=>void)=>{fn();setSelection([]);setSendAll(true);setNotice("")};
  useEffect(()=>{void (async()=>{const [a,b]=await Promise.all([supabase.from("jgo_holiday_campaign_drafts").select("*"),supabase.from("jgo_holiday_card_log").select("*")]);if(a.data){const next:Record<string,Draft>={};for(const row of a.data)next[row.year+"-"+row.campaign+"-"+row.audience]={subject:row.subject,message:row.message,image_url:row.image_url||""};setSaved(next)}if(b.data)setLogs(b.data)})();},[]);
  async function saveDraft(){setBusy(true);setNotice("");const {error}=await supabase.from("jgo_holiday_campaign_drafts").upsert({year,campaign,audience,subject:draft.subject,message:draft.message,image_url:draft.image_url||null,updated_at:new Date().toISOString()},{onConflict:"year,campaign,audience"});if(error)setNotice("Could not save: "+error.message);else{setSaved(v=>({...v,[key]:draft}));setNotice("Draft saved. You can come back to it anytime.")}setBusy(false)}
  async function upload(file?:File){if(!file)return;if(!["image/png","image/jpeg","image/webp","image/gif"].includes(file.type)||file.size>5*1024*1024){setNotice("Use a PNG, JPG, WebP or GIF under 5 MB.");return}setUploading(true);setNotice("");const path=year+"/"+crypto.randomUUID()+"-"+file.name.replace(/[^a-zA-Z0-9.]/g,"");const {error}=await supabase.storage.from("jgo-holiday-images").upload(path,file,{contentType:file.type});if(error)setNotice("Upload failed: "+error.message);else{const {data}=supabase.storage.from("jgo-holiday-images").getPublicUrl(path);edit({image_url:data.publicUrl});setNotice("Image uploaded. Save draft to keep it.")}setUploading(false)}
