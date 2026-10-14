@@ -102,7 +102,7 @@ export default async function RevenuePage() {
   ]);
 
   const clients = (clientsResult.data ?? []) as Client[];
-  const services = (servicesResult.data ?? []) as ClientService[];
+  const services = ((servicesResult.data ?? []) as ClientService[]).filter(service => normalize(service.payment_status) !== "voided");
   const databaseErrors = { clients: clientsResult.error, clientServices: servicesResult.error, ewc: ewcResult.error };
   const today = getTodayDateString();
   const monthStart = getMonthStartDateString();
