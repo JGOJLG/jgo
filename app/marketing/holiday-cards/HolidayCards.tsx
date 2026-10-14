@@ -4,6 +4,7 @@ import {supabase} from "@/lib/supabase";
 type Client={id:number;name:string;email:string;company:string;status:string;clientType:string;parentName:string;parentEmail:string};
 export default function HolidayCards({clients,leads,loadError}:{clients:Client[];leads:Client[];loadError:string|null}){
  const [search,setSearch]=useState("");
+ const [year,setYear]=useState(2026);
  const [campaign,setCampaign]=useState("thanksgiving");
  const campaigns=[{id:"thanksgiving",name:"Thanksgiving",client:"Thank you for being part of our story this year. Wishing you a wonderful Thanksgiving!",lead:"Wishing you and your family a wonderful Thanksgiving!"},{id:"holidays",name:"Happy Holidays",client:"Wishing you a wonderful holiday season. I'm so grateful you've been part of JGO Hire this year!",lead:"Wishing you a wonderful holiday season and all the best in the year ahead!"},{id:"newyear",name:"Happy New Year",client:"Happy New Year! Thank you for trusting JGO Hire. Here's to everything ahead!",lead:"Happy New Year! Wishing you success and exciting opportunities in the year ahead."}];
  const chosen=campaigns.find(c=>c.id===campaign)!;
@@ -22,7 +23,6 @@ export default function HolidayCards({clients,leads,loadError}:{clients:Client[]
  const [mediaError,setMediaError]=useState("");
  function selectMedia(file:File|undefined){if(!file)return;setMediaError("");if(!file.type.startsWith("image/")&&file.type!=="video/mp4"){setMediaError("Upload an image or MP4 video.");return}if(file.size>25*1024*1024){setMediaError("Please use a file smaller than 25 MB.");return}setMedia({url:URL.createObjectURL(file),kind:file.type==="video/mp4"?"video":"image",name:file.name})}
  
- const [year,setYear]=useState(2026);
  const [yearSelections,setYearSelections]=useState<Record<number,number[]>>({});
  const selection=yearSelections[year*100+(campaign==="thanksgiving"?10:campaign==="holidays"?20:30)+(audience==="clients"?1:2)]??[];
  const setSelection=(updater:(previous:number[])=>number[])=>setYearSelections(prev=>({...prev,[year*100+(campaign==="thanksgiving"?10:campaign==="holidays"?20:30)+(audience==="clients"?1:2)]:updater(prev[year*100+(campaign==="thanksgiving"?10:campaign==="holidays"?20:30)+(audience==="clients"?1:2)]??[])}));
