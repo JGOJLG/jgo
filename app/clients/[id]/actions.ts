@@ -81,3 +81,35 @@ function easternOffsetForLocal(date:string,time:string){const probe=new Date(`${
 function easternIso(date:string,time:string){return new Date(`${date}T${time}:00${easternOffsetForLocal(date,time)}`).toISOString();}
 export async function addCalendarEvent(formData:FormData){const clientId=getClientId(formData),eventType=String(formData.get("eventType")||""),eventDate=String(formData.get("eventDate")||""),eventTime=String(formData.get("eventTime")||""),notes=String(formData.get("notes")||"").trim();if(!eventType||!eventDate)throw new Error("Missing event type or date.");const supabase=await createClient(),isInterview=eventType==="Client Interview",startTime=eventTime||"09:00",startAt=easternIso(eventDate,startTime),endAt=new Date(new Date(startAt).getTime()+3600000).toISOString();const{error}=await supabase.from("calendar_events").insert({client_id:clientId,event_type:isInterview?"interview":eventType,title:eventType,start_at:startAt,end_at:endAt,notes:notes||null});if(error)throw new Error(error.message);if(eventType==="Free 15")await createTimelineEvent(clientId,"free15_scheduled","Free 15 Scheduled");revalidatePath(`/clients/${clientId}`);revalidatePath("/calendar");revalidatePath("/");}
 export async function deleteCalendarEvent(formData:FormData){const clientId=getClientId(formData),eventId=Number(formData.get("eventId"));if(!Number.isInteger(eventId)||eventId<=0)throw new Error("Invalid event ID.");const supabase=await createClient();const{error}=await supabase.from("calendar_events").delete().eq("id",eventId).eq("client_id",clientId);if(error)throw new Error(error.message);revalidatePath(`/clients/${clientId}`);revalidatePath("/calendar");revalidatePath("/");}
+
+export async function voidSentInvoice(formData:FormData){
+ const clientId=getClientId(formData),emailId=Number(formData.get("emailId"));
+ if(!Number.isInteger(emailId)||emailId<=0)throw new Error("Invalid invoice.");
+ const supabase=await createClient();
+ const {data:email,error:emailError}=await supabase.from("email_messages").select("id,subject,body,body_html,status").eq("id",emailId).eq("client_id",clientId).maybeSingle();
+ if(emailError||!email||!String(email.subject||"").startsWith("Invoice from JGO Hire: "))throw new Error("Invoice email not found.");
+ if(String(email.status||"").toLowerCase()==="voided")return;
+ const name=String(email.subject).replace("Invoice from JGO Hire: ","").trim();
+ const {data:services,error:serviceError}=await supabase.from("client_services").select("id,payment_status,amount_received,notes").eq("client_id",clientId).eq("service",name).is("deleted_at",null).order("id",{ascending:false});
+ if(serviceError)throw new Error(serviceError.message);
+ const unpaid=(services??[]).filter(s=>String(s.payment_status||"").toLowerCase()==="invoice sent"&&Number(s.amount_received||0)===0);
+ const paid=(services??[]).some(s=>["paid","partial"].includes(String(s.payment_status||"").toLowerCase())||Number(s.amount_received||0)>0);
+ if(paid)throw new Error("A payment may be associated with this service. Review it before voiding.");
+ for(const service of unpaid){const {data:payments,error:payError}=await supabase.from("payments").select("id").eq("client_id",clientId).eq("client_service_id",service.id).limit(1);if(payError)throw new Error(payError.message);if(payments?.length)throw new Error("Recorded payment found. Cannot void.");}
+ const source=String(email.body||"")+" "+String(email.body_html||"");
+ const sessionId=source.match(/cs_(?:test|live)_[a-zA-Z0-9]+/)?.[0];
+ if(sessionId){
+  if(!process.env.STRIPE_SECRET_KEY)throw new Error("Stripe is not configured; checkout must be expired before voiding.");
+  const Stripe=(await import("stripe")).default;const stripe=new Stripe(process.env.STRIPE_SECRET_KEY);
+  const session=await stripe.checkout.sessions.retrieve(sessionId);
+  if(session.payment_status==="paid")throw new Error("This checkout was paid and cannot be voided.");
+  if(session.status==="open")await stripe.checkout.sessions.expire(sessionId);
+ }
+ for(const service of unpaid){const {error}=await supabase.from("client_services").update({payment_status:"Voided",status:"Voided",price:0,amount_received:0,notes:[service.notes,"Invoice voided by administrator."].filter(Boolean).join("\\n"),updated_at:new Date().toISOString()}).eq("id",service.id).eq("client_id",clientId).eq("payment_status","Invoice Sent");if(error)throw new Error(error.message);}
+ const {error:emailUpdateError}=await supabase.from("email_messages").update({status:"voided"}).eq("id",emailId).eq("client_id",clientId);
+ if(emailUpdateError)throw new Error(emailUpdateError.message);
+ const {data:remaining,error:remainingError}=await supabase.from("client_services").select("payment_status").eq("client_id",clientId).is("deleted_at",null).neq("payment_status","Voided");if(remainingError)throw new Error(remainingError.message);
+ const statuses=(remaining??[]).map(x=>String(x.payment_status||"").toLowerCase());const paymentStatus=!statuses.length?null:statuses.every(x=>x==="paid")?"Paid":statuses.some(x=>x==="partial")?"Partial":statuses.some(x=>x==="invoice sent")?"Invoice Sent":"Open";
+ const {error:clientError}=await supabase.from("clients").update({payment_status:paymentStatus}).eq("id",clientId);if(clientError)throw new Error(clientError.message);
+ for(const path of [`/clients/${clientId}`,"/revenue","/jgo-clients","/"])revalidatePath(path);
+}
