@@ -18,7 +18,7 @@ export default function HolidayCards({clients,leads,loadError}:{clients:Contact[
  const contacts=audience==="clients"?clients:leads;
  const available=useMemo(()=>contacts.filter(c=>(includeArchived||c.status!=="Archived")&&[c.name,c.email,c.company,c.parentEmail].some(x=>(x||"").toLowerCase().includes(search.toLowerCase()))),[contacts,search,includeArchived]);
  const chosen=contacts.filter(c=>c.status!=="Archived"&&(sendAll||selection.includes(c.id)));
- const address=(c:Contact)=>recipientType==="parent"&&c.parentEmail?c.parentEmail:c.email;
+ const address=(c:Contact)=>c.email;
  const sent=(c:Contact)=>logs.find(l=>l.year===year&&l.campaign===campaign&&l.audience===audience&&l.contact_id===c.id&&l.email===address(c).trim().toLowerCase());
  const pending=chosen.filter(c=>address(c)&&!sent(c));
  const changeContext=(fn:()=>void)=>{fn();setSelection([]);setSendAll(true);setNotice("")};
