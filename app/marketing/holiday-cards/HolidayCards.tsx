@@ -17,7 +17,7 @@ export default function HolidayCards({clients,leads,loadError}:{clients:Client[]
  const [subject,setSubject]=useState("Warm wishes from JGO Hire");
  const [leadSubject,setLeadSubject]=useState("Holiday wishes from JGO Hire");
  const [leadMessage,setLeadMessage]=useState("Wishing you a wonderful holiday season and a happy New Year! I hope we stay connected in the year ahead.\n\nBest,\nJen");
- const [message,setMessage]=useState("Wishing you a wonderful holiday season and a happy, healthy New Year! Thank you for being part of the JGO Hire community.\n\nBest,\nJen");
+ const [message,setMessage]=useState("Wishing you a wonderful holiday season and a happy, healthy New Year! Thank you for being part of our story this year.\n\nBest,\nJen");
  const [recipientType,setRecipientType]=useState<"client"|"parent">("client");
  const available=useMemo(()=>contacts.filter(c=>(includeArchived||c.status!=="Archived")&&(!search||[c.name,c.email,c.company,c.parentName,c.parentEmail].some(v=>v.toLowerCase().includes(search.toLowerCase())))),[contacts,includeArchived,search]);
  const selected=contacts.filter(c=>selection.includes(c.id));
