@@ -5,7 +5,7 @@ import MarketingEmailList from "./MarketingEmailList";
 export const dynamic="force-dynamic";
 export const revalidate=0;
 
-type Subscriber={email:string;name:string;consentedAt:string};
+type Subscriber={email:string;name:string;consentedAt:string;optedIn:boolean;signupAt:string};
 export default async function MarketingEmailsPage(){
  const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();
@@ -23,12 +23,12 @@ export default async function MarketingEmailsPage(){
   if(error)return <main className="p-8">Unable to load subscribers. {error.message}</main>;
   for(const entry of data.users){
    const m=entry.user_metadata||{};
-   if(m.app_source!=="jgo_job"||m.marketing_email_opt_in!==true||!entry.email)continue;
-   subscribers.push({email:entry.email,name:[m.first_name,m.last_name].filter(Boolean).join(" "),consentedAt:m.marketing_email_opt_in_at||entry.created_at});
+   if(m.app_source!=="jgo_job"||!entry.email)continue;
+   subscribers.push({email:entry.email,name:[m.first_name,m.last_name].filter(Boolean).join(" "),consentedAt:m.marketing_email_opt_in_at||"",optedIn:m.marketing_email_opt_in===true,signupAt:entry.created_at});
   }
   if(data.users.length<1000)break;
   page++;
  }
- subscribers.sort((a,b)=>b.consentedAt.localeCompare(a.consentedAt));
+ subscribers.sort((a,b)=>b.signupAt.localeCompare(a.signupAt));
  return <MarketingEmailList subscribers={subscribers}/>;
 }
