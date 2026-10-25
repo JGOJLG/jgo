@@ -16,7 +16,9 @@ const channels = [
   ["Facebook","https://jgojob.com/?utm_source=facebook&utm_medium=social&utm_campaign=jgojob_launch"],
   ["JGO Hire","https://jgojob.com/?utm_source=jgohire&utm_medium=website&utm_campaign=jgojob_launch"],
 ];
-export default async function MarketingPage({searchParams}:{searchParams:Promise<{period?:string}>}){\n  const {period:requestedPeriod} = await searchParams;\n  const period = ["7d","30d","90d","all"].includes(requestedPeriod||"") ? requestedPeriod! : "all";
+export default async function MarketingPage({searchParams}:{searchParams:Promise<{period?:string}>}){
+  const {period:requestedPeriod} = await searchParams;
+  const period = ["7d","30d","90d","all"].includes(requestedPeriod||"") ? requestedPeriod! : "all";
   const supabase = await createClient();
   const {data:{user}} = await supabase.auth.getUser();
   if(!user) return null;
