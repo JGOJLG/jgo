@@ -1,0 +1,56 @@
+import Link from "next/link";
+import { createClient } from "@/lib/supabase-server";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+type Source = { source: string; campaign: string; signups: number; activated: number; retained: number; activation_rate: number };
+type Subscription = { active_premium: number; mrr_cents: number; total_paid_starts: number; cancellations: number; trial_conversion_rate: number; monthly?: Array<{month_label:string;trials:number;paid:number;cancellations:number}> };
+type Summary = { total_signups: number; new_7d: number; active_7d: number; returned_another_day: number; first_job_added: number };
+const number = (n: number) => new Intl.NumberFormat("en-US").format(n);
+const money = (n: number) => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
+const channels = [
+  ["TikTok","https://jgojob.com/?utm_source=tiktok&utm_medium=social&utm_campaign=jgojob_launch"],
+  ["Instagram","https://jgojob.com/?utm_source=instagram&utm_medium=social&utm_campaign=jgojob_launch"],
+  ["Reddit","https://jgojob.com/?utm_source=reddit&utm_medium=community&utm_campaign=jgojob_launch"],
+  ["Facebook","https://jgojob.com/?utm_source=facebook&utm_medium=social&utm_campaign=jgojob_launch"],
+  ["JGO Hire","https://jgojob.com/?utm_source=jgohire&utm_medium=website&utm_campaign=jgojob_launch"],
+];
+export default async function MarketingPage(){
+  const supabase = await createClient();
+  const {data:{user}} = await supabase.auth.getUser();
+  if(!user) return null;
+  const {data:admin,error:adminError} = await supabase.rpc("is_jgo_os_admin");
+  if(adminError || !admin) return <section className="flex-1 p-8 text-red-700">Admin access required.</section>;
+  const [summaryResult,sourceResult,subscriptionResult] = await Promise.all([
+    supabase.rpc("jgojob_analytics_summary"),
+    supabase.rpc("jgojob_source_quality"),
+    supabase.rpc("jgojob_subscription_analytics"),
+  ]);
+  const summary = summaryResult.error ? null : summaryResult.data as Summary|null;
+  const sources = sourceResult.error ? null : sourceResult.data as Source[]|null;
+  const subscription = subscriptionResult.error ? null : subscriptionResult.data as Subscription|null;
+  const signups = summary?.total_signups ?? 0;
+  const paid = subscription?.active_premium ?? 0;
+  const mrr = (subscription?.mrr_cents ?? 0)/100;
+  const goal = 10000;
+  const cards = [
+    ["Total signups",summary?number(signups):"Unavailable","All-time registered users"],
+    ["New signups (7d)",summary?number(summary.new_7d):"Unavailable","New registrations this week"],
+    ["Active users (7d)",summary?number(summary.active_7d):"Unavailable","Product activity in the last seven days"],
+    ["Active Premium",subscription?number(paid):"Unavailable","Currently active paid subscriptions"],
+    ["Free-to-paid (current)",summary&&subscription&&signups?((paid/signups)*100).toFixed(1)+"%":"Unavailable","Active paid accounts / all-time signups, not cohort conversion"],
+    ["Monthly recurring revenue",subscription?money(mrr):"Unavailable","Current recurring revenue from billing"],
+  ];
+  return <section className="min-w-0 flex-1 bg-[#f7f8f3] p-5 lg:p-9">
+    <div className="mx-auto max-w-[1400px]">
+      <Link href="/jgojob" className="text-sm font-semibold text-[#587254]">← JGO Job overview</Link>
+      <div className="mt-5"><p className="text-[10px] font-bold uppercase tracking-[.2em] text-[#7f9975]">JGO JOB / MARKETING</p><h1 className="mt-2 text-3xl font-bold text-[#2d3c30]">Growth & marketing</h1><p className="mt-2 max-w-2xl text-sm text-[#708075]">Track acquisition, activation and paid growth. Website visits and ad spend are not available until analytics and campaign costs are connected.</p></div>
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map(([label,value,detail])=><div key={label} className="rounded-2xl border border-[#dfe6db] bg-white p-5 shadow-sm"><p className="text-xs font-semibold text-[#788777]">{label}</p><p className="mt-2 text-3xl font-bold text-[#334535]">{value}</p><p className="mt-2 text-xs text-[#829084]">{detail}</p></div>)}</div>
+      <section className="mt-5 rounded-2xl border border-[#dfe6db] bg-white p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-[#7f9975]">Revenue goal</p><h2 className="mt-2 text-xl font-bold text-[#334535]">$10,000 monthly recurring revenue</h2></div><p className="text-lg font-semibold text-[#334535]">{subscription?money(mrr)+" / "+money(goal):"Billing data unavailable"}</p></div><div className="mt-5 h-3 overflow-hidden rounded-full bg-[#edf2e9]"><div className="h-full rounded-full bg-[#688760]" style={{width:subscription?Math.min(100,Math.max(0,mrr/goal*100))+"%":"0%"}}/></div><p className="mt-3 text-xs text-[#788777]">{subscription?Math.round(mrr/goal*100)+"% of target · "+money(Math.max(0,goal-mrr))+" remaining":"No revenue progress shown until billing data is available."}</p></section>
+      <section className="mt-5 rounded-2xl border border-[#dfe6db] bg-white p-6"><h2 className="text-xl font-bold text-[#334535]">Acquisition by source</h2><p className="mt-2 text-xs text-[#788777]">Signup attribution, first-job activation and return activity by campaign. Sources without attribution will not appear.</p>{sources&&sources.length?<div className="mt-5 overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm"><thead className="border-b border-[#e3e9e0] text-xs text-[#788777]"><tr>{["Source","Campaign","Signups","Activated","Activation rate","Returned"].map(x=><th key={x} className="px-3 py-3 font-semibold">{x}</th>)}</tr></thead><tbody>{sources.map((s,i)=><tr key={s.source+"-"+s.campaign+"-"+i} className="border-b border-[#edf0eb]"><td className="px-3 py-3 font-semibold text-[#334535]">{s.source}</td><td className="px-3 py-3">{s.campaign||"Unspecified"}</td><td className="px-3 py-3">{s.signups}</td><td className="px-3 py-3">{s.activated}</td><td className="px-3 py-3">{s.activation_rate}%</td><td className="px-3 py-3">{s.retained}</td></tr>)}</tbody></table></div>:<p className="mt-5 rounded-xl bg-[#f7f9f5] p-4 text-sm text-[#788777]">{sourceResult.error?"Source analytics are currently unavailable.":"No attributed signups recorded yet."}</p>}</section>
+      <section className="mt-5 rounded-2xl border border-[#dfe6db] bg-white p-6"><h2 className="text-xl font-bold text-[#334535]">Campaign links</h2><p className="mt-2 text-xs text-[#788777]">Use the matching link when posting. These links attribute signups, not website visits.</p><div className="mt-4 space-y-3">{channels.map(([name,url])=><div key={name} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e5ebe2] bg-[#fafbf8] p-4"><span className="font-semibold text-[#334535]">{name}</span><a href={url} target="_blank" rel="noreferrer" className="max-w-full break-all text-xs text-[#55734f] underline underline-offset-4">{url}</a></div>)}</div></section>
+      <section className="mt-5 rounded-2xl border border-[#dfe6db] bg-white p-6"><h2 className="text-xl font-bold text-[#334535]">What still needs connecting</h2><p className="mt-2 text-sm text-[#718073]">Google Analytics 4 for sessions and landing-page conversion; ad spend for cost per signup and cost per paid customer; historical signup cohorts for 7-day and 30-day retention. These are intentionally not estimated from incomplete data.</p></section>
+    </div>
+  </section>;
+}
