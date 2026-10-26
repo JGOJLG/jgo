@@ -5,6 +5,10 @@ type Row = Record<string, unknown>;
 function startOfWeek(offsetWeeks:number){const d=new Date();const day=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-day+offsetWeeks*7);d.setUTCHours(0,0,0,0);return d.toISOString()}
 export default async function FounderReport(){
  const db=await createClient();
+ const {data:{user}}=await db.auth.getUser();
+ if(!user)return <main><h1>Sign in required</h1></main>;
+ const {data:isAdmin,error:adminError}=await db.rpc('is_jgo_os_admin');
+ if(adminError||!isAdmin)return <main><h1>Admin access required</h1></main>;
  const thisWeek=startOfWeek(-1),previousWeek=startOfWeek(-2),end=startOfWeek(0);
  const metrics=[["New signups","jgojob_profiles","created_at"],["Jobs added","jgojob_jobs","created_at"],["Interviews created","jgojob_interviews","created_at"],["Outreach messages","jgojob_messages","created_at"],["Reported errors","jgojob_system_errors","created_at"],["Analytics events","jgojob_analytics_events","created_at"]] as const;
  const rows=await Promise.all(metrics.map(async ([label,table,date])=>{
