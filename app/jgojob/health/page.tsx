@@ -1,0 +1,23 @@
+import Link from "next/link";
+import {createClient} from "@/lib/supabase-server";
+export const dynamic="force-dynamic";
+export const revalidate=0;
+type Issue={category:string;feature:string;fingerprint:string;sample_message:string;occurrences:number;affected_users:number;last_seen:string;first_seen:string;sample_user_ids:string[]};
+const date=(x:string)=>new Date(x).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+export default async function HealthPage(){
+ const db=await createClient();
+ const {data:{user}}=await db.auth.getUser();
+ if(!user)return null;
+ const {data:admin,error:authError}=await db.rpc("is_jgo_os_admin");
+ if(authError||!admin)return <section className="flex-1 p-8 text-red-700">Admin access required.</section>;
+ const {data,error}=await db.rpc("jgojob_system_health");
+ const issues=(Array.isArray(data)?data:[]) as Issue[];
+ const total=issues.reduce((sum,i)=>sum+i.occurrences,0);
+ const categories=["login","database","job_import","checkout","application"];
+ return <section className="min-w-0 flex-1 bg-[#f7f8f3] p-5 lg:p-9"><div className="mx-auto max-w-[1450px]"><Link href="/jgojob" className="text-sm font-semibold text-[#587254]">← JGO Job overview</Link><p className="mt-6 text-[10px] font-bold uppercase tracking-[.2em] text-[#7f9975]">JGO JOB / OPERATIONS</p><h1 className="mt-2 text-3xl font-bold text-[#2d3c30]">System health</h1><p className="mt-2 max-w-3xl text-sm text-[#708075]">Grouped client-reported failures from the past 30 days. This is partial monitoring: absence of events does not prove every system is healthy.</p>
+ {error?<p role="alert" className="mt-5 rounded-xl border border-red-200 bg-white p-4 text-sm text-red-700">Monitoring data unavailable: {error.message}</p>:null}
+ <div className="mt-6 grid gap-3 sm:grid-cols-3">{[["Recorded failures",total],["Distinct issue groups",issues.length],["Features affected",new Set(issues.map(i=>i.feature)).size]].map(([name,n])=><div key={String(name)} className="rounded-xl border border-[#e0e7dc] bg-white p-5"><p className="text-xs text-[#738275]">{name}</p><p className="mt-2 text-3xl font-bold text-[#304534]">{n}</p></div>)}</div>
+ <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{categories.map(c=><div key={c} className="rounded-xl border border-[#e0e7dc] bg-white p-4"><p className="text-xs font-semibold capitalize text-[#738275]">{c.replace("_"," ")}</p><p className="mt-2 text-2xl font-bold text-[#304534]">{issues.filter(i=>i.category===c).reduce((a,i)=>a+i.occurrences,0)}</p></div>)}</div>
+ <div className="mt-6 overflow-x-auto rounded-2xl border border-[#dfe6db] bg-white"><table className="w-full min-w-[750px] text-left text-sm"><thead className="bg-[#f4f7f1] text-xs text-[#718073]"><tr>{["Issue","Feature","Occurrences","Users affected","Last seen"].map(x=><th key={x} className="px-5 py-4">{x}</th>)}</tr></thead><tbody>{issues.map(i=><tr key={i.fingerprint} className="border-t border-[#edf0eb]"><td className="max-w-[440px] px-5 py-4"><b className="block capitalize text-[#334535]">{i.category.replace("_"," ")}</b><span className="mt-1 block break-words text-xs text-[#738275]">{i.sample_message}</span><span className="mt-2 block break-all text-[10px] text-[#9aa69a]">{i.fingerprint}</span></td><td className="px-5 py-4">{i.feature}</td><td className="px-5 py-4">{i.occurrences}</td><td className="px-5 py-4"><b>{i.affected_users}</b><details className="mt-2"><summary className="cursor-pointer text-xs text-[#64835f]">Sample user IDs</summary><div className="mt-2 max-w-[240px] space-y-1 break-all text-[10px] text-[#819082]">{(i.sample_user_ids||[]).map(u=><div key={u}>{u}</div>)}</div></details></td><td className="whitespace-nowrap px-5 py-4">{date(i.last_seen)}</td></tr>)}</tbody></table>{!issues.length&&!error?<p className="p-8 text-center text-sm text-[#819082]">No instrumented client errors recorded in the last 30 days.</p>:null}</div>
+ <div className="mt-6 rounded-2xl border border-[#dfe6db] bg-white p-6"><h2 className="text-lg font-bold text-[#334535]">Monitoring coverage</h2><p className="mt-2 text-sm leading-relaxed text-[#708075]">Database writes and billing-request failures are instrumented in the JGO Job client. Anonymous failed logins, job-import parsing failures, server-side Stripe webhooks, and deployment failures require separate ingestion and are not yet included in these counts.</p><p className="mt-3 text-sm text-[#708075]">For current build and deployment status, use the <a href="https://vercel.com/jgohire/jgojob" target="_blank" rel="noreferrer" className="font-semibold text-[#315a3e] underline">JGO Job Vercel project</a>. This page does not poll Vercel automatically.</p></div></div></section>;
+}
