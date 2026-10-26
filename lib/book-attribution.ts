@@ -1,7 +1,7 @@
 // Amazon Attribution URLs exported October 26, 2026.
-// The CSV contains two different Instagram Bio tags; the first is used pending confirmation.
+// The second Instagram Bio tag is used; the first duplicate was discarded.
 export const bookAttributionUrls:Record<string,string> = {
-  "instagram-bio": "https://www.amazon.com/dp/B0HL4GTJ5H?maas=maas_adg_E6FAA58088B08BC479BE49FC91012BEB_afap_abs&ref_=aa_maas&tag=maas",
+  "instagram-bio": "https://www.amazon.com/dp/B0HL4GTJ5H?maas=maas_adg_B467C26C3901EBE77EE0D1D4BFACE19D_afap_abs&ref_=aa_maas&tag=maas",
   "linkedin-posts": "https://www.amazon.com/dp/B0HL4GTJ5H?maas=maas_adg_2551FCA597E763A437BAA78F2AF798E9_afap_abs&ref_=aa_maas&tag=maas",
   "networking-events": "https://www.amazon.com/dp/B0HL4GTJ5H?maas=maas_adg_981F2339966211D213BBEB262BD77621_afap_abs&ref_=aa_maas&tag=maas",
   "general": "https://www.amazon.com/dp/B0HL4GTJ5H?maas=maas_adg_0EC6D689A3B9B6C13E4242AC1227486C_afap_abs&ref_=aa_maas&tag=maas",
