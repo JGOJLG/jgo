@@ -1,5 +1,5 @@
-import {bookAttributionUrls} from "@/lib/book-attribution";
 "use client";
+import {bookAttributionUrls} from "@/lib/book-attribution";
 import {useEffect,useMemo,useState} from "react";
 const AMAZON="https://www.amazon.com/dp/B0HL4GTJ5H";
 const initial=[["Instagram Bio","instagram-bio"],["TikTok Bio","tiktok-bio"],["Instagram Story","instagram-story"],["LinkedIn Proposals","linkedin-proposals"],["LinkedIn Posts","linkedin-posts"],["Direct Messages","direct-messages"],["Email Signature","email-signature"],["JGO Hire Website","jgo-hire-website"],["QR / Printed Materials","print-qr"],["General Sharing","general"],["Facebook","facebook"],["Pinterest","pinterest"],["Newsletter","newsletter"],["Career Coaching Clients","coaching-clients"],["Networking Events","networking-events"]];
