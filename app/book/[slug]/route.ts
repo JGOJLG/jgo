@@ -1,11 +1,8 @@
-import {NextRequest,NextResponse} from "next/server";
+import {NextResponse} from "next/server";
+import {bookAttributionUrls} from "@/lib/book-attribution";
 const AMAZON="https://www.amazon.com/dp/B0HL4GTJ5H";
-export async function GET(request:NextRequest,{params}:{params:Promise<{slug:string}>}) {
+export async function GET(_request:Request,{params}:{params:Promise<{slug:string}>}){
  const {slug}=await params;
- const url=new URL(AMAZON);
- url.searchParams.set("utm_source","jgo-os");
- url.searchParams.set("utm_medium","book-promotion");
- url.searchParams.set("utm_campaign","found-noticed-hired");
- url.searchParams.set("utm_content",slug);
- return NextResponse.redirect(url,307);
+ const destination=bookAttributionUrls[slug]??AMAZON;
+ return NextResponse.redirect(destination,307);
 }
