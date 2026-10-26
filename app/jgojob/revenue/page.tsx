@@ -25,10 +25,15 @@ export default async function RevenuePage(){
  if(!user)return null;
  const {data:admin,error:authError}=await db.rpc("is_jgo_os_admin");
  if(authError||!admin)return <section className="flex-1 p-8 text-red-700">Admin access required.</section>;
+ const {data:scope,error:scopeError}=await db.rpc("jgojob_stripe_identifiers");
+ const customerIds=new Set<string>(Array.isArray(scope?.customers)?scope.customers:[]);
+ const subscriptionIds=new Set<string>(Array.isArray(scope?.subscriptions)?scope.subscriptions:[]);
+ const belongs=(x:StripeRow)=>{const c=typeof x.customer==="string"?x.customer:x.customer?.id;return !!(c&&customerIds.has(c))};
  const secret=process.env.STRIPE_SECRET_KEY;
  const now=Math.floor(Date.now()/1000),since=now-30*86400;
  let error="",invoices:StripeRow[]=[],subscriptions:StripeRow[]=[],refunds:StripeRow[]=[],failures:StripeRow[]=[],truncated=false;
- if(!secret)error="STRIPE_SECRET_KEY is not configured.";
+ if(scopeError||!scope)error="JGO Job customer reconciliation scope unavailable.";
+ else if(!secret)error="STRIPE_SECRET_KEY is not configured.";
  else try{
   const results=await Promise.all([
    stripeList("invoices",secret,"&created[gte]="+since),
@@ -36,7 +41,10 @@ export default async function RevenuePage(){
    stripeList("refunds",secret,"&created[gte]="+since),
    stripeList("events",secret,"&type=invoice.payment_failed&created[gte]="+since)
   ]);
-  [invoices,subscriptions,refunds,failures]=results.map(x=>x.rows);
+  invoices=results[0].rows.filter(belongs);
+  subscriptions=results[1].rows.filter(s=>subscriptionIds.has(s.id)||belongs(s));
+  refunds=results[2].rows.filter(r=>{const c=typeof r.customer==="string"?r.customer:r.customer?.id;return !!(c&&customerIds.has(c))});
+  failures=results[3].rows.filter(e=>{const obj=e.data?.object||{};return belongs(obj)});
   truncated=results.some(x=>x.truncated);
  }catch(e){error=e instanceof Error?e.message:"Stripe unavailable";}
  const paidInvoices=invoices.filter(i=>i.status==="paid"&&i.amount_paid>0);
@@ -66,7 +74,7 @@ export default async function RevenuePage(){
   ["Net collections · 30 days",usd(collected-refunded),"Paid invoices less refunds in this window; timing may differ"],
   ["List-price MRR",usd(listMrr),"Active subscriptions before discounts; not actual recurring revenue"],
   ["List-price ARR",usd(listMrr*12),"Annualized list-price MRR, not booked cash"],
-  ["Recorded discounts · 30 days",usd(waived),"Stripe invoice discount amounts, including waived value"],
+  ["Recorded discounts · 30 days",usd(waived),"Stripe invoice discount amounts on JGO Job invoices"],
   ["Payment failures · 30 days",count(failures.length),"Stripe invoice.payment_failed events"],
   ["Cancellation rate · 30 days",churn===null?"Unavailable":churn.toFixed(1)+"%","Proxy: cancellations / (current active + cancellations), not cohort churn"],
   ["Observed payer value · 30 days",lifetime===null?"Unavailable":usd(lifetime),"30-day collections / distinct customers who paid; not lifetime value"],
@@ -78,7 +86,7 @@ export default async function RevenuePage(){
  <Link href="/jgojob" className="text-sm font-semibold text-[#587254]">← Back to Dashboard</Link>
  <p className="mt-6 text-[10px] font-bold uppercase tracking-[.2em] text-[#7f9975]">JGO JOB / FINANCE</p>
  <h1 className="mt-2 text-3xl font-bold text-[#2d3c30]">Revenue Intelligence</h1>
- <p className="mt-2 max-w-3xl text-sm text-[#708075]">Server-side Stripe reconciliation. Collected revenue is based on successful invoice payments, not premium badges, trial signups or frontend analytics.</p>
+ <p className="mt-2 max-w-3xl text-sm text-[#708075]">Server-side Stripe reconciliation scoped to JGO Job customer and subscription IDs. Collected revenue is based on successful invoice payments, not premium badges or frontend analytics.</p>
  {error?<div role="alert" className="mt-6 rounded-xl border border-red-200 bg-white p-5 text-red-700">{error}</div>:null}
  {truncated?<div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-white p-4 text-sm text-amber-900">Stripe returned more than 500 records for at least one data source. These totals are incomplete until pagination is extended.</div>:null}
  {!error?<><div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label,value,detail])=><div key={label} className="rounded-2xl border border-[#dfe6db] bg-white p-5"><p className="text-xs font-semibold text-[#778777]">{label}</p><p className="mt-3 text-2xl font-bold tracking-tight text-[#304534]">{value}</p><p className="mt-2 text-xs leading-relaxed text-[#829084]">{detail}</p></div>)}</div>
