@@ -74,13 +74,6 @@ export async function POST(request: Request) {
       if (existingContact) await supabase.from("email_contacts").update({ name: recipient.name || existingContact.name || null, client_id: recipient.clientId ?? existingContact.client_id ?? null, first_contacted_at: existingContact.first_contacted_at || now, last_contacted_at: now, email_count: Number(existingContact.email_count || 0) + 1, updated_at: now }).eq("id", existingContact.id);
       else await supabase.from("email_contacts").insert({ name: recipient.name || null, email: recipient.email, client_id: recipient.clientId, source: recipient.clientId ? "jgo_os" : "email", first_contacted_at: now, last_contacted_at: now, email_count: 1 });
       const { data: message } = await supabase.from("email_messages").insert({ client_id: recipient.clientId, recipient_name: recipient.name || null, recipient_email: recipient.email, subject: personalizedSubject, body: messageText, body_html: renderedHtml, status: "sent", template_id: templateId, email_tags: emailTags, sent_at: now }).select("id, client_id, recipient_name, recipient_email, subject, body, body_html, template_id, sent_at").single();
-      if (audienceGroup === "Survival Guide" && message) {
-        const { error: historyError } = await supabase.from("guide_signup_email_history").insert({
-          signup_email: recipient.email, email_message_id: message.id,
-          template_name: templateLabel || "Custom Email", subject: personalizedSubject, sent_at: now,
-        });
-        if (historyError) return { ok: false as const, email: recipient.email, error: "Email sent but signup history could not be recorded: " + historyError.message };
-      }
       return { ok: true as const, message: message || null };
     }));
     for (const result of results) { if (!result.ok) failures.push({ email: result.email, error: result.error }); else if (result.message) savedMessages.push(result.message); }
