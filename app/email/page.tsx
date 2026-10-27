@@ -6,7 +6,8 @@ import EmailSuccessBridge from "./EmailSuccessBridge";
 
 type Contact = { id: number; name: string | null; email: string | null; status: string | null; company: string | null };
 type EmailContact = { id: number; name: string | null; email: string; company: string | null; client_id: number | null; first_contacted_at: string | null; last_contacted_at: string | null; email_count: number; marketing_opt_in: boolean; notes: string | null };
-type AudienceContact = { email: string; name: string; clientId: number | null; groups: string[]; optedIn: boolean };\ntype EmailTemplateRow = { id: number; name: string; subject: string; body: string };
+type AudienceContact = { email: string; name: string; clientId: number | null; groups: string[]; optedIn: boolean };
+type EmailTemplateRow = { id: number; name: string; subject: string; body: string };
 type EmailMessageRow = { id: number; client_id: number | null; recipient_name: string | null; recipient_email: string; subject: string; body: string; template_id: number | null; email_tags?: string[]; sent_at: string };
 
 export default async function EmailHubPage() {
@@ -15,7 +16,9 @@ export default async function EmailHubPage() {
     supabase.from("clients").select("id, name, email, status, company").not("email", "is", null).order("name", { ascending: true }),
     supabase.from("email_contacts").select("id, name, email, company, client_id, first_contacted_at, last_contacted_at, email_count, marketing_opt_in, notes").order("last_contacted_at", { ascending: false, nullsFirst: false }),
     supabase.from("email_templates").select("id, name, subject, body").order("created_at", { ascending: true }),
-    supabase.from("email_messages").select("id, client_id, recipient_name, recipient_email, subject, body, template_id, email_tags, sent_at").order("sent_at", { ascending: false }).limit(500),\n    supabase.from("job_search_guide_leads").select("email,first_name"),\n    supabase.from("intake_calls").select("email,name"),
+    supabase.from("email_messages").select("id, client_id, recipient_name, recipient_email, subject, body, template_id, email_tags, sent_at").order("sent_at", { ascending: false }).limit(500),
+    supabase.from("job_search_guide_leads").select("email,first_name"),
+    supabase.from("intake_calls").select("email,name"),
   ]);
 
   const clientContacts = ((contactsResult.data ?? []) as Contact[]).filter((contact) => contact.email?.trim());
