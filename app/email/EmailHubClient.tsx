@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { AudienceContact } from "./AudiencePicker";
 import { createEmailTemplate, deleteEmailTemplate } from "./actions";
 import { wrapEmailHtml } from "@/lib/emailRender";
+import { jgoJobLaunchHtml } from "@/lib/jgoJobLaunchEmail";
 
 type Contact = { id: number; name: string | null; email: string | null; status: string | null; company: string | null };
 type EmailContact = { id: number; name: string | null; email: string; company: string | null; client_id: number | null; first_contacted_at: string | null; last_contacted_at: string | null; email_count: number; marketing_opt_in: boolean; notes: string | null };
@@ -166,8 +167,8 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
 
   function useTemplate(template: Template) {
     const storedAsHtml = template.body.startsWith(HTML_TEMPLATE_PREFIX);
-    const html = storedAsHtml ? template.body.slice(HTML_TEMPLATE_PREFIX.length) : plainToHtml(template.body);
-    const plain = storedAsHtml ? stripHtml(html) : template.body;
+    const html = template.name === "JGO Job | Launch Introduction" ? jgoJobLaunchHtml() : storedAsHtml ? template.body.slice(HTML_TEMPLATE_PREFIX.length) : plainToHtml(template.body);
+    const plain = template.name === "JGO Job | Launch Introduction" || storedAsHtml ? stripHtml(html) : template.body;
     setSubject(template.subject); setBody(plain); setBodyHtml(html); setActiveTemplateId(template.id); setTab("compose");
     setTimeout(() => { if (editorRef.current) editorRef.current.innerHTML = html; }, 0);
     setNotice(`Loaded “${template.name}”`);
