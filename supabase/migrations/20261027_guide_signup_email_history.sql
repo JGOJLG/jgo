@@ -8,4 +8,4 @@ create table if not exists public.guide_signup_email_history (
 );
 create index if not exists guide_signup_email_history_email_idx on public.guide_signup_email_history (lower(signup_email), sent_at desc);
 alter table public.guide_signup_email_history enable row level security;
--- Keep private until explicit owner-scoped RLS policy is configured.
+create policy "jgo admin manages guide signup email history" on public.guide_signup_email_history for all to authenticated using (public.is_jgo_admin()) with check (public.is_jgo_admin());
