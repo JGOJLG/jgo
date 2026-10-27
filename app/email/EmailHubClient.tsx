@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";\nimport AudiencePicker, { type AudienceContact } from "./AudiencePicker";
+import { useRouter } from "next/navigation";
+import AudiencePicker, { type AudienceContact } from "./AudiencePicker";
 import { createEmailTemplate, deleteEmailTemplate } from "./actions";
 
 type Contact = { id: number; name: string | null; email: string | null; status: string | null; company: string | null };
@@ -16,7 +17,9 @@ const HTML_TEMPLATE_PREFIX = "__JGO_HTML__";
 
 function isEmail(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()); }
 function stripHtml(value: string) { const div = document.createElement("div"); div.innerHTML = value; return (div.innerText || div.textContent || "").trim(); }
-function plainToHtml(value: string) { return value.split(/\n{2,}/).map((p) => `<p>${p.replaceAll("\n", "<br>")}</p>`).join(""); }
+function plainToHtml(value: string) { return value.split(/
+{2,}/).map((p) => `<p>${p.replaceAll("
+", "<br>")}</p>`).join(""); }
 function formatDate(value: string | null) { if (!value) return "Never"; return new Date(value).toLocaleString(); }
 function templatePreview(value: string) { return value.startsWith(HTML_TEMPLATE_PREFIX) ? stripHtml(value.slice(HTML_TEMPLATE_PREFIX.length)) : value; }
 
