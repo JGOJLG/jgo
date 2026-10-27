@@ -20,3 +20,8 @@ export function jgoJobLaunchHtml() {
  ${p("Give it a try. I think you're going to wonder how you managed without it.")}
  </div>`;
 }
+
+// Normalize previously loaded drafts as well as the current saved template.
+export function normalizeJgoJobHeadline(value: string): string {
+  return value.replace(/Your job search shouldn(?:'|’|&#0?39;|&apos;)t be this much work\.?/gi, "Job searching is hard enough. Staying organized shouldn't be.");
+}
