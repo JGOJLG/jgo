@@ -5,7 +5,7 @@ export function jgoJobLaunchHtml() {
  ${p("Hi {{first_name}},")}
  ${p("Be honest. How many jobs have you applied to that you barely remember applying for?")}
  ${p("How many recruiters have you meant to follow up with? How many times have you stared at a blank message wondering what to say?")}
- <div style="margin:25px 0;padding:22px;background:#f1f6ee;border-left:4px solid #647d5b;border-radius:0 12px 12px 0;color:#304b34;font-size:20px;line-height:1.45;font-weight:700">Your job search shouldn't be this much work.</div>
+ <div style="margin:25px 0;padding:22px;background:#f1f6ee;border-left:4px solid #647d5b;border-radius:0 12px 12px 0;color:#304b34;font-size:20px;line-height:1.45;font-weight:700">Job searching is hard enough. Staying organized shouldn't be.</div>
  ${p("So I built something I wish every job seeker had.")}
  <div style="margin:28px 0 15px"><div style="font-size:11px;letter-spacing:2px;font-weight:700;color:#758a71">INTRODUCING</div><div style="font-size:32px;line-height:1.35;font-weight:800;color:#304b34">JGO Job.</div><div style="font-size:15px;line-height:1.7;color:#596b5a;margin-top:6px">Your applications, contacts, interviews, follow-ups, and next steps. Finally, all in one place.</div></div>
  <div style="font-weight:700;color:#304b34;font-size:17px;margin:28px 0 15px">Here's what you can do with it.</div>
