@@ -16,7 +16,7 @@ export function jgoJobLaunchHtml() {
  </table>
  <div style="text-align:center;margin:25px 0 30px"><a href="https://jgojob.com/?utm_source=jgo_os_email&amp;utm_medium=email&amp;utm_campaign=jgo_job_launch" style="display:inline-block;border-radius:999px;background:#526e4e;padding:16px 30px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none">Explore JGO Job →</a><div style="margin-top:12px;color:#748474;font-size:12px">Start free. Upgrade only if you want more.</div></div>
  ${p("I've spent years on the recruiting side of the table. I know how much goes into landing a job, and how easy it is for good opportunities to get lost in the chaos.")}
- ${p("You still have to put in the work. But you shouldn't have to do it all from scratch.")}
+ ${p("Job searching is hard enough. Staying organized shouldn't be.")}
  ${p("Give it a try. I think you're going to wonder how you managed without it.")}
  </div>`;
 }
