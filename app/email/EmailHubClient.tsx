@@ -210,7 +210,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
   }
 
   const previewRecipient = recipients[previewRecipientIndex] || recipients[0] || { name: "Alex", email: "alex@example.com", clientId: null };
-  const previewFirstName = previewRecipient.name.trim().split(/\\s+/)[0] || "there";
+  const previewFirstName = previewRecipient.name.trim().split(/\s+/)[0] || "there";
   const previewPersonalize = (value: string) => value.replaceAll("{{first_name}}", previewFirstName).replaceAll("{{name}}", previewRecipient.name);
   const previewEscape = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
   const previewHtml = wrapEmailHtml(previewPersonalize(normalizeJgoJobHeadline(bodyHtml.trim() || previewEscape(body).replaceAll("\\n", "<br />"))));
