@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { AudienceContact } from "./AudiencePicker";
 import { createEmailTemplate, deleteEmailTemplate } from "./actions";
 import { wrapEmailHtml } from "@/lib/emailRender";
-import { jgoJobLaunchHtml } from "@/lib/jgoJobLaunchEmail";
+import { jgoJobLaunchHtml, normalizeJgoJobHeadline } from "@/lib/jgoJobLaunchEmail";
 
 type Contact = { id: number; name: string | null; email: string | null; status: string | null; company: string | null };
 type EmailContact = { id: number; name: string | null; email: string; company: string | null; client_id: number | null; first_contacted_at: string | null; last_contacted_at: string | null; email_count: number; marketing_opt_in: boolean; notes: string | null };
@@ -168,8 +168,8 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
 
   function useTemplate(template: Template) {
     const storedAsHtml = template.body.startsWith(HTML_TEMPLATE_PREFIX);
-    const html = template.name === "JGO Job | Launch Introduction" ? jgoJobLaunchHtml() : storedAsHtml ? template.body.slice(HTML_TEMPLATE_PREFIX.length) : plainToHtml(template.body);
-    const plain = template.name === "JGO Job | Launch Introduction" || storedAsHtml ? stripHtml(html) : template.body;
+    const html = normalizeJgoJobHeadline(template.name === "JGO Job | Launch Introduction" ? jgoJobLaunchHtml() : storedAsHtml ? template.body.slice(HTML_TEMPLATE_PREFIX.length) : plainToHtml(template.body));
+    const plain = template.name === "JGO Job | Launch Introduction" || storedAsHtml ? stripHtml(html) : normalizeJgoJobHeadline(template.body);
     setSubject(template.subject); setBody(plain); setBodyHtml(html); setActiveTemplateId(template.id); setTab("compose");
     setEditorVersion((v) => v + 1);
     if (editorRef.current) editorRef.current.innerHTML = html;
@@ -198,7 +198,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
     if (recipients.length > 1 && !window.confirm(`Send this email individually to ${recipients.length} recipients? Recipient email addresses will stay private.`)) return;
     setSending(true); setNotice("");
     try {
-      const response = await fetch("/api/email/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipients, subject, body, bodyHtml, audienceGroup: recipientMode === "group" ? recipientGroup : null, templateId: activeTemplateId }) });
+      const response = await fetch("/api/email/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipients, subject, body: normalizeJgoJobHeadline(body), bodyHtml: normalizeJgoJobHeadline(bodyHtml), audienceGroup: recipientMode === "group" ? recipientGroup : null, templateId: activeTemplateId }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail || result.error || "Unable to send email.");
       if (Array.isArray(result.messages) && result.messages.length) setSent((current) => [...result.messages, ...current]);
@@ -213,7 +213,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
   const previewFirstName = previewRecipient.name.trim().split(/\\s+/)[0] || "there";
   const previewPersonalize = (value: string) => value.replaceAll("{{first_name}}", previewFirstName).replaceAll("{{name}}", previewRecipient.name);
   const previewEscape = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-  const previewHtml = wrapEmailHtml(previewPersonalize(bodyHtml.trim() || previewEscape(body).replaceAll("\\n", "<br />")));
+  const previewHtml = wrapEmailHtml(previewPersonalize(normalizeJgoJobHeadline(bodyHtml.trim() || previewEscape(body).replaceAll("\\n", "<br />"))));
 
   const tabs: { id: Tab; label: string }[] = [{ id: "compose", label: "Compose" }, { id: "contacts", label: `Contacts (${initialEmailContacts.length})` }, { id: "templates", label: "Templates" }, { id: "sent", label: sent.length ? `Sent (${sent.length})` : "Sent" }];
 
