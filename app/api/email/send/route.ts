@@ -11,7 +11,7 @@ const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const JGO_OWNER_EMAIL = "jen@jgohire.com";
 
 type Recipient = { clientId?: number | null; name?: string; email?: string };
-type EmailRequest = { recipients?: Recipient[]; subject?: string; body?: string; bodyHtml?: string; templateId?: number | null; emailTags?: string[] };
+type EmailRequest = { recipients?: Recipient[]; subject?: string; body?: string; bodyHtml?: string; templateId?: number | null; emailTags?: string[]; audienceGroup?: string | null };
 
 function escapeHtml(value: string) { return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function isEmail(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); }
@@ -35,7 +35,16 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return NextResponse.json({ error: "Sign in is required to send emails." }, { status: 401 });
+  const selectedTemplateId = typeof payload.templateId === "number" ? payload.templateId : null;
+  let templateLabel: string | null = null;
+  if (selectedTemplateId !== null) {
+    const { data: selectedTemplate, error: templateError } = await supabase.from("email_templates").select("name").eq("id", selectedTemplateId).maybeSingle();
+    if (templateError || !selectedTemplate) return NextResponse.json({ error: "Selected template could not be verified." }, { status: 400 });
+    templateLabel = selectedTemplate.name;
+  }
   const emailTags = Array.isArray(payload.emailTags) ? [...new Set(payload.emailTags.filter((tag): tag is string => typeof tag === "string").map(tag => tag.trim().slice(0, 60)).filter(Boolean))].slice(0, 20) : [];
+  if (templateLabel && !emailTags.includes(templateLabel)) emailTags.unshift(templateLabel);
+  const audienceGroup = typeof payload.audienceGroup === "string" ? payload.audienceGroup : null;
   // All multi-recipient sends are treated as marketing unless a separately authorized
   // transactional workflow is implemented. Never trust a client-provided opt-in flag.
   if (uniqueRecipients.length > 1) {
@@ -65,6 +74,13 @@ export async function POST(request: Request) {
       if (existingContact) await supabase.from("email_contacts").update({ name: recipient.name || existingContact.name || null, client_id: recipient.clientId ?? existingContact.client_id ?? null, first_contacted_at: existingContact.first_contacted_at || now, last_contacted_at: now, email_count: Number(existingContact.email_count || 0) + 1, updated_at: now }).eq("id", existingContact.id);
       else await supabase.from("email_contacts").insert({ name: recipient.name || null, email: recipient.email, client_id: recipient.clientId, source: recipient.clientId ? "jgo_os" : "email", first_contacted_at: now, last_contacted_at: now, email_count: 1 });
       const { data: message } = await supabase.from("email_messages").insert({ client_id: recipient.clientId, recipient_name: recipient.name || null, recipient_email: recipient.email, subject: personalizedSubject, body: messageText, body_html: renderedHtml, status: "sent", template_id: templateId, email_tags: emailTags, sent_at: now }).select("id, client_id, recipient_name, recipient_email, subject, body, body_html, template_id, sent_at").single();
+      if (audienceGroup === "Survival Guide" && message) {
+        const { error: historyError } = await supabase.from("guide_signup_email_history").insert({
+          signup_email: recipient.email, email_message_id: message.id,
+          template_name: templateLabel || "Custom Email", subject: personalizedSubject, sent_at: now,
+        });
+        if (historyError) return { ok: false as const, email: recipient.email, error: "Email sent but signup history could not be recorded: " + historyError.message };
+      }
       return { ok: true as const, message: message || null };
     }));
     for (const result of results) { if (!result.ok) failures.push({ email: result.email, error: result.error }); else if (result.message) savedMessages.push(result.message); }
