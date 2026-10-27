@@ -78,6 +78,19 @@ export default async function GuideSignupsPage({ searchParams }: { searchParams:
 
   const { data, error } = await query;
   const leads = (data || []) as Lead[];
+  const signupEmails = [...new Set(leads.map(x => x.email.trim().toLowerCase()))];
+  const { data: sentGuideEmails } = signupEmails.length
+    ? await supabase.from("email_messages").select("recipient_email,subject,sent_at,template_id,email_tags").in("recipient_email", signupEmails).order("sent_at", { ascending: false }).limit(1000)
+    : { data: [] };
+  const { data: sentTemplates } = await supabase.from("email_templates").select("id,name");
+  const templateNames = new Map((sentTemplates || []).map(t => [t.id, t.name]));
+  const historyByEmail = new Map<string, { label: string; sentAt: string }[]>();
+  for (const message of sentGuideEmails || []) {
+    const key = message.recipient_email.trim().toLowerCase();
+    const history = historyByEmail.get(key) || [];
+    history.push({ label: (message.template_id && templateNames.get(message.template_id)) || message.email_tags?.[0] || message.subject, sentAt: message.sent_at });
+    historyByEmail.set(key, history);
+  }
   const newCount = leads.filter((x) => x.funnel_status === "New Signup").length;
   const contacted = leads.filter((x) => x.funnel_status === "Contacted").length;
   const converted = leads.filter((x) => x.converted_client_id).length;
@@ -123,6 +136,7 @@ export default async function GuideSignupsPage({ searchParams }: { searchParams:
                     <div className="flex flex-wrap items-center gap-2"><p className="text-lg font-bold text-[#354532]">{lead.first_name}</p><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${badge(lead.funnel_status)}`}>{lead.funnel_status}</span></div>
                     <p className="mt-1 truncate text-sm font-medium text-[#61745c]">{lead.email}</p>
                     <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[#818b82]"><span>Job Seeker Survival Guide</span><span>Signed up {formatDate(lead.created_at)}</span>{lead.contacted_at ? <span>Contacted {formatDate(lead.contacted_at)}</span> : null}</div>
+                    {(historyByEmail.get(lead.email.trim().toLowerCase()) || []).length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{(historyByEmail.get(lead.email.trim().toLowerCase()) || []).slice(0, 4).map((item, index) => <span key={index} title={new Date(item.sentAt).toLocaleString()} className="rounded-full border border-[#d7e1d0] bg-[#edf3e9] px-2.5 py-1 text-[11px] font-semibold text-[#52684b]">Emailed: {item.label}</span>)}</div>}
                     {lead.quiz_result_title && lead.quiz_result_title !== "Direct Guide Signup" ? <p className="mt-2 text-xs text-[#7a877b]">Quiz: {lead.quiz_result_title}</p> : null}
                   </div>
                   <div className="flex flex-wrap gap-2 lg:justify-end">
