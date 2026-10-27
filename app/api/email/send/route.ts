@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { createClient } from "@/lib/supabase-server";
 import { jgoTextSignature } from "@/lib/emailSignature";
 import { wrapEmailHtml } from "@/lib/emailRender";
+import { normalizeJgoJobHeadline } from "@/lib/jgoJobLaunchEmail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +27,8 @@ export async function POST(request: Request) {
   let payload: EmailRequest;
   try { payload = (await request.json()) as EmailRequest; } catch { return NextResponse.json({ error: "Invalid request body." }, { status: 400 }); }
   const subject = String(payload.subject || "").trim();
-  const rawBody = String(payload.body || "").trim();
-  const rawHtml = String(payload.bodyHtml || "").trim();
+  const rawBody = normalizeJgoJobHeadline(String(payload.body || "").trim());
+  const rawHtml = normalizeJgoJobHeadline(String(payload.bodyHtml || "").trim());
   const templateId = Number.isInteger(payload.templateId) ? Number(payload.templateId) : null;
   if (!subject || (!rawBody && !rawHtml)) return NextResponse.json({ error: "Subject and message are required." }, { status: 400 });
   const uniqueRecipients = Array.from(new Map((payload.recipients || []).map((recipient) => ({ clientId: Number.isInteger(recipient.clientId) ? Number(recipient.clientId) : null, name: String(recipient.name || "").trim(), email: String(recipient.email || "").trim().toLowerCase() })).filter((recipient) => isEmail(recipient.email)).map((recipient) => [recipient.email, recipient])).values());
