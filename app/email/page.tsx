@@ -51,6 +51,20 @@ export default async function EmailHubPage() {
     ).values()
   ).sort((a, b) => (a.name || a.email || "").localeCompare(b.name || b.email || ""));
 
+
+  const audienceMap = new Map<string, AudienceContact>();
+  const addAudience = (value: string | null | undefined, name: string | null | undefined, clientId: number | null, group: string, optedIn = false) => {
+    const email = (value || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) return;
+    const prior = audienceMap.get(email);
+    audienceMap.set(email, { email, name: prior?.name || name || "", clientId: prior?.clientId ?? clientId, groups: Array.from(new Set([...(prior?.groups || []), group])), optedIn: Boolean(prior?.optedIn || optedIn) });
+  };
+  for (const c of clientContacts) addAudience(c.email, c.name, c.id, ["lead", "free 15 scheduled", "free 15 completed"].includes((c.status || "").toLowerCase()) ? "Leads" : "Clients");
+  for (const c of emailContacts) addAudience(c.email, c.name, c.client_id, "Email Contacts", c.marketing_opt_in);
+  for (const c of signupsResult.data || []) addAudience(c.email, c.first_name, null, "Survival Guide");
+  for (const c of leadsResult.data || []) addAudience(c.email, c.name, null, "Leads");
+  const audienceContacts = Array.from(audienceMap.values());
+
   return (
     <>
       <TemplateDeleteGuard />
