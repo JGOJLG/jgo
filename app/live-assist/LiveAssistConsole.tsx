@@ -10,6 +10,7 @@ export default function LiveAssistConsole(){
  const load=async(s:Session)=>{const {data,error}=await db.rpc("jgojob_live_assist_read_jobs",{p_session:s.session_id});if(error)setError(error.message);else{setSelected(s);setJobs(data||[])}};
  useEffect(()=>{void refresh();const timer=setInterval(()=>{void refresh();if(selected)void load(selected)},5000);return()=>clearInterval(timer)},[db,selected?.session_id]);
  const start=async(s:Session)=>{setBusy(true);const {data,error}=await db.rpc("jgojob_live_assist_start",{p_session:s.session_id});if(error||!data)setError(error?.message||"Unable to start session");else await load({...s,status:"active"});await refresh();setBusy(false)};
+ const end=async(s:Session)=>{setBusy(true);const {data,error}=await db.rpc("jgojob_live_assist_end",{p_session:s.session_id});if(error||!data)setError(error?.message||"Unable to end session");else{setSelected(null);setJobs([]);await refresh()}setBusy(false)};
  const save=async(j:Job,field:"company"|"title"|"location"|"status"|"notes",value:string)=>{if(!selected||selected.permission!=="edit")return;const {data,error}=await db.rpc("jgojob_live_assist_write_job",{p_session:selected.session_id,p_job:j.id,p_field:field,p_value:value});if(error||!data)setError(error?.message||"Change not saved");else await load(selected)};
  return <main style={{maxWidth:1200,margin:"40px auto",padding:24,fontFamily:"Arial,sans-serif"}}>
  <h1>JGO Job Live Assist</h1><p>Customers must request access. Sessions expire automatically. View-only sessions cannot be edited.</p>
@@ -19,7 +20,7 @@ export default function LiveAssistConsole(){
  <section><h2>Assistance requests</h2>{sessions.length===0&&<p>No active requests.</p>}
  {sessions.map(s=><article key={s.session_id} style={{padding:12,border:"1px solid #ddd",borderRadius:8,marginBottom:10}}>
  <strong>{s.permission==="edit"?"View & edit":"View only"}</strong><p style={{fontSize:12}}>User: {s.owner_id.slice(0,8)} · {s.status}</p>
- <button disabled={busy} onClick={()=>void(s.status==="requested"?start(s):load(s))}>{s.status==="requested"?"Accept request":"Open tracker"}</button></article>)}</section>
+ <button disabled={busy} onClick={()=>void(s.status==="requested"?start(s):load(s))}>{s.status==="requested"?"Accept request":"Open tracker"}</button> <button disabled={busy} onClick={()=>void end(s)}>End session</button></article>)}</section>
  <section><h2>{selected?"Customer tracker":"Select a session"}</h2>
  {selected&&<><p>{selected.permission==="edit"?"Editing permitted":"View only"} · Expires {new Date(selected.expires_at).toLocaleString()}</p>
  <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{["Company","Title","Location","Status","Notes"].map(x=><th key={x} style={{textAlign:"left",padding:8}}>{x}</th>)}</tr></thead><tbody>
