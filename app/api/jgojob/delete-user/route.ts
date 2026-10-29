@@ -39,6 +39,8 @@ export async function POST(req:Request){
    }
   }catch(e){return NextResponse.json({error:"Stripe cancellation failed. Account was not deleted: "+(e instanceof Error?e.message:"Unknown error")},{status:502})}
  }
+ const {error:cleanupError}=await sb.rpc("jgojob_admin_cleanup_member_links",{p_user:body.userId});
+ if(cleanupError)return NextResponse.json({error:"Subscription cancellation completed, but linked account cleanup failed: "+cleanupError.message},{status:409});
  const {error:failure}=await service.auth.admin.deleteUser(body.userId,false);
  if(failure)return NextResponse.json({error:failure.message},{status:409});
  return NextResponse.json({ok:true});
