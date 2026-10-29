@@ -1,3 +1,4 @@
+import Stripe from "stripe";
 import {NextResponse} from "next/server";
 import {createClient} from "@/lib/supabase-server";
 import {createClient as adminClient} from "@supabase/supabase-js";
@@ -17,6 +18,27 @@ export async function POST(req:Request){
  const service=adminClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
  const {data:found,error:lookupError}=await service.auth.admin.getUserById(body.userId);
  if(lookupError||found.user?.email?.toLowerCase()!==check.email.toLowerCase())return NextResponse.json({error:"Account verification failed"},{status:409});
+ // Cancel paid subscriptions before removing the account, including any not cached on the profile.
+ const {data:profile,error:profileError}=await service.from("jgojob_profiles").select("stripe_customer_id,stripe_subscription_id").eq("user_id",body.userId).maybeSingle();
+ if(profileError)return NextResponse.json({error:"Could not verify billing status"},{status:503});
+ if(profile?.stripe_customer_id||profile?.stripe_subscription_id){
+  const secret=process.env.STRIPE_SECRET_KEY;
+  if(!secret)return NextResponse.json({error:"Stripe is not configured. Account was not deleted."},{status:503});
+  try{
+   const stripe=new Stripe(secret);
+   const subscriptions=new Set<string>();
+   if(profile.stripe_subscription_id)subscriptions.add(profile.stripe_subscription_id);
+   if(profile.stripe_customer_id){
+    for await(const subscription of stripe.subscriptions.list({customer:profile.stripe_customer_id,limit:100})){
+     if(subscription.status!=="canceled")subscriptions.add(subscription.id);
+    }
+   }
+   for(const id of subscriptions){
+    const subscription=await stripe.subscriptions.retrieve(id);
+    if(subscription.status!=="canceled")await stripe.subscriptions.cancel(id);
+   }
+  }catch(e){return NextResponse.json({error:"Stripe cancellation failed. Account was not deleted: "+(e instanceof Error?e.message:"Unknown error")},{status:502})}
+ }
  const {error:failure}=await service.auth.admin.deleteUser(body.userId,false);
  if(failure)return NextResponse.json({error:failure.message},{status:409});
  return NextResponse.json({ok:true});
