@@ -4,10 +4,10 @@ import {createClient} from "@/lib/supabase-server";
 const AMAZON="https://www.amazon.com/dp/B0HL4GTJ5H";
 export async function GET(_request:Request,{params}:{params:Promise<{slug:string}>}){
  const {slug}=await params;
- if(slug==="jgo-job-footer"){
+ if(Object.prototype.hasOwnProperty.call(bookAttributionUrls,slug)||slug==="jgo-job-footer"){
   try {
    const supabase=await createClient();
-   const {error}=await supabase.from("jgo_book_link_clicks").insert({slug:"jgo-job-footer"});
+   const {error}=await supabase.from("jgo_book_link_clicks").insert({slug});
    if(error) console.error("Book footer click tracking:",error.message);
   } catch(error){console.error("Book footer click tracking:",error);}
  }
