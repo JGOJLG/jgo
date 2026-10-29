@@ -9,7 +9,7 @@ export const bookChannels:[string,string][]=[
  ["JGO Job Footer","jgo-job-footer"]
 ];
 export function bookTrackingLink(slug:string){
- return "https://jgohire.com/book/"+slug;
+ return "https://portal.jgohire.com/book/"+slug;
 }
 export function bookDestination(slug:string){
  return bookAttributionUrls[slug]??"https://www.amazon.com/dp/B0HL4GTJ5H";
