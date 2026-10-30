@@ -5,7 +5,6 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ACCOUNT_ID = "acct_1UWMh0GTU8IAq7cj";
 
 export async function POST(request: Request) {
   const secret = process.env.JGO_HIRE_STRIPE_SECRET_KEY;
@@ -61,6 +60,7 @@ export async function POST(request: Request) {
     if (findError || !service) return NextResponse.json({ error: "Invoice service not found" }, { status: 500 });
 
     const amount = Number(basePrice.toFixed(2));
+    if (Math.abs(Number(service.price) - amount) > 0.009) return NextResponse.json({ error: "Service amount mismatch" }, { status: 409 });
     // Unique index on stripe_checkout_session_id makes repeated Stripe delivery idempotent.
     const { data: existing, error: existingError } = await db.from("payments")
       .select("id").eq("stripe_checkout_session_id", session.id).maybeSingle();
