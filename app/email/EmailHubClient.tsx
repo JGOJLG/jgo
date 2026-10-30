@@ -75,7 +75,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
 
   const sentGroups = useMemo<SentGroup[]>(() => {
     const groups: SentGroup[] = [];
-    const ordered = [...sent].sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
+    const ordered = sent.filter(m => (m.email_tags || []).includes(selectedBrand) || (selectedBrand === "JGO Hire" && !(m.email_tags || []).includes("JGO Job"))).sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
     for (const message of ordered) {
       const messageTime = new Date(message.sent_at).getTime();
       const group = groups.find((candidate) => Math.abs(new Date(candidate.sentAt).getTime() - messageTime) <= 12000);
@@ -83,7 +83,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
       else groups.push({ id: `sent-${message.id}`, messages: [message], sentAt: message.sent_at, subject: message.subject, body: message.body });
     }
     return groups;
-  }, [sent]);
+  }, [sent, selectedBrand]);
 
   function showSuccessToast(message: string) {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -205,7 +205,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
     if (recipients.length > 1 && !window.confirm(`Send this email individually to ${recipients.length} recipients? Recipient email addresses will stay private.`)) return;
     setSending(true); setNotice("");
     try {
-      const response = await fetch("/api/email/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipients, subject, body: normalizeJgoJobHeadline(body), bodyHtml: normalizeJgoJobHeadline(bodyHtml), audienceGroup: recipientMode === "group" ? recipientGroup : null, templateId: activeTemplateId }) });
+      const response = await fetch("/api/email/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipients, subject, body: normalizeJgoJobHeadline(body), bodyHtml: normalizeJgoJobHeadline(bodyHtml), audienceGroup: recipientMode === "group" ? recipientGroup : null, brand: selectedBrand, templateId: activeTemplateId }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail || result.error || "Unable to send email.");
       if (Array.isArray(result.messages) && result.messages.length) setSent((current) => [...result.messages, ...current]);
