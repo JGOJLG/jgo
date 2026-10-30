@@ -15,13 +15,14 @@ type EmailMessageRow = { id: number; client_id: number | null; recipient_name: s
 
 export default async function EmailHubPage() {
   const supabase = await createClient();
-  const [contactsResult, emailContactsResult, templatesResult, messagesResult, signupsResult, leadsResult] = await Promise.all([
+  const [contactsResult, emailContactsResult, templatesResult, messagesResult, signupsResult, leadsResult, jobSignupsResult] = await Promise.all([
     supabase.from("clients").select("id, name, email, status, company").not("email", "is", null).order("name", { ascending: true }),
     supabase.from("email_contacts").select("id, name, email, company, client_id, first_contacted_at, last_contacted_at, email_count, marketing_opt_in, notes").order("last_contacted_at", { ascending: false, nullsFirst: false }),
     supabase.from("email_templates").select("id, name, subject, body").order("created_at", { ascending: true }),
     supabase.from("email_messages").select("id, client_id, recipient_name, recipient_email, subject, body, template_id, email_tags, sent_at").order("sent_at", { ascending: false }).limit(500),
     supabase.from("job_search_guide_leads").select("email,first_name"),
     supabase.from("intake_calls").select("email,name"),
+    supabase.from("jgojob_profiles").select("email,first_name"),
   ]);
 
   const clientContacts = ((contactsResult.data ?? []) as Contact[]).filter((contact) => contact.email?.trim());
@@ -62,7 +63,8 @@ export default async function EmailHubPage() {
     const prior = audienceMap.get(email);
     audienceMap.set(email, { email, name: prior?.name || name || "", clientId: prior?.clientId ?? clientId, groups: Array.from(new Set([...(prior?.groups || []), group])), optedIn: Boolean(prior?.optedIn || optedIn) });
   };
-  for (const c of clientContacts) addAudience(c.email, c.name, c.id, ["lead", "free 15 scheduled", "free 15 completed"].includes((c.status || "").toLowerCase()) ? "Leads" : "Clients");
+  for (const c of clientContacts) addAudience(c.email, c.name, c.id, "JGO Hire Clients");
+  for (const c of jobSignupsResult.data || []) addAudience(c.email, c.first_name, null, "JGO Job Signups");
   for (const c of emailContacts) addAudience(c.email, c.name, c.client_id, "Email Contacts", c.marketing_opt_in);
   for (const c of signupsResult.data || []) addAudience(c.email, c.first_name, null, "Survival Guide");
   for (const c of leadsResult.data || []) addAudience(c.email, c.name, null, "Leads");
