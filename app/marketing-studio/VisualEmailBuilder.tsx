@@ -1,0 +1,23 @@
+"use client";
+import { useState } from "react";
+export type EmailBlock={id:string;type:"heading"|"text"|"button"|"divider"|"spacer";content:string;url?:string};
+const make=(type:EmailBlock["type"]):EmailBlock=>({id:crypto.randomUUID(),type,content:type==="heading"?"A headline worth reading":type==="text"?"Write something useful for your readers.":type==="button"?"Explore more":"",url:type==="button"?"https://jgojob.com":undefined});
+export default function VisualEmailBuilder({blocks,onChange,brand}:{blocks:EmailBlock[];onChange:(blocks:EmailBlock[])=>void;brand:"JGO Hire"|"JGO Job"}){
+ const [selected,setSelected]=useState<string|null>(null);
+ const main=brand==="JGO Hire"?"#52684b":"#526e4e";
+ const change=(id:string,patch:Partial<EmailBlock>)=>onChange(blocks.map(b=>b.id===id?{...b,...patch}:b));
+ const move=(index:number,delta:number)=>{const next=[...blocks],to=index+delta;if(to<0||to>=next.length)return;[next[index],next[to]]=[next[to],next[index]];onChange(next)};
+ const action=(label:string,fn:()=>void,disabled=false)=><button type="button" disabled={disabled} onClick={fn} style={{background:"white",border:"1px solid #dce5d8",borderRadius:8,padding:"8px 10px",cursor:"pointer",fontSize:12,color:"#314b33",opacity:disabled?.45:1}}>{label}</button>;
+ return <div style={{display:"grid",gap:14}}>
+ <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}><strong style={{fontSize:12,color:"#64748b",marginRight:4}}>ADD BLOCK</strong>{(["heading","text","button","divider","spacer"] as const).map(type=><button key={type} type="button" onClick={()=>{const b=make(type);onChange([...blocks,b]);setSelected(b.id)}} style={{background:"#eef4eb",border:"1px solid #d7e4d1",borderRadius:9,padding:"9px 12px",cursor:"pointer",color:"#304b34",textTransform:"capitalize"}}>+ {type}</button>)}</div>
+ <div style={{border:"1px solid #e1e8de",borderRadius:16,background:"#f6f8f3",padding:"clamp(12px,3vw,28px)"}}>
+ <div style={{maxWidth:640,margin:"auto",background:"white",borderRadius:12,overflow:"hidden",boxShadow:"0 4px 22px #17243b12"}}>
+ <div style={{padding:"20px 28px",background:"#e7eee3",color:main,fontWeight:800}}>{brand}</div>
+ <div style={{padding:"22px clamp(14px,4vw,36px)"}}>{blocks.length===0&&<p style={{textAlign:"center",color:"#64748b",padding:36}}>Your email is a blank canvas. Add a block above to start.</p>}
+ {blocks.map((b,i)=><div key={b.id} onClick={()=>setSelected(b.id)} style={{border:selected===b.id?"2px solid #86a37e":"2px solid transparent",borderRadius:9,padding:10,margin:"4px 0",cursor:"pointer",position:"relative"}}>
+ {b.type==="heading"?<h2 style={{fontSize:27,color:"#243128",margin:"8px 0"}}>{b.content}</h2>:b.type==="text"?<p style={{whiteSpace:"pre-wrap",lineHeight:1.75,color:"#354339"}}>{b.content}</p>:b.type==="button"?<span style={{display:"inline-block",background:main,color:"white",padding:"13px 20px",borderRadius:8,fontWeight:700}}>{b.content}</span>:b.type==="divider"?<hr style={{border:0,borderTop:"1px solid #e1e8de",margin:"16px 0"}}/>:<div style={{height:28}}/>}
+ {selected===b.id&&<div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:8}}>{action("↑",()=>move(i,-1),i===0)}{action("↓",()=>move(i,1),i===blocks.length-1)}{action("Duplicate",()=>onChange([...blocks.slice(0,i+1),{...b,id:crypto.randomUUID()},...blocks.slice(i+1)]))}{action("Remove",()=>{onChange(blocks.filter(x=>x.id!==b.id));setSelected(null)})}</div>}
+ </div>)}</div></div></div>
+ {selected&&blocks.some(b=>b.id===selected)&&<div style={{padding:16,background:"white",border:"1px solid #dce5d8",borderRadius:12}}><strong>Edit selected block</strong>{blocks.filter(b=>b.id===selected).map(b=><div key={b.id} style={{display:"grid",gap:9,marginTop:12}}>{(b.type==="heading"||b.type==="text"||b.type==="button")&&<label style={{fontSize:12}}>Content<textarea aria-label="Block content" rows={b.type==="text"?5:2} value={b.content} onChange={e=>change(b.id,{content:e.target.value})} style={{display:"block",width:"100%",boxSizing:"border-box",padding:12,border:"1px solid #dce5d8",borderRadius:8,fontFamily:"inherit"}}/></label>}{b.type==="button"&&<label style={{fontSize:12}}>Button link<input aria-label="Button link" value={b.url||""} onChange={e=>change(b.id,{url:e.target.value})} style={{display:"block",width:"100%",boxSizing:"border-box",padding:12,border:"1px solid #dce5d8",borderRadius:8}}/></label>}</div>)}</div>}
+ </div>
+}
