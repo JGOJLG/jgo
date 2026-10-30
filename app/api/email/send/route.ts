@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   const audienceGroup = typeof payload.audienceGroup === "string" ? payload.audienceGroup : null;
   // All multi-recipient sends are treated as marketing unless a separately authorized
   // transactional workflow is implemented. Never trust a client-provided opt-in flag.
-  if (uniqueRecipients.length > 1) {
+  if (uniqueRecipients.length > 1 || audienceGroup === "JGO Job Signups") {
     const { data: approved, error: consentError } = await supabase.from("email_contacts")
       .select("email,marketing_opt_in,unsubscribed_at,suppressed_at")
       .in("email", uniqueRecipients.map(r => r.email));
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     const unapproved = uniqueRecipients.filter(r => !eligible.has(r.email));
     if (unapproved.length) return NextResponse.json({ error: `Bulk send blocked: ${unapproved.length} recipient(s) lack verified marketing consent or are suppressed.`, unapprovedCount: unapproved.length }, { status: 400 });
   }
-  const savedMessages: unknown[] = [];
+  if (audienceGroup === "JGO Job Signups") {\n    const {data: profiles,error: profileError}=await supabase.from("jgojob_profiles").select("email").in("email",uniqueRecipients.map(r=>r.email));\n    if(profileError)return NextResponse.json({error:"Unable to verify JGO Job signups. Send blocked."},{status:503});\n    const signupEmails=new Set((profiles||[]).map(p=>String(p.email||"").toLowerCase()));\n    if(uniqueRecipients.some(r=>!signupEmails.has(r.email)))return NextResponse.json({error:"Recipient list includes someone who is not a JGO Job signup. Send blocked."},{status:400});\n  }\n  const savedMessages: unknown[] = [];
   const failures: { email: string; error: string }[] = [];
   for (let index = 0; index < uniqueRecipients.length; index += 10) {
     const chunk = uniqueRecipients.slice(index, index + 10);
