@@ -51,7 +51,7 @@ export async function POST(request: Request) {
   const audienceGroup = typeof payload.audienceGroup === "string" ? payload.audienceGroup : null;
   if (brand === "JGO Job" && audienceGroup && audienceGroup !== "JGO Job Signups") return NextResponse.json({error:"This recipient group belongs to another company."},{status:400});
   if (brand === "JGO Hire" && audienceGroup === "JGO Job Signups") return NextResponse.json({error:"JGO Job recipients cannot be sent from JGO Hire."},{status:400});
-  if (brand === "JGO Job") return NextResponse.json({error:"JGO Job sending is temporarily disabled until its separate verified sender identity and branded email signature are configured. No email was sent."},{status:503});
+  
   // Marketing sends require verified consent. Signup itself is not consent.
   if (uniqueRecipients.length > 1 || audienceGroup === "JGO Job Signups") {
     const {data: contacts,error: contactError}=await supabase.from("email_contacts").select("email,marketing_opt_in,unsubscribed_at,suppressed_at").in("email",uniqueRecipients.map(r=>r.email));
@@ -73,11 +73,11 @@ export async function POST(request: Request) {
     const results = await Promise.all(chunk.map(async (recipient) => {
       const personalizedSubject = personalize(subject, recipient);
       const personalizedHtml = rawHtml ? personalize(rawHtml, recipient) : escapeHtml(personalize(rawBody, recipient)).replaceAll("\n", "<br />");
-      const renderedHtml = wrapEmailHtml(personalizedHtml);
+      const renderedHtml = brand === "JGO Job" ? `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:auto;color:#172033;line-height:1.65">${personalizedHtml}<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:13px;color:#475569">JGO Job | Your Job Search, Organized.<br/><a href="https://jgojob.com">jgojob.com</a></div></div>` : wrapEmailHtml(personalizedHtml);
       const messageText = rawBody ? personalize(rawBody, recipient) : stripHtml(personalizedHtml);
-      const personalizedText = `${messageText}\n\n${jgoTextSignature()}`;
-      const cc = uniqueRecipients.length > 1 || recipient.email.toLowerCase() === JGO_OWNER_EMAIL ? undefined : [JGO_OWNER_EMAIL];
-      const emailResult = await resend.emails.send({ from: `JGO Hire <${JGO_OWNER_EMAIL}>`, to: [recipient.email], cc, replyTo: JGO_OWNER_EMAIL, subject: personalizedSubject, text: personalizedText, html: renderedHtml });
+      const personalizedText = `${messageText}\n\n${brand === "JGO Job" ? "JGO Job | Your Job Search, Organized.\nhttps://jgojob.com" : jgoTextSignature()}`;
+      const cc = brand === "JGO Job" || uniqueRecipients.length > 1 || recipient.email.toLowerCase() === JGO_OWNER_EMAIL ? undefined : [JGO_OWNER_EMAIL];
+      const emailResult = await resend.emails.send({ from: brand === "JGO Job" ? "JGO Job <hello@jgojob.com>" : `JGO Hire <${JGO_OWNER_EMAIL}>`, to: [recipient.email], cc, replyTo: brand === "JGO Job" ? "hello@jgojob.com" : JGO_OWNER_EMAIL, subject: personalizedSubject, text: personalizedText, html: renderedHtml });
       if (emailResult.error) return { ok: false as const, email: recipient.email, error: emailResult.error.message };
       const now = new Date().toISOString();
       const { data: existingContact } = await supabase.from("email_contacts").select("id, email_count, first_contacted_at, name, client_id").eq("email", recipient.email).maybeSingle();
