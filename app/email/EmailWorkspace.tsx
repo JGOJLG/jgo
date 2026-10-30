@@ -12,7 +12,6 @@ type SentEmail = {id:number;client_id:number|null;recipient_name:string|null;rec
 export default function EmailWorkspace(props:{audienceContacts:AudienceContact[];contacts:Contact[];initialEmailContacts:EmailContact[];initialTemplates:Template[];initialSent:SentEmail[]}){
  const [page,setPage]=useState<"home"|"compose"|"templates"|"contacts"|"sent"|"design">("home");
  const [brand,setBrand]=useState<"JGO Hire"|"JGO Job">("JGO Hire");
- const [templateSearch,setTemplateSearch]=useState("");
  const [previous,setPrevious]=useState<typeof page[]>([]);
  const pageRef=useRef(page);
  const pageIds=["home","compose","templates","contacts","sent","design"] as const;
@@ -20,7 +19,8 @@ export default function EmailWorkspace(props:{audienceContacts:AudienceContact[]
  useEffect(()=>{const handler=()=>choose("compose");window.addEventListener("jgo-email-compose",handler);return()=>window.removeEventListener("jgo-email-compose",handler)},[]);
  const nav=[{id:"home",label:"Overview",icon:LayoutDashboard},{id:"compose",label:"Compose",icon:PenLine},{id:"templates",label:"Templates",icon:Files},{id:"contacts",label:"Audience",icon:Users},{id:"sent",label:"Sent",icon:Send}] as const;
  const title=nav.find(n=>n.id===page)?.label||"Email Hub";
- const optedIn=props.audienceContacts.filter(c=>c.optedIn).length;
+ const brandAudience=props.audienceContacts.filter(c=>brand==="JGO Job"?c.groups.includes("JGO Job Signups"):c.groups.some(g=>g!=="JGO Job Signups"));
+ const optedIn=brandAudience.filter(c=>c.optedIn).length;
  const latest=props.initialSent.slice(0,4);
  const choose=(p:typeof page)=>{if(p===pageRef.current)return;setPrevious(prev=>[...prev,pageRef.current]);pageRef.current=p;setPage(p);const url=new URL(window.location.href);if(p==="home")url.searchParams.delete("section");else url.searchParams.set("section",p);window.history.pushState({emailSection:p},"",url.toString());window.scrollTo({top:0,behavior:"instant"});};
  const goBack=()=>{const last=previous[previous.length-1]||"home";setPrevious(prev=>prev.slice(0,-1));pageRef.current=last;setPage(last);const url=new URL(window.location.href);if(last==="home")url.searchParams.delete("section");else url.searchParams.set("section",last);window.history.replaceState({emailSection:last},"",url.toString());window.scrollTo({top:0,behavior:"instant"});};
@@ -38,7 +38,7 @@ export default function EmailWorkspace(props:{audienceContacts:AudienceContact[]
        <div className="mt-6 flex flex-wrap gap-2"><button onClick={()=>choose("compose")} className="rounded-xl bg-[#334e8a] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#253c70]">Create an email</button><button onClick={()=>choose("design")} className="rounded-xl border border-[#cfd9e9] bg-white px-5 py-3 text-sm font-semibold text-[#334e8a] hover:bg-[#f5f7fc]">Design newsletter</button></div>
       </section>
       <section aria-label="Email Hub at a glance" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-       {[{n:props.initialTemplates.length,label:"Saved templates",go:"templates"},{n:props.audienceContacts.length,label:"Total contacts",go:"contacts"},{n:optedIn,label:"Marketing opt-ins",go:"contacts"},{n:props.initialSent.length,label:"Sent emails",go:"sent"}].map(c=><button key={c.label} onClick={()=>choose(c.go as typeof page)} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#b8c8e5] hover:shadow-md sm:p-5"><div className="text-2xl font-bold tabular-nums text-[#293f70] sm:text-3xl">{c.n}</div><div className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">{c.label}</div></button>)}
+       {[{n:brand==="JGO Hire"?props.initialTemplates.length:50,label:"Email templates",go:"templates"},{n:brandAudience.length,label:"Total contacts",go:"contacts"},{n:optedIn,label:"Marketing opt-ins",go:"contacts"},{n:props.initialSent.length,label:"Sent emails",go:"sent"}].map(c=><button key={c.label} onClick={()=>choose(c.go as typeof page)} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#b8c8e5] hover:shadow-md sm:p-5"><div className="text-2xl font-bold tabular-nums text-[#293f70] sm:text-3xl">{c.n}</div><div className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">{c.label}</div></button>)}
       </section>
       <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h3 className="text-base font-bold">Quick access</h3><p className="mt-1 text-sm text-slate-500">Get to what you need in one tap.</p><div className="mt-4 grid gap-2">
