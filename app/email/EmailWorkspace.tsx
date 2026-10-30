@@ -19,7 +19,7 @@ export default function EmailWorkspace(props:{audienceContacts:AudienceContact[]
     <button role="tab" aria-selected={view==="send"} onClick={()=>setView("send")} className={`rounded-lg px-4 py-2.5 text-sm font-bold ${view==="send"?"bg-white text-[#176a55] shadow-sm":"text-[#60746b]"}`}>Compose & send</button>
    </div>
   </div>
-  <div style={{display:view==="studio"?"block":"none"}}><MarketingStudio/></div>
+  <div style={{display:view==="studio"?"block":"none"}}><MarketingStudio legacyTemplates={props.initialTemplates} hubContacts={props.audienceContacts}/></div>
   <div style={{display:view==="send"?"block":"none"}}><EmailHubClient {...props}/></div>
  </div>;
 }
