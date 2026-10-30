@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import EmailHubClient from "./EmailHubClient";
 import MarketingStudio from "../marketing-studio/page";
@@ -10,16 +10,21 @@ type Template = {id:number;name:string;subject:string;body:string};
 type SentEmail = {id:number;client_id:number|null;recipient_name:string|null;recipient_email:string;subject:string;body:string;template_id:number|null;email_tags?:string[];sent_at:string};
 export default function EmailWorkspace(props:{audienceContacts:AudienceContact[];contacts:Contact[];initialEmailContacts:EmailContact[];initialTemplates:Template[];initialSent:SentEmail[]}){
  const [page,setPage]=useState<"home"|"compose"|"templates"|"contacts"|"sent"|"design">("home");
- useEffect(()=>{const handler=()=>setPage("compose");window.addEventListener("jgo-email-compose",handler);return()=>window.removeEventListener("jgo-email-compose",handler)},[]);
- const nav=[{id:"home",label:"Overview",icon:"⌂"},{id:"compose",label:"Create email",icon:"✉"},{id:"templates",label:"Templates",icon:"▤"},{id:"contacts",label:"Audience",icon:"♧"},{id:"sent",label:"Sent emails",icon:"✓"},{id:"design",label:"Email designer",icon:"✦"}] as const;
+ const [previous,setPrevious]=useState<typeof page[]>([]);
+ const pageRef=useRef(page);
+ const pageIds=["home","compose","templates","contacts","sent","design"] as const;
+ useEffect(()=>{const onPop=()=>{const target=new URLSearchParams(window.location.search).get("section");const next=pageIds.find(p=>p===target)||"home";pageRef.current=next;setPage(next);setPrevious([]);};window.addEventListener("popstate",onPop);onPop();return()=>window.removeEventListener("popstate",onPop)},[]);
+ useEffect(()=>{const handler=()=>choose("compose");window.addEventListener("jgo-email-compose",handler);return()=>window.removeEventListener("jgo-email-compose",handler)},[]);
+ const nav=[{id:"home",label:"Overview",icon:"⌂"},{id:"compose",label:"Create email",icon:"✉"},{id:"templates",label:"Templates",icon:"▤"},{id:"contacts",label:"Audience",icon:"♧"},{id:"sent",label:"Sent",icon:"✓"}] as const;
  const title=nav.find(n=>n.id===page)?.label||"Email Hub";
  const optedIn=props.audienceContacts.filter(c=>c.optedIn).length;
  const latest=props.initialSent.slice(0,4);
- const choose=(p:typeof page)=>{setPage(p);};
+ const choose=(p:typeof page)=>{if(p===pageRef.current)return;setPrevious(prev=>[...prev,pageRef.current]);pageRef.current=p;setPage(p);const url=new URL(window.location.href);if(p==="home")url.searchParams.delete("section");else url.searchParams.set("section",p);window.history.pushState({emailSection:p},"",url.toString());window.scrollTo({top:0,behavior:"instant"});};
+ const goBack=()=>{const last=previous[previous.length-1]||"home";setPrevious(prev=>prev.slice(0,-1));pageRef.current=last;setPage(last);const url=new URL(window.location.href);if(last==="home")url.searchParams.delete("section");else url.searchParams.set("section",last);window.history.replaceState({emailSection:last},"",url.toString());window.scrollTo({top:0,behavior:"instant"});};
  return <div className="min-h-screen min-w-0 max-w-full overflow-x-clip bg-[#f7f8fb] pb-28 text-[#253047] md:pb-8">
   <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-8 sm:py-5"><div className="mx-auto flex max-w-[1440px] min-w-0 flex-wrap items-center justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[.15em] text-[#5d8978]">JGO OS / Marketing</p><h1 className="mt-1 text-2xl font-bold tracking-tight">Email Hub</h1><p className="mt-1 text-sm text-slate-500">Your email marketing workspace, made simple.</p></div><button onClick={()=>choose("compose")} className="rounded-xl bg-[#334e8a] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#253c70] sm:px-5 sm:py-3">+ Create email</button></div></div>
   <div className="mx-auto grid min-w-0 max-w-[1440px] gap-4 px-3 py-4 sm:p-6 lg:grid-cols-[210px_minmax(0,1fr)]">
-   <nav aria-label="Email Hub sections" className="grid grid-cols-3 gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-6 lg:sticky lg:top-5 lg:h-fit lg:grid-cols-1 lg:gap-1 lg:p-3">
+   <nav aria-label="Email Hub sections" className="grid grid-cols-5 gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-5 lg:sticky lg:top-5 lg:h-fit lg:grid-cols-1 lg:gap-1 lg:p-3">
     {nav.map(n=><button key={n.id} onClick={()=>choose(n.id)} aria-current={page===n.id?"page":undefined} className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2.5 text-center text-[11px] font-semibold transition-colors sm:text-xs lg:flex-row lg:justify-start lg:gap-3 lg:px-4 lg:py-3 lg:text-left lg:text-sm ${page===n.id?"bg-[#e9eef9] text-[#294b8c]":"text-slate-600 hover:bg-slate-100"}`}><span aria-hidden="true" className="text-center text-lg lg:w-5 lg:text-base">{n.icon}</span>{n.label}</button>)}
    </nav>
    <main className="min-w-0 max-w-full">
@@ -38,7 +43,7 @@ export default function EmailWorkspace(props:{audienceContacts:AudienceContact[]
        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold">Recently sent</h3><button onClick={()=>choose("sent")} className="text-xs font-semibold text-[#334e8a]">View all</button></div><p className="mt-1 text-sm text-slate-500">Your latest outgoing messages.</p><div className="mt-4 divide-y divide-slate-100">{latest.length?latest.map(m=><div key={m.id} className="min-w-0 py-3 first:pt-0"><p className="truncate text-sm font-semibold">{m.subject||"Untitled email"}</p><p className="mt-1 truncate text-xs text-slate-500">{m.recipient_email} · {new Date(m.sent_at).toLocaleDateString()}</p></div>):<p className="py-5 text-sm text-slate-500">No sent emails yet. Your recent activity will appear here.</p>}</div></section>
       </div>
      </div> : <>
-      <div className="mb-4"><button type="button" onClick={()=>choose("home")} className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#334e8a] shadow-sm hover:bg-[#f1f4fb]"><span aria-hidden="true">←</span> Back to Email Hub</button><h2 className="text-xl font-bold">{title}</h2><p className="mt-1 text-sm text-slate-500">{page==="design"?"Create beautiful emails or edit your saved Studio campaigns.":page==="templates"?"Your saved templates, ready to reuse.":page==="contacts"?"Manage your contact lists and recipients.":page==="sent"?"See the messages you have sent.":"Write and send your next email."}</p></div>
+      <div className="mb-4"><button type="button" onClick={goBack} className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#334e8a] shadow-sm hover:bg-[#f1f4fb]"><span aria-hidden="true">←</span> Back</button><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-bold">{title}</h2>{page==="compose"&&<button onClick={()=>choose("design")} className="rounded-lg border border-[#d7dfed] bg-white px-3 py-2 text-xs font-semibold text-[#334e8a]">Open visual designer</button>}{page==="design"&&<button onClick={()=>choose("compose")} className="rounded-lg border border-[#d7dfed] bg-white px-3 py-2 text-xs font-semibold text-[#334e8a]">Write a simple email</button>}</div><p className="mt-1 text-sm text-slate-500">{page==="design"?"Create beautiful emails or edit your saved Studio campaigns.":page==="templates"?"Your saved templates, ready to reuse.":page==="contacts"?"Manage your contact lists and recipients.":page==="sent"?"See the messages you have sent.":"Write and send your next email."}</p></div>
       <div style={{display:page==="design"?"block":"none"}} className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white"><MarketingStudio legacyTemplates={props.initialTemplates} hubContacts={props.audienceContacts}/></div>
       <div style={{display:page!=="design"?"block":"none"}} className="overflow-hidden rounded-2xl border border-[#e5ebe7] bg-white">{page!=="design"&&<EmailHubClient key={page} {...props} activeTab={page==="templates"?"templates":page==="contacts"?"contacts":page==="sent"?"sent":"compose"} compact/>}</div>
      </>}
