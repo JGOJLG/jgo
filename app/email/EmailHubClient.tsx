@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AudienceContact } from "./AudiencePicker";
 import { createEmailTemplate, deleteEmailTemplate } from "./actions";
@@ -49,6 +49,8 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
   const [previewRecipientIndex, setPreviewRecipientIndex] = useState(0);
   const [contactSearch, setContactSearch] = useState("");
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
+
+  useEffect(()=>{const handle=(event:Event)=>{const detail=(event as CustomEvent<{subject:string;body:string;brand:"JGO Hire"|"JGO Job"}>).detail;if(!detail)return;setTab("compose");setSubject(detail.subject||"");setBody(detail.body||"");setBodyHtml("");setRecipients([]);setRecipientMode("group");setRecipientGroup(detail.brand==="JGO Job"?"JGO Job Signups":"JGO Hire Clients");setNotice("Draft loaded. Choose recipients and review carefully before sending.");};window.addEventListener("jgo-email-compose",handle);return()=>window.removeEventListener("jgo-email-compose",handle)},[]);
 
   const matches = useMemo(() => {
     const q = recipientSearch.trim().toLowerCase();
