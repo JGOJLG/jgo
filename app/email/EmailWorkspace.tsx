@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import EmailHubClient from "./EmailHubClient";
 import MarketingStudio from "../marketing-studio/page";
@@ -9,7 +9,7 @@ type AudienceContact = {email:string;name:string;clientId:number|null;groups:str
 type Template = {id:number;name:string;subject:string;body:string};
 type SentEmail = {id:number;client_id:number|null;recipient_name:string|null;recipient_email:string;subject:string;body:string;template_id:number|null;email_tags?:string[];sent_at:string};
 export default function EmailWorkspace(props:{audienceContacts:AudienceContact[];contacts:Contact[];initialEmailContacts:EmailContact[];initialTemplates:Template[];initialSent:SentEmail[]}){
- const [view,setView]=useState<"studio"|"send">("studio");
+ const [view,setView]=useState<"studio"|"send">("studio");\n useEffect(()=>{const handler=()=>setView("send");window.addEventListener("jgo-email-compose",handler);return()=>window.removeEventListener("jgo-email-compose",handler)},[]);
  return <div className="min-w-0">
   <div className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 border-b border-[#dce6df] bg-white/95 px-5 py-4 backdrop-blur sm:px-8">
    <div><div className="text-[11px] font-bold uppercase tracking-[.16em] text-[#27826b]">JGO OS</div><h1 className="text-xl font-extrabold tracking-tight text-[#193b32]">Email Hub</h1><p className="text-xs text-slate-500">One home for your emails, templates, contacts and sending.</p></div>
