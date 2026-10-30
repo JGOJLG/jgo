@@ -37,7 +37,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
   const [recipientGroup, setRecipientGroup] = useState(selectedBrand === "JGO Job" ? "JGO Job Signups" : "JGO Hire Clients");
   const [body, setBody] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
-  const [templates, setTemplates] = useState(initialTemplates);
+  const [templates, setTemplates] = useState(selectedBrand === "JGO Hire" ? initialTemplates : []);
   const [sent, setSent] = useState(initialSent);
   const [templateName, setTemplateName] = useState("");
   const [notice, setNotice] = useState("");
@@ -71,7 +71,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
   }, [contactSearch, brandEmailContacts]);
 
   const selectedContact = useMemo(() => brandEmailContacts.find((c) => c.email === selectedEmail) || null, [brandEmailContacts, selectedEmail]);
-  const selectedHistory = useMemo(() => selectedEmail ? sent.filter((m) => m.recipient_email.toLowerCase() === selectedEmail.toLowerCase()) : [], [sent, selectedEmail]);
+  const selectedHistory = useMemo(() => selectedEmail ? sent.filter((m) => m.recipient_email.toLowerCase() === selectedEmail.toLowerCase() && ((m.email_tags || []).includes(selectedBrand) || (selectedBrand === "JGO Hire" && !(m.email_tags || []).includes("JGO Job")))) : [], [sent, selectedEmail, selectedBrand]);
 
   const sentGroups = useMemo<SentGroup[]>(() => {
     const groups: SentGroup[] = [];
