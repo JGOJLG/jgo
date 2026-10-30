@@ -33,7 +33,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [subject, setSubject] = useState("");
   const [recipientMode, setRecipientMode] = useState<"person" | "group">("person");
-  const [recipientGroup, setRecipientGroup] = useState("Survival Guide");
+  const [recipientGroup, setRecipientGroup] = useState("JGO Hire Clients");
   const [body, setBody] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [templates, setTemplates] = useState(initialTemplates);
@@ -135,7 +135,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
     setRecipientGroup(group);
     const people = audienceContacts.filter(c => group === "All" || c.groups.includes(group));
     setRecipients(people.map(c => ({ email: c.email, name: c.name, clientId: c.clientId })));
-    setNotice(`${people.length} unique people selected from ${group}. You can remove anyone before sending. Marketing consent is checked when sending.`);
+    setNotice(`${people.length} unique people selected from ${group}. You can remove anyone before sending. Marketing consent is verified before bulk sending.`);
   }
   function chooseRecipientMode(mode: "person" | "group") {
     setRecipientMode(mode);
@@ -233,11 +233,11 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
                 <button type="button" onClick={() => chooseRecipientMode("group")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${recipientMode === "group" ? "bg-[#647d5b] text-white" : "text-[#52684b]"}`}>Group</button>
               </div>
               {recipientMode === "group" && <select aria-label="Select recipient group" value={recipientGroup} onChange={e => chooseGroup(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-[#d7e1d0] bg-white px-4 py-2.5 text-sm">
-                <option value="Survival Guide">Survival Guide Signups</option>
+                <option value="JGO Hire Clients">JGO Hire Clients (Portal)</option>\n                <option value="JGO Job Signups">JGO Job Signups (App)</option>\n                <option value="Survival Guide">Survival Guide Signups</option>
                 <option value="Leads">Leads</option>
-                <option value="Clients">Clients</option>
+                
                 <option value="Email Contacts">Email Contacts</option>
-                <option value="All">All Contacts</option>
+                
               </select>}
               {recipientMode === "group" && <span className="text-xs text-[#647d5b]">{recipients.length} selected</span>}
             </div>
