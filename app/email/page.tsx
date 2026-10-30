@@ -60,8 +60,10 @@ export default async function EmailHubPage() {
   const addAudience = (value: string | null | undefined, name: string | null | undefined, clientId: number | null, group: string, optedIn = false) => {
     const email = (value || "").trim().toLowerCase();
     if (!email || !email.includes("@")) return;
-    const prior = audienceMap.get(email);
-    audienceMap.set(email, { email, name: prior?.name || name || "", clientId: prior?.clientId ?? clientId, groups: Array.from(new Set([...(prior?.groups || []), group])), optedIn: Boolean(prior?.optedIn || optedIn) });
+    const brand = group === "JGO Job Signups" ? "JGO Job" : "JGO Hire";
+    const key = `${brand}:${email}`;
+    const prior = audienceMap.get(key);
+    audienceMap.set(key, { email, name: prior?.name || name || "", clientId: prior?.clientId ?? clientId, groups: Array.from(new Set([...(prior?.groups || []), group])), optedIn: Boolean(prior?.optedIn || optedIn) });
   };
   for (const c of clientContacts) addAudience(c.email, c.name, c.id, "JGO Hire Clients");
   for (const c of jobSignupsResult.data || []) addAudience(c.email, c.first_name, null, "JGO Job Signups",c.marketing_email_opt_in===true);
