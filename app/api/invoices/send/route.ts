@@ -7,7 +7,8 @@ import { jgoEmailSignature, jgoTextSignature } from "@/lib/emailSignature";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const stripe = process.env.JGO_HIRE_STRIPE_SECRET_KEY ? new Stripe(process.env.JGO_HIRE_STRIPE_SECRET_KEY) : null;
+const EXPECTED_STRIPE_ACCOUNT = "acct_1UWMh0GTU8IAq7cj";
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const JGO_OWNER_EMAIL = "jen@jgohire.com";
 const VENMO_HANDLE = "@jengordon";
@@ -22,7 +23,7 @@ const esc = (v:string)=>v.replaceAll("&","&amp;").replaceAll("<","&lt;").replace
 const currency=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
 
 export async function POST(request:Request){
- if(!stripe)return NextResponse.json({error:"Stripe is not configured.",detail:"Missing STRIPE_SECRET_KEY."},{status:500});
+ if(!stripe)return NextResponse.json({error:"JGO Hire Stripe is not configured.",detail:"Missing JGO_HIRE_STRIPE_SECRET_KEY. Invoice was not sent."},{status:503});
  if(!resend)return NextResponse.json({error:"Email is not configured.",detail:"Missing RESEND_API_KEY."},{status:500});
  let body:InvoiceRequest;try{body=await request.json()}catch{return NextResponse.json({error:"Invalid request body."},{status:400})}
  const clientId=Number(body.clientId),clientName=String(body.clientName||"").trim(),clientEmail=String(body.clientEmail||"").trim().toLowerCase(),service=String(body.service||"").trim(),price=Number(body.price),message=String(body.message||"").trim();
@@ -33,6 +34,8 @@ export async function POST(request:Request){
  if(clientError||!client)return NextResponse.json({error:"Client could not be found.",detail:clientError?.message},{status:404});
  const base=Math.round(price*100),cardCents=Math.ceil((base+CARD_FIXED_FEE_CENTS)/(1-CARD_FEE_RATE)),fee=(cardCents-base)/100,cardTotal=cardCents/100;
  try{
+  const account=await stripe.accounts.retrieve();
+  if(account.id!==EXPECTED_STRIPE_ACCOUNT){console.error("JGO Hire Stripe account mismatch",{expected:EXPECTED_STRIPE_ACCOUNT,actual:account.id});return NextResponse.json({error:"Incorrect JGO Hire Stripe account configured. Invoice not sent."},{status:503});}
   const checkout=await stripe.checkout.sessions.create({mode:"payment",customer_email:clientEmail,client_reference_id:String(clientId),success_url:"https://www.jgohire.com/?payment=success",cancel_url:"https://www.jgohire.com/?payment=cancelled",line_items:[{quantity:1,price_data:{currency:"usd",unit_amount:cardCents,product_data:{name:`JGO Hire: ${service}`,description:`${currency(price)} service + ${currency(fee)} Stripe payment processing fee`}}}],metadata:{source:"jgo_os_invoice",client_id:String(clientId),client_name:clientName,client_email:clientEmail,service,base_price:price.toFixed(2),card_fee:fee.toFixed(2)}});
   if(!checkout.url)throw new Error("Stripe did not return a checkout URL.");
   const{data:existing,error:lookupError}=await supabase.from("client_services").select("id,payment_status").eq("client_id",clientId).eq("service",service).order("date_added",{ascending:false}).limit(10);if(lookupError)throw new Error(lookupError.message);
