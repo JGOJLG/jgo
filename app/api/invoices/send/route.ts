@@ -37,7 +37,9 @@ export async function POST(request:Request){
  if(clientError||!client)return NextResponse.json({error:"Client could not be found.",detail:clientError?.message},{status:404});
  const base=Math.round(price*100),cardCents=Math.ceil((base+CARD_FIXED_FEE_CENTS)/(1-CARD_FEE_RATE)),fee=(cardCents-base)/100,cardTotal=cardCents/100;
  try{
-  const account=await stripe.accounts.retrieve();
+  const accountResponse=await fetch("https://api.stripe.com/v1/account",{headers:{Authorization:`Bearer ${process.env.JGO_HIRE_STRIPE_SECRET_KEY}`},cache:"no-store"});
+  if(!accountResponse.ok){console.error("Unable to verify JGO Hire Stripe account",{status:accountResponse.status});return NextResponse.json({error:"Unable to verify JGO Hire Stripe account. Invoice not sent."},{status:503});}
+  const account=(await accountResponse.json()) as {id?:string};
   if(account.id!==EXPECTED_STRIPE_ACCOUNT){console.error("JGO Hire Stripe account mismatch",{expected:EXPECTED_STRIPE_ACCOUNT,actual:account.id});return NextResponse.json({error:"Incorrect JGO Hire Stripe account configured. Invoice not sent."},{status:503});}
   const checkout=await stripe.checkout.sessions.create({mode:"payment",customer_email:clientEmail,client_reference_id:String(clientId),success_url:"https://www.jgohire.com/?payment=success",cancel_url:"https://www.jgohire.com/?payment=cancelled",line_items:[{quantity:1,price_data:{currency:"usd",unit_amount:cardCents,product_data:{name:`JGO Hire: ${service}`,description:`${currency(price)} service + ${currency(fee)} Stripe payment processing fee`}}}],metadata:{source:"jgo_os_invoice",client_id:String(clientId),client_name:clientName,client_email:clientEmail,service,base_price:price.toFixed(2),card_fee:fee.toFixed(2)}});
   if(!checkout.url)throw new Error("Stripe did not return a checkout URL.");
