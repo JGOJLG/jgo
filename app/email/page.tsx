@@ -22,7 +22,7 @@ export default async function EmailHubPage() {
     supabase.from("email_messages").select("id, client_id, recipient_name, recipient_email, subject, body, template_id, email_tags, sent_at").order("sent_at", { ascending: false }).limit(500),
     supabase.from("job_search_guide_leads").select("email,first_name"),
     supabase.from("intake_calls").select("email,name"),
-    supabase.from("jgojob_profiles").select("email,first_name"),
+    supabase.from("jgojob_profiles").select("email,first_name,marketing_email_opt_in"),
   ]);
 
   const clientContacts = ((contactsResult.data ?? []) as Contact[]).filter((contact) => contact.email?.trim());
@@ -64,7 +64,7 @@ export default async function EmailHubPage() {
     audienceMap.set(email, { email, name: prior?.name || name || "", clientId: prior?.clientId ?? clientId, groups: Array.from(new Set([...(prior?.groups || []), group])), optedIn: Boolean(prior?.optedIn || optedIn) });
   };
   for (const c of clientContacts) addAudience(c.email, c.name, c.id, "JGO Hire Clients");
-  for (const c of jobSignupsResult.data || []) addAudience(c.email, c.first_name, null, "JGO Job Signups");
+  for (const c of jobSignupsResult.data || []) addAudience(c.email, c.first_name, null, "JGO Job Signups",c.marketing_email_opt_in===true);
   for (const c of emailContacts) addAudience(c.email, c.name, c.client_id, "Email Contacts", c.marketing_opt_in);
   for (const c of signupsResult.data || []) addAudience(c.email, c.first_name, null, "Survival Guide");
   for (const c of leadsResult.data || []) addAudience(c.email, c.name, null, "Leads");
