@@ -53,20 +53,24 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
 
   useEffect(()=>{const handle=(event:Event)=>{const detail=(event as CustomEvent<{subject:string;body:string;brand:"JGO Hire"|"JGO Job"}>).detail;if(!detail)return;setTab("compose");setSubject(detail.subject||"");setBody(detail.body||"");setBodyHtml("");setRecipients([]);setRecipientMode("group");setRecipientGroup(detail.brand==="JGO Job"?"JGO Job Signups":"JGO Hire Clients");setNotice("Draft loaded. Choose recipients and review carefully before sending.");};window.addEventListener("jgo-email-compose",handle);return()=>window.removeEventListener("jgo-email-compose",handle)},[]);
 
+  // Brand-scoped audience: never expose the other company's contacts in this workspace.
+  const brandEmails = useMemo(() => new Set(audienceContacts.filter(c => selectedBrand === "JGO Job" ? c.groups.includes("JGO Job Signups") : c.groups.some(g => g !== "JGO Job Signups")).map(c => c.email.trim().toLowerCase())), [audienceContacts, selectedBrand]);
+  const brandContacts = useMemo(() => contacts.filter(c => c.email && brandEmails.has(c.email.trim().toLowerCase())), [contacts, brandEmails]);
+  const brandEmailContacts = useMemo(() => initialEmailContacts.filter(c => brandEmails.has(c.email.trim().toLowerCase())), [initialEmailContacts, brandEmails]);
   const matches = useMemo(() => {
     const q = recipientSearch.trim().toLowerCase();
     if (!q) return [];
     const selected = new Set(recipients.map((r) => r.email));
-    return contacts.filter((c) => c.email && !selected.has(c.email.toLowerCase()) && `${c.name || ""} ${c.email} ${c.company || ""}`.toLowerCase().includes(q)).slice(0, 8);
-  }, [recipientSearch, contacts, recipients]);
+    return brandContacts.filter((c) => c.email && !selected.has(c.email.toLowerCase()) && `${c.name || ""} ${c.email} ${c.company || ""}`.toLowerCase().includes(q)).slice(0, 8);
+  }, [recipientSearch, brandContacts, recipients]);
 
   const filteredEmailContacts = useMemo(() => {
     const q = contactSearch.trim().toLowerCase();
-    if (!q) return initialEmailContacts;
-    return initialEmailContacts.filter((c) => `${c.name || ""} ${c.email} ${c.company || ""}`.toLowerCase().includes(q));
-  }, [contactSearch, initialEmailContacts]);
+    if (!q) return brandEmailContacts;
+    return brandEmailContacts.filter((c) => `${c.name || ""} ${c.email} ${c.company || ""}`.toLowerCase().includes(q));
+  }, [contactSearch, brandEmailContacts]);
 
-  const selectedContact = useMemo(() => initialEmailContacts.find((c) => c.email === selectedEmail) || null, [initialEmailContacts, selectedEmail]);
+  const selectedContact = useMemo(() => brandEmailContacts.find((c) => c.email === selectedEmail) || null, [brandEmailContacts, selectedEmail]);
   const selectedHistory = useMemo(() => selectedEmail ? sent.filter((m) => m.recipient_email.toLowerCase() === selectedEmail.toLowerCase()) : [], [sent, selectedEmail]);
 
   const sentGroups = useMemo<SentGroup[]>(() => {
@@ -136,7 +140,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
 
   function chooseGroup(group: string) {
     setRecipientGroup(group);
-    const people = audienceContacts.filter(c => group === "All" || c.groups.includes(group));
+    const people = audienceContacts.filter(c => brandEmails.has(c.email.trim().toLowerCase()) && (group === "All" || c.groups.includes(group)));
     setRecipients(people.map(c => ({ email: c.email, name: c.name, clientId: c.clientId })));
     setNotice(`${people.length} unique people selected from ${group}. You can remove anyone before sending. Marketing consent is verified before bulk sending.`);
   }
@@ -148,11 +152,11 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
   }
   function addRecipient(recipient: Recipient) { if (!isEmail(recipient.email)) return; setRecipients((current) => current.some((r) => r.email === recipient.email.toLowerCase()) ? current : [...current, { ...recipient, email: recipient.email.toLowerCase() }]); setRecipientSearch(""); }
   function addTypedRecipient() { const email = recipientSearch.trim().toLowerCase(); if (!isEmail(email)) return setNotice("Type a valid email address, then press Enter or Add."); addRecipient({ clientId: null, name: "", email }); setNotice(""); }
-  function addAllContacts() { const all = contacts.filter((c) => c.email && isEmail(c.email)).map((c) => ({ clientId: c.id, name: c.name || "", email: c.email!.toLowerCase() })); const unique = Array.from(new Map(all.map((r) => [r.email, r])).values()); setRecipients(unique); setRecipientSearch(""); setNotice(`Added ${unique.length} JGO OS contacts. Review the recipient count before sending.`); }
+  function addAllContacts() { const all = brandContacts.filter((c) => c.email && isEmail(c.email)).map((c) => ({ clientId: c.id, name: c.name || "", email: c.email!.toLowerCase() })); const unique = Array.from(new Map(all.map((r) => [r.email, r])).values()); setRecipients(unique); setRecipientSearch(""); setNotice(`Added ${unique.length} ${selectedBrand} contacts. Review the recipient count before sending.`); }
   function removeRecipient(email: string) { setRecipients((current) => current.filter((r) => r.email !== email)); }
 
   function resetDraft(success?: string) {
-    setRecipients([]); setRecipientSearch(""); setSubject(""); setRecipientMode("person"); setRecipientGroup("Survival Guide"); setBody(""); setBodyHtml(""); setActiveTemplateId(null); setTemplateName(""); setTab("compose"); setSelectedEmail(null);
+    setRecipients([]); setRecipientSearch(""); setSubject(""); setRecipientMode("person"); setRecipientGroup(selectedBrand === "JGO Job" ? "JGO Job Signups" : "JGO Hire Clients"); setBody(""); setBodyHtml(""); setActiveTemplateId(null); setTemplateName(""); setTab("compose"); setSelectedEmail(null);
     if (editorRef.current) editorRef.current.innerHTML = "";
     setNotice(success || "");
   }
@@ -218,7 +222,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
   const previewEscape = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
   const previewHtml = wrapEmailHtml(previewPersonalize(normalizeJgoJobHeadline(bodyHtml.trim() || previewEscape(body).replaceAll("\\n", "<br />"))));
 
-  const tabs: { id: Tab; label: string }[] = [{ id: "compose", label: "Compose" }, { id: "contacts", label: `Contacts (${initialEmailContacts.length})` }, { id: "templates", label: "Templates" }, { id: "sent", label: sent.length ? `Sent (${sent.length})` : "Sent" }];
+  const tabs: { id: Tab; label: string }[] = [{ id: "compose", label: "Compose" }, { id: "contacts", label: `Contacts (${brandEmailContacts.length})` }, { id: "templates", label: "Templates" }, { id: "sent", label: sent.length ? `Sent (${sent.length})` : "Sent" }];
 
   return (
     <section className="min-h-0 min-w-0 max-w-full overflow-x-clip bg-white pb-6 text-[#253047]">
@@ -236,10 +240,10 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
                 <button type="button" onClick={() => chooseRecipientMode("group")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${recipientMode === "group" ? "bg-[#334e8a] text-white" : "text-slate-600"}`}>Group</button>
               </div>
               {recipientMode === "group" && <select aria-label="Select recipient group" value={recipientGroup} onChange={e => chooseGroup(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-[#dce3ee] bg-white px-4 py-2.5 text-sm">
-                <option value="JGO Hire Clients">JGO Hire Clients (Portal)</option>\n                <option value="JGO Job Signups">JGO Job Signups (App)</option>\n                <option value="Survival Guide">Survival Guide Signups</option>
-                <option value="Leads">Leads</option>
+                {selectedBrand === "JGO Hire" && <option value="JGO Hire Clients">JGO Hire Clients (Portal)</option>}\n                {selectedBrand === "JGO Job" && <option value="JGO Job Signups">JGO Job Signups (App)</option>}\n                {selectedBrand === "JGO Hire" && <option value="Survival Guide">Survival Guide Signups</option>}
+                {selectedBrand === "JGO Hire" && <option value="Leads">Leads</option>}
                 
-                <option value="Email Contacts">Email Contacts</option>
+                {selectedBrand === "JGO Hire" && <option value="Email Contacts">Email Contacts</option>}
                 
               </select>}
               {recipientMode === "group" && <span className="text-xs text-[#334e8a]">{recipients.length} selected</span>}
