@@ -24,7 +24,7 @@ function plainToHtml(value: string) { return value.split(/\n{2,}/).map((p) => `<
 function formatDate(value: string | null) { if (!value) return "Never"; return new Date(value).toLocaleString(); }
 function templatePreview(value: string) { return value.startsWith(HTML_TEMPLATE_PREFIX) ? stripHtml(value.slice(HTML_TEMPLATE_PREFIX.length)) : value; }
 
-export default function EmailHubClient({ audienceContacts, contacts, initialEmailContacts, initialTemplates, initialSent, activeTab, compact = false }: { activeTab?: Tab; compact?: boolean; audienceContacts: AudienceContact[]; contacts: Contact[]; initialEmailContacts: EmailContact[]; initialTemplates: Template[]; initialSent: SentEmail[] }) {
+export default function EmailHubClient({ audienceContacts, contacts, initialEmailContacts, initialTemplates, initialSent, activeTab, compact = false, selectedBrand = "JGO Hire" }: { activeTab?: Tab; compact?: boolean; selectedBrand?: "JGO Hire" | "JGO Job"; audienceContacts: AudienceContact[]; contacts: Contact[]; initialEmailContacts: EmailContact[]; initialTemplates: Template[]; initialSent: SentEmail[] }) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -34,7 +34,7 @@ export default function EmailHubClient({ audienceContacts, contacts, initialEmai
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [subject, setSubject] = useState("");
   const [recipientMode, setRecipientMode] = useState<"person" | "group">("person");
-  const [recipientGroup, setRecipientGroup] = useState("JGO Hire Clients");
+  const [recipientGroup, setRecipientGroup] = useState(selectedBrand === "JGO Job" ? "JGO Job Signups" : "JGO Hire Clients");
   const [body, setBody] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [templates, setTemplates] = useState(initialTemplates);
