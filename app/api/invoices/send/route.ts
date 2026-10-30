@@ -30,7 +30,10 @@ export async function POST(request:Request){
  if(!Number.isInteger(clientId)||clientId<=0)return NextResponse.json({error:"Invalid client ID."},{status:400});
  if(!clientName||!clientEmail||!service)return NextResponse.json({error:"Client name, client email, and service are required."},{status:400});
  if(!Number.isFinite(price)||price<=0||price>100000)return NextResponse.json({error:"Enter a valid invoice price."},{status:400});
- const supabase=await createClient();const{data:client,error:clientError}=await supabase.from("clients").select("id,name,email,status").eq("id",clientId).maybeSingle();
+ const supabase=await createClient();
+ const {data:{user},error:authError}=await supabase.auth.getUser();
+ if(authError||!user)return NextResponse.json({error:"Sign in to JGO OS before sending invoices."},{status:401});
+ const{data:client,error:clientError}=await supabase.from("clients").select("id,name,email,status").eq("id",clientId).maybeSingle();
  if(clientError||!client)return NextResponse.json({error:"Client could not be found.",detail:clientError?.message},{status:404});
  const base=Math.round(price*100),cardCents=Math.ceil((base+CARD_FIXED_FEE_CENTS)/(1-CARD_FEE_RATE)),fee=(cardCents-base)/100,cardTotal=cardCents/100;
  try{
