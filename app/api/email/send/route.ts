@@ -13,7 +13,7 @@ const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const JGO_OWNER_EMAIL = "jen@jgohire.com";
 
 type Recipient = { clientId?: number | null; name?: string; email?: string };
-type EmailRequest = { recipients?: Recipient[]; subject?: string; body?: string; bodyHtml?: string; templateId?: number | null; emailTags?: string[]; audienceGroup?: string | null };
+type EmailRequest = { brand?: "JGO Hire" | "JGO Job"; recipients?: Recipient[]; subject?: string; body?: string; bodyHtml?: string; templateId?: number | null; emailTags?: string[]; audienceGroup?: string | null };
 
 function escapeHtml(value: string) { return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function isEmail(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); }
@@ -26,6 +26,7 @@ export async function POST(request: Request) {
   if (!resend) return NextResponse.json({ error: "Email is not configured.", detail: "Missing RESEND_API_KEY." }, { status: 500 });
   let payload: EmailRequest;
   try { payload = (await request.json()) as EmailRequest; } catch { return NextResponse.json({ error: "Invalid request body." }, { status: 400 }); }
+  const brand = payload.brand === "JGO Job" ? "JGO Job" : "JGO Hire";
   const subject = String(payload.subject || "").trim();
   const rawBody = normalizeJgoJobHeadline(String(payload.body || "").trim());
   const rawHtml = normalizeJgoJobHeadline(String(payload.bodyHtml || "").trim());
@@ -45,8 +46,12 @@ export async function POST(request: Request) {
     templateLabel = selectedTemplate.name;
   }
   const emailTags = Array.isArray(payload.emailTags) ? [...new Set(payload.emailTags.filter((tag): tag is string => typeof tag === "string").map(tag => tag.trim().slice(0, 60)).filter(Boolean))].slice(0, 20) : [];
+  if (!emailTags.includes(brand)) emailTags.unshift(brand);
   if (templateLabel && !emailTags.includes(templateLabel)) emailTags.unshift(templateLabel);
   const audienceGroup = typeof payload.audienceGroup === "string" ? payload.audienceGroup : null;
+  if (brand === "JGO Job" && audienceGroup && audienceGroup !== "JGO Job Signups") return NextResponse.json({error:"This recipient group belongs to another company."},{status:400});
+  if (brand === "JGO Hire" && audienceGroup === "JGO Job Signups") return NextResponse.json({error:"JGO Job recipients cannot be sent from JGO Hire."},{status:400});
+  if (brand === "JGO Job") return NextResponse.json({error:"JGO Job sending is temporarily disabled until its separate verified sender identity and branded email signature are configured. No email was sent."},{status:503});
   // Marketing sends require verified consent. Signup itself is not consent.
   if (uniqueRecipients.length > 1 || audienceGroup === "JGO Job Signups") {
     const {data: contacts,error: contactError}=await supabase.from("email_contacts").select("email,marketing_opt_in,unsubscribed_at,suppressed_at").in("email",uniqueRecipients.map(r=>r.email));
