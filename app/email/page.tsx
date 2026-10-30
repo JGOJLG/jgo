@@ -3,7 +3,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 import { createClient } from "@/lib/supabase-server";
-import EmailHubClient from "./EmailHubClient";
+import EmailWorkspace from "./EmailWorkspace";
 import TemplateDeleteGuard from "./TemplateDeleteGuard";
 import EmailSuccessBridge from "./EmailSuccessBridge";
 
@@ -75,7 +75,7 @@ export default async function EmailHubPage() {
       <div className="fixed right-6 top-5 z-[90] hidden sm:block">
         <Link href="/email/templates" className="rounded-xl border border-[#cbd8c4] bg-white px-4 py-2.5 text-sm font-bold text-[#4d6247] shadow-sm hover:bg-[#f5f7f2]">Edit Templates</Link>
       </div>
-      <EmailHubClient audienceContacts={audienceContacts} contacts={contacts} initialEmailContacts={emailContacts} initialTemplates={(templatesResult.data ?? []) as EmailTemplateRow[]} initialSent={messages} />
+      <EmailWorkspace audienceContacts={audienceContacts} contacts={contacts} initialEmailContacts={emailContacts} initialTemplates={(templatesResult.data ?? []) as EmailTemplateRow[]} initialSent={messages} />
       <div className="fixed bottom-5 right-5 z-[90] sm:hidden">
         <Link href="/email/templates" className="rounded-full bg-[#647d5b] px-4 py-3 text-sm font-bold text-white shadow-lg">Edit Templates</Link>
       </div>
